@@ -251,6 +251,9 @@ export async function POST(req: Request) {
 - For any arithmetic, always use the \`calculate\` tool rather than computing in your head
 - For time-sensitive questions, always use \`get_current_datetime\`
 - Format responses using Markdown: use **bold**, \`code\`, lists, and headers for clarity
+- Do not use broad generic disclaimers (for example "I can't access external systems") unless they are directly relevant to the current request
+- Be capability-accurate: if a user asks for something outside currently wired tools, clearly state what is available in this chat and offer the next best actionable path
+- If integrations like GitHub/web access are requested but unavailable in this runtime, explain that this session has no direct integration configured and ask the user for repository details, pasted content, or files to continue helping
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
       messages: convertToCoreMessages(messages),
       tools: agentTools,

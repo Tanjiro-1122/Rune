@@ -171,12 +171,14 @@ export function Chat() {
     handleSubmit,
     status,
     setMessages,
+    setInput,
   } = useChat({ body: { conversationId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [fileError, setFileError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load or create a session ID and fetch conversation history on mount.
@@ -324,6 +326,14 @@ export function Chat() {
     clearAttachments();
   }
 
+  const showTypingIndicator =
+    isLoading && messages[messages.length - 1]?.role !== "assistant";
+
+  function fillStarterPrompt(prompt: string) {
+    if (isLoading) return;
+    setInput(prompt);
+  }
+
   return (
     <div className="chat">
       <div className="chat-header">
@@ -355,6 +365,35 @@ export function Chat() {
               <span className="pill">📋 Task planning</span>
               <span className="pill">🕐 Date &amp; time</span>
               <span className="pill">📎 File analysis</span>
+            </div>
+            <div className="starter-actions">
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() => fillStarterPrompt("Plan my day in 5 practical steps.")}
+              >
+                Plan my day
+              </button>
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() =>
+                  fillStarterPrompt("Calculate 18% tip on $64.50 and total.")
+                }
+              >
+                Quick calculation
+              </button>
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() =>
+                  fillStarterPrompt(
+                    "I need help reviewing a GitHub repo. What details should I share so you can help effectively?"
+                  )
+                }
+              >
+                Repo help prompt
+              </button>
             </div>
           </div>
         ) : (
@@ -423,6 +462,21 @@ export function Chat() {
             </div>
           ))
         )}
+        {showTypingIndicator && (
+          <div className="message assistant message--typing">
+            <div className="message-role">Jarvis</div>
+            <div
+              className="typing-indicator"
+              role="status"
+              aria-live="polite"
+              aria-label="Jarvis is thinking"
+            >
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -460,7 +514,7 @@ export function Chat() {
 
       {fileError && <div className="file-error">{fileError}</div>}
 
-      <form className="input-form" onSubmit={handleFormSubmit}>
+      <form ref={formRef} className="input-form" onSubmit={handleFormSubmit}>
         <label className="attach-button" title="Attach image or text file">
           📎
           <input
@@ -472,12 +526,27 @@ export function Chat() {
             className="file-input-hidden"
           />
         </label>
-        <input
+        <label htmlFor="chat-message-input" className="sr-only">
+          Message input
+        </label>
+        <span id="chat-input-help" className="sr-only">
+          Press Enter to send. Press Shift plus Enter for a new line.
+        </span>
+        <textarea
+          id="chat-message-input"
+          aria-describedby="chat-input-help"
           name="message"
           value={input}
           onChange={handleInputChange}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              formRef.current?.requestSubmit();
+            }
+          }}
           placeholder="Ask Jarvis anything…"
           className="chat-input"
+          rows={1}
         />
         <button type="submit" className="send-button" disabled={isLoading}>
           {isLoading ? "Working…" : "Send"}
