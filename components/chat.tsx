@@ -363,8 +363,8 @@ function CodeExecutionCard({
               <div className="execution-section">
                 <div className="execution-section-title">Artifacts</div>
                 <div className="artifact-list">
-                  {result.artifacts.map((artifact) => (
-                    <div key={`${artifact.name}-${artifact.bytes}`} className="artifact-card">
+                  {result.artifacts.map((artifact, index) => (
+                    <div key={`${artifact.name}-${index}`} className="artifact-card">
                       <div className="artifact-card-header">
                         <span>{artifact.name}</span>
                         <a

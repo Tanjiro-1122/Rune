@@ -100,6 +100,12 @@ function serialize(value) {
   });
 }
 
+function getResultType(rawResult) {
+  if (rawResult === null) return "null";
+  if (Array.isArray(rawResult)) return "array";
+  return typeof rawResult;
+}
+
 function clampText(text) {
   const remaining = maxOutputChars - consumedOutputChars;
   if (remaining <= 0) return "";
@@ -199,8 +205,7 @@ const context = vm.createContext(sandbox, {
     );
 
     const result = rawResult === undefined ? undefined : serialize(rawResult);
-    const resultType =
-      rawResult === null ? "null" : Array.isArray(rawResult) ? "array" : typeof rawResult;
+    const resultType = getResultType(rawResult);
 
     parentPort.postMessage({
       ok: true,
@@ -241,9 +246,10 @@ function clampNumber(
   min: number,
   max: number
 ) {
-  const parsed = Number.parseInt(value ?? "", 10);
+  if (value == null || value.trim() === "") return fallback;
+  const parsed = Number(value ?? "");
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(parsed, min), max);
+  return Math.round(Math.min(Math.max(parsed, min), max));
 }
 
 function getExecutionLimits(): ExecutionLimits {

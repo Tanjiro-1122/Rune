@@ -170,6 +170,23 @@ function parseOwnerRepo(input: string): string {
   return input.trim().replace(/\.git$/, "");
 }
 
+function formatCodeExecutionSummary() {
+  const codeExecution = getCodeExecutionAvailability();
+
+  if (!codeExecution.available) {
+    return `- Sandboxed code execution is unavailable in this deployment because ${codeExecution.reason}.`;
+  }
+
+  const { limits } = codeExecution;
+
+  return [
+    "- `execute_code` — sandboxed JavaScript/TypeScript execution for short self-contained snippets only.",
+    `Limits: ${limits.timeoutMs} ms timeout, ${limits.maxSourceLength} characters of source, ${limits.maxOutputChars} characters of combined logs,`,
+    `up to ${limits.maxArtifacts} text artifacts of ${limits.maxArtifactBytes} bytes each, and an isolated worker memory limit of about ${limits.memoryLimitMb} MB.`,
+    "No imports, filesystem, process, or network access.",
+  ].join(" ");
+}
+
 const baseAgentTools = {
   get_current_datetime: tool({
     description:
@@ -515,9 +532,7 @@ export async function POST(req: Request) {
     }: { messages: UIMessage[]; conversationId?: string } = await req.json();
 
     const codeExecution = getCodeExecutionAvailability();
-    const codeExecutionSummary = codeExecution.available
-      ? `- \`execute_code\` — sandboxed JavaScript/TypeScript execution for short self-contained snippets only. Limits: ${codeExecution.limits.timeoutMs} ms timeout, ${codeExecution.limits.maxSourceLength} characters of source, ${codeExecution.limits.maxOutputChars} characters of combined logs, up to ${codeExecution.limits.maxArtifacts} text artifacts of ${codeExecution.limits.maxArtifactBytes} bytes each, and an isolated worker memory limit of about ${codeExecution.limits.memoryLimitMb} MB. No imports, filesystem, process, or network access.`
-      : `- Sandboxed code execution is unavailable in this deployment because ${codeExecution.reason}.`;
+    const codeExecutionSummary = formatCodeExecutionSummary();
     const codeExecutionGuidance = codeExecution.available
       ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card"
       : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
