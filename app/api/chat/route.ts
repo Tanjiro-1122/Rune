@@ -899,7 +899,9 @@ ${workspaceContextSection}
         details: {
           message:
             error instanceof Error
-              ? error.message.slice(0, MAX_EVENT_ERROR_MESSAGE_LENGTH)
+              ? error.message.length > MAX_EVENT_ERROR_MESSAGE_LENGTH
+                ? `${error.message.slice(0, MAX_EVENT_ERROR_MESSAGE_LENGTH)}...`
+                : error.message
               : "Unknown chat failure",
         },
       });

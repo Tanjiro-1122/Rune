@@ -332,7 +332,7 @@ function getExecutionLimits(): ExecutionLimits {
 function sanitizeExecutionError(rawMessage: string) {
   return rawMessage
     .replace(
-      /\b(?:sk-[a-z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{20,})\b/gi,
+      /\b(?:sk-(?:proj-)?[a-z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{20,})\b/gi,
       "[redacted-secret]"
     )
     .replace(
