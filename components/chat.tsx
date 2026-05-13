@@ -1036,6 +1036,51 @@ export function Chat() {
     }
   }
 
+  const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      if (items[itemIndex].type.indexOf("image") !== -1) {
+        e.preventDefault();
+
+        const file = items[itemIndex].getAsFile();
+        if (!file) continue;
+
+        if (file.size > MAX_FILE_SIZE) {
+          setFileError(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            throw new Error(`Upload failed with status ${res.status}`);
+          }
+
+          const data = await res.json();
+
+          if (data.url) {
+            setFileError("");
+            setInput((prev: string) =>
+              `${prev}${prev ? "\n" : ""}![pasted screenshot ${itemIndex + 1}](${data.url})`
+            );
+          }
+        } catch (err) {
+          console.error("Failed to upload pasted image:", err);
+          setFileError("Failed to upload pasted image.");
+        }
+      }
+    }
+  };
+
   function clearAttachments() {
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setFiles(undefined);
@@ -1525,6 +1570,7 @@ export function Chat() {
             name="message"
             value={input}
             onChange={handleInputChange}
+            onPaste={handleScreenshotPaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
