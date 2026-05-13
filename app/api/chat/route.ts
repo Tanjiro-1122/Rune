@@ -5,6 +5,160 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
+// ─── Safe math expression evaluator ─────────────────────────────────────────
+// A simple recursive-descent parser that evaluates arithmetic expressions
+// without using eval() or the Function() constructor, eliminating code-injection risk.
+
+const MATH_FN: Record<string, (...args: number[]) => number> = {
+  sqrt: Math.sqrt,
+  abs: Math.abs,
+  floor: Math.floor,
+  ceil: Math.ceil,
+  round: Math.round,
+  sin: Math.sin,
+  cos: Math.cos,
+  tan: Math.tan,
+  log: Math.log10,
+  ln: Math.log,
+  pow: Math.pow,
+  max: (...a) => Math.max(...a),
+  min: (...a) => Math.min(...a),
+};
+
+function tokenize(raw: string): (number | string)[] {
+  // Expand "N% of M" sugar before tokenising
+  const src = raw
+    .trim()
+    .replace(
+      /(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)/gi,
+      "($1 / 100) * $2"
+    );
+
+  const tokens: (number | string)[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (/\s/.test(c)) { i++; continue; }
+
+    // Number literal (including decimals)
+    if (/\d/.test(c) || (c === "." && /\d/.test(src[i + 1] ?? ""))) {
+      let num = "";
+      while (i < src.length && /[\d.]/.test(src[i])) num += src[i++];
+      tokens.push(parseFloat(num));
+      continue;
+    }
+
+    // Identifier (function names or constants: pi, e)
+    if (/[a-zA-Z_]/.test(c)) {
+      let id = "";
+      while (i < src.length && /[a-zA-Z_]/.test(src[i])) id += src[i++];
+      tokens.push(id.toLowerCase());
+      continue;
+    }
+
+    // Two-char operator **
+    if (c === "*" && src[i + 1] === "*") { tokens.push("**"); i += 2; continue; }
+
+    // Single-char operators / punctuation
+    if ("+-*/(),%".includes(c)) { tokens.push(c); i++; continue; }
+
+    throw new Error(`Invalid character in expression: "${c}"`);
+  }
+  return tokens;
+}
+
+function evalMath(expression: string): number {
+  const tokens = tokenize(expression);
+  let pos = 0;
+
+  function peek(): number | string | undefined { return tokens[pos]; }
+  function consume(): number | string { return tokens[pos++]; }
+
+  function parseExpr(): number { return parseAddSub(); }
+
+  function parseAddSub(): number {
+    let left = parseMulDiv();
+    while (peek() === "+" || peek() === "-") {
+      const op = consume();
+      const right = parseMulDiv();
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseMulDiv(): number {
+    let left = parsePow();
+    while (peek() === "*" || peek() === "/" || peek() === "%") {
+      const op = consume();
+      const right = parsePow();
+      if ((op === "/" || op === "%") && right === 0) {
+        throw new Error("Division by zero");
+      }
+      left = op === "*" ? left * right : op === "/" ? left / right : left % right;
+    }
+    return left;
+  }
+
+  function parsePow(): number {
+    const base = parseUnary();
+    if (peek() === "**") {
+      consume();
+      return Math.pow(base, parsePow()); // right-associative
+    }
+    return base;
+  }
+
+  function parseUnary(): number {
+    if (peek() === "-") { consume(); return -parsePrimary(); }
+    if (peek() === "+") { consume(); return parsePrimary(); }
+    return parsePrimary();
+  }
+
+  function parsePrimary(): number {
+    const tok = peek();
+
+    // Number literal
+    if (typeof tok === "number") { consume(); return tok; }
+
+    // Constants
+    if (tok === "pi") { consume(); return Math.PI; }
+    if (tok === "e")  { consume(); return Math.E; }
+
+    // Whitelisted function call
+    if (typeof tok === "string" && MATH_FN[tok]) {
+      consume();
+      if (peek() !== "(") throw new Error(`Expected '(' after ${tok}`);
+      consume(); // '('
+      const args: number[] = [parseExpr()];
+      while (peek() === ",") { consume(); args.push(parseExpr()); }
+      if (peek() !== ")") throw new Error("Expected ')'");
+      consume(); // ')'
+      return MATH_FN[tok](...args);
+    }
+
+    // Parenthesised sub-expression
+    if (tok === "(") {
+      consume();
+      const val = parseExpr();
+      if (peek() !== ")") throw new Error("Expected ')'");
+      consume();
+      return val;
+    }
+
+    throw new Error(
+      typeof tok === "string"
+        ? `Unknown identifier: "${tok}"`
+        : `Unexpected end of expression`
+    );
+  }
+
+  const result = parseExpr();
+  if (pos !== tokens.length) {
+    throw new Error("Unexpected tokens after expression");
+  }
+  return result;
+}
+
 const agentTools = {
   get_current_datetime: tool({
     description:
@@ -39,40 +193,23 @@ const agentTools = {
     }),
     execute: async ({ expression }) => {
       try {
-        // Replace friendly aliases before whitelist check
-        const safe = expression
-          .trim()
-          .replace(
-            /\b(sqrt|log|abs|floor|ceil|round|sin|cos|tan|pow|max|min|PI|E)\b/g,
-            "Math.$1"
-          )
-          .replace(
-            /(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)/gi,
-            "($1 / 100) * $2"
-          );
-
-        // Allow only safe characters for math evaluation
-        if (/[^0-9+\-*/().%, Math.sqrtlogabcdeifnouplwxPIE\s]/.test(safe)) {
-          return { expression, error: "Expression contains invalid characters." };
-        }
-
-        // eslint-disable-next-line no-new-func
-        const result = Function(`"use strict"; return (${safe})`)();
-
-        if (typeof result !== "number" || !isFinite(result)) {
+        const result = evalMath(expression);
+        if (!isFinite(result)) {
           return { expression, error: "Result is not a finite number." };
         }
-
         return {
           expression,
           result: Number.isInteger(result)
             ? String(result)
-            : result.toPrecision(10).replace(/\.?0+$/, ""),
+            : parseFloat(result.toPrecision(10)).toString(),
         };
-      } catch {
+      } catch (err) {
         return {
           expression,
-          error: "Could not evaluate expression. Use standard math notation.",
+          error:
+            err instanceof Error
+              ? err.message
+              : "Could not evaluate expression. Use standard math notation.",
         };
       }
     },
