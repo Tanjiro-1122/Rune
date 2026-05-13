@@ -318,12 +318,19 @@ export async function assertConversationAccess(options: {
   requiredRole?: WorkspaceAccessRole;
 }) {
   const { sessionId, conversationId, workspaceId, requiredRole = "viewer" } = options;
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    if (!isLocalConversationId(conversationId)) {
+
+  // Local conversation IDs are in-memory only — skip any DB lookup, just
+  // verify ownership the same way assertWorkspaceAccess does for local workspaces.
+  if (isLocalConversationId(conversationId)) {
+    if (conversationId !== buildLocalConversationId(sessionId)) {
       throw new Error("Conversation access denied.");
     }
     return;
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error("Conversation access denied.");
   }
 
   const conversationResponse = await supabase

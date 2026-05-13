@@ -1124,10 +1124,15 @@ export function Chat() {
           });
 
           if (!res.ok) {
-            throw new Error(`Upload failed with status ${res.status}`);
+            const payload = await res.json().catch(() => ({})) as { error?: string };
+            const msg =
+              res.status === 501
+                ? "Image upload is not configured in this deployment."
+                : payload.error ?? `Upload failed with status ${res.status}`;
+            throw new Error(msg);
           }
 
-          const data = await res.json();
+          const data = await res.json() as { url?: string };
 
           if (data.url) {
             setFileError("");
@@ -1137,7 +1142,7 @@ export function Chat() {
           }
         } catch (err) {
           console.error("Failed to upload pasted image:", err);
-          setFileError("Failed to upload pasted image.");
+          setFileError(err instanceof Error ? err.message : "Failed to upload pasted image.");
         }
       }
     }
