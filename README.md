@@ -1,25 +1,31 @@
-# Jarvis
+# Jarvis — Super Agent
 
-Jarvis is a Vercel-ready AI chatbot built with Next.js and the Vercel AI SDK, protected by a password gate so only authorized users can access it. Conversations are persisted across sessions using Supabase.
+Jarvis is a Vercel-ready AI super-agent built with Next.js and the Vercel AI SDK. It goes beyond a basic chatbot: Jarvis plans tasks, uses tools, reasons across multiple steps, and surfaces its actions and results directly in the chat UI. Access is protected by a password gate; conversations are persisted with Supabase.
 
 ## Features
 
-- Next.js App Router
-- Streaming AI responses
-- Simple modern dark chat interface
-- Password-protected access (auth gate + session cookie)
-- **Persistent chat history across sessions** (Supabase)
-- Ready for Vercel deployment
-- Easy to customize
+- **OpenAI tool calling** — Jarvis can call built-in tools and use the results in its response
+- **Multi-step agentic execution** — up to 5 LLM steps per request for complex tasks (via `maxSteps`)
+- **Task planning** — Jarvis breaks multi-step requests into a visible step-by-step plan
+- **Live activity status** — the header shows which tool is running while Jarvis works
+- **Calculator tool** — arithmetic, percentages, and common math functions, verified by the model
+- **Date & time tool** — always-accurate current datetime, not hallucinated
+- **Markdown rendering** — assistant responses render headings, lists, code blocks, bold, etc.
+- **File & image uploads** — attach JPEG, PNG, GIF, WEBP images or plain-text/CSV/Markdown files
+- **Persistent chat history** — messages saved per session to Supabase
+- **Password-protected access** — HMAC-signed session cookie via Next.js Middleware
+- **Vercel-ready** — deploys to Vercel with no additional infrastructure
 
 ## Stack
 
-- [Next.js](https://nextjs.org/) App Router
-- [React](https://react.dev/) 19
-- [TypeScript](https://www.typescriptlang.org/)
-- [Vercel AI SDK](https://sdk.vercel.ai/)
-- OpenAI (`gpt-4o-mini`)
-- [Supabase](https://supabase.com/) (Postgres — for chat persistence)
+| Layer | Technology |
+|---|---|
+| Framework | [Next.js 15](https://nextjs.org/) App Router |
+| UI | [React 19](https://react.dev/) + TypeScript |
+| AI | [Vercel AI SDK 4](https://sdk.vercel.ai/) + OpenAI `gpt-4o-mini` |
+| Tool schemas | [Zod](https://zod.dev/) |
+| Markdown | [react-markdown](https://github.com/remarkjs/react-markdown) |
+| Persistence | [Supabase](https://supabase.com/) Postgres |
 
 ## Getting Started
 
@@ -37,41 +43,40 @@ Copy `.env.example` to `.env.local`:
 cp .env.example .env.local
 ```
 
-Then fill in all values in `.env.local`:
+Fill in all values in `.env.local`:
 
 ```bash
-# Your OpenAI API key
+# Your OpenAI API key — required
 OPENAI_API_KEY=your_openai_api_key_here
 
-# The password users must enter to access the app
+# Password users must enter to access the app — required
 APP_PASSWORD=your_app_password_here
 
-# A long random secret used to sign the session cookie — keep this private
+# Secret used to sign the session cookie — required
 # Generate one with: openssl rand -hex 32
 SESSION_SECRET=a_long_random_secret_string_here
 
-# Supabase project URL and anon key — required for persistent chat history
+# Supabase — optional (app works without it, history won't persist)
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
-> **Important:** `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is still supported as a legacy alias for `SESSION_SECRET`.  
-> `SUPABASE_URL` and `SUPABASE_ANON_KEY` are optional — the app runs without them but chat history will not be persisted.
+> `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is supported as a legacy alias for `SESSION_SECRET`.
 
 ### 3. Set up Supabase (for persistent history)
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. Open the **SQL Editor** in the Supabase dashboard and run the following schema:
+2. Open the **SQL Editor** and run:
 
 ```sql
--- Stores one conversation per browser session
+-- One conversation per browser session
 create table conversations (
-  id   uuid primary key default gen_random_uuid(),
+  id         uuid primary key default gen_random_uuid(),
   session_id text not null,
   created_at timestamptz default now()
 );
 
--- Stores every user/assistant message
+-- Every user / assistant message
 create table messages (
   id              uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references conversations(id) on delete cascade,
@@ -80,16 +85,13 @@ create table messages (
   created_at      timestamptz default now()
 );
 
--- Indexes for fast history lookups
 create index on conversations(session_id, created_at);
 create index on messages(conversation_id, created_at);
 ```
 
-3. In your Supabase project go to **Settings → API** and copy:
+3. In **Settings → API** copy:
    - **Project URL** → `SUPABASE_URL`
    - **`anon` / `public` key** → `SUPABASE_ANON_KEY`
-
-> **Row-Level Security (RLS):** The app uses server-side API routes to talk to Supabase; the keys are never exposed to the browser. RLS can be left off for a private, password-protected app.
 
 ### 4. Run locally
 
@@ -97,31 +99,54 @@ create index on messages(conversation_id, created_at);
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You will be redirected to the login page — enter the password you set in `APP_PASSWORD`.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to the login page — enter the password from `APP_PASSWORD`.
+
+## Agent Capabilities
+
+### Built-in tools
+
+| Tool | Description |
+|---|---|
+| `get_current_datetime` | Returns the real current date and time (not hallucinated) |
+| `calculate` | Evaluates arithmetic, percentages, and common math functions |
+| `create_task_plan` | Generates a step-by-step plan shown as a visual card before execution |
+
+### Multi-step execution
+
+Jarvis uses `maxSteps: 5`, meaning a single user message can trigger up to 5 sequential LLM calls. Jarvis will plan, use tools, observe the results, and continue reasoning — all streaming back to your browser in real time.
+
+The chat header shows a live **activity badge** with the name of the currently running tool.
+
+### Uploading files & images
+
+Click the **📎** button to attach one or more files. A preview appears before sending.
+
+| Type | Extensions | Model processing |
+|---|---|---|
+| Images | JPEG, PNG, GIF, WEBP | ✅ Full — model sees the image |
+| Plain text | `.txt`, `.csv`, `.md` | ✅ Full — text is read by the model |
+
+- **Max file size:** 10 MB per file
+- Unsupported types are rejected client-side before they reach the server
+
+### Markdown responses
+
+Assistant text is rendered with full Markdown support: headings, **bold**, `inline code`, fenced code blocks with syntax highlighting, numbered and bulleted lists, blockquotes, and links.
 
 ## How Persistent History Works
 
-- On first visit a random `sessionId` UUID is created and saved in `localStorage`.
-- When the chat page loads, Jarvis fetches prior messages for that session from Supabase (`/api/history`) and restores them to the chat.
-- After every exchange, the new user message and Jarvis's response are saved to Supabase so they appear on the next visit.
-- Clearing browser `localStorage` (or using a different browser) starts a fresh conversation.
+- On first visit a random `sessionId` UUID is created and stored in `localStorage`.
+- When the chat loads, Jarvis fetches prior messages from Supabase and restores them.
+- After every exchange the new user message and Jarvis's response are saved to Supabase.
+- Clearing browser `localStorage` starts a fresh conversation.
+- Attachments and tool-call metadata are not stored — only the final text content.
 
 ## Password Protection
 
-Jarvis uses a lightweight password gate implemented with:
-
-- **Next.js Middleware** — redirects unauthenticated requests to `/login`.
-- **Signed session cookie** — an HMAC-SHA-256 token derived from `SESSION_SECRET` (or `AUTH_SECRET` legacy alias) is stored as an `httpOnly` cookie (valid for 7 days).
-- **Environment variables** — no secrets are hardcoded. Change `APP_PASSWORD` or `SESSION_SECRET` at any time to invalidate existing sessions.
-- **Logout** — the "Sign out" button in the chat header clears the session cookie and returns you to the login page.
-
-### Changing the password
-
-Update `APP_PASSWORD` in your environment and redeploy (or restart the dev server). Existing sessions will be invalidated automatically if you also rotate `SESSION_SECRET`.
-
-### Revoking all sessions
-
-Change `SESSION_SECRET` to a new random value and redeploy.
+- **Middleware** — Next.js Middleware redirects unauthenticated requests to `/login`.
+- **Session cookie** — HMAC-SHA-256 token derived from `SESSION_SECRET`, stored `httpOnly` for 7 days.
+- **Logout** — "Sign out" clears the cookie and returns to the login page.
+- Rotate `SESSION_SECRET` to invalidate all existing sessions.
 
 ## Project Structure
 
@@ -130,28 +155,21 @@ jarvis/
 ├─ app/
 │  ├─ api/
 │  │  ├─ auth/
-│  │  │  ├─ login/
-│  │  │  │  └─ route.ts     # Validates password, sets session cookie
-│  │  │  └─ logout/
-│  │  │     └─ route.ts     # Clears session cookie
-│  │  ├─ chat/
-│  │  │  └─ route.ts        # Streaming chat API route (saves messages)
-│  │  └─ history/
-│  │     └─ route.ts        # Returns conversation history for a session
-│  ├─ login/
-│  │  └─ page.tsx           # Login page
-│  ├─ globals.css            # Global styles (dark theme)
-│  ├─ layout.tsx             # Root layout with metadata
-│  └─ page.tsx               # Home page (protected)
+│  │  │  ├─ login/route.ts      # Validates password, sets session cookie
+│  │  │  └─ logout/route.ts     # Clears session cookie
+│  │  ├─ chat/route.ts          # Streaming agentic chat API (tools + maxSteps)
+│  │  └─ history/route.ts       # Returns conversation history for a session
+│  ├─ login/page.tsx            # Login page
+│  ├─ globals.css               # Global styles (dark theme + agent UI)
+│  ├─ layout.tsx                # Root layout
+│  └─ page.tsx                  # Home page (protected)
 ├─ components/
-│  └─ chat.tsx               # Chat UI component (loads history, logout button)
+│  └─ chat.tsx                  # Chat UI — tool cards, markdown, status badge
 ├─ lib/
-│  ├─ auth.ts                # Auth helpers (token, password, session secret)
-│  └─ supabase.ts            # Server-side Supabase client
-├─ middleware.ts              # Route protection middleware
-├─ .env.example              # Environment variable template
-├─ next-env.d.ts
-├─ next.config.ts
+│  ├─ auth.ts                   # Auth helpers
+│  └─ supabase.ts               # Server-side Supabase client
+├─ middleware.ts                 # Route protection
+├─ .env.example                 # Environment variable template
 ├─ package.json
 └─ tsconfig.json
 ```
@@ -159,50 +177,28 @@ jarvis/
 ## Deploy to Vercel
 
 1. Push this repository to GitHub.
-2. Go to [vercel.com](https://vercel.com) and click **Add New Project**.
-3. Import this repository.
-4. Add the following environment variables in the Vercel project settings:
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import the repo.
+3. Add environment variables in the Vercel project settings:
    - `OPENAI_API_KEY` — your OpenAI API key
-   - `APP_PASSWORD` — required password for login
-   - `SESSION_SECRET` — required session signing secret (generate with `openssl rand -hex 32`)
-   - `SUPABASE_URL` — your Supabase project URL
-   - `SUPABASE_ANON_KEY` — your Supabase anon/public key
-   - (`AUTH_SECRET` is an optional legacy alias for `SESSION_SECRET`)
-5. Save the variables for the **Production** environment.
-6. Redeploy the app (or trigger a new production deployment) so the new env vars are applied.
+   - `APP_PASSWORD` — login password
+   - `SESSION_SECRET` — session signing secret (`openssl rand -hex 32`)
+   - `SUPABASE_URL` — Supabase project URL
+   - `SUPABASE_ANON_KEY` — Supabase anon/public key
+4. Deploy.
 
-## File & Image Upload
+> **Note:** The default Vercel Hobby plan has a 10-second function timeout. `maxDuration` is set to **60 seconds** to allow multi-step agent execution. This requires a **Vercel Pro** plan or higher. On Hobby, single-step responses will still work normally; only long multi-step tasks may time out.
 
-Jarvis supports attaching files and images to your messages.
+## Limitations
 
-### How to use
-Click the **📎** button in the chat input to select one or more files. A preview appears before you send. The file is sent alongside your message to the AI.
-
-### Supported types (end-to-end)
-| Type | Extensions | AI processing |
-|------|-----------|--------------|
-| Images | JPEG / JPG, PNG, GIF, WEBP | ✅ Full – model sees the image |
-| Plain text | .txt, .csv, .md | ✅ Full – text is read by the model |
-| Other binary (PDF, DOCX, …) | — | ⚠️ Not supported by `gpt-4o-mini` |
-
-### Limits
-- **Maximum file size:** 10 MB per file
-- **Accepted MIME types:** `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `text/plain`, `text/csv`, `text/markdown`
-- Files that exceed the size limit or have an unsupported type are rejected with a user-friendly error before being sent.
-
-### Notes
-- `gpt-4o-mini` supports image inputs natively. Images are base64-encoded in the browser and sent as multimodal content via the Vercel AI SDK's `experimental_attachments` API.
-- Unsupported file types (e.g. PDFs) are blocked on the client so they never reach the server, avoiding model errors.
-- Attachments are not persisted to Supabase (only the text content of messages is stored).
+- **No web search** — Jarvis cannot browse the internet by default. Adding a search tool (e.g. Tavily) would require a `TAVILY_API_KEY` environment variable and a new tool definition in `app/api/chat/route.ts`.
+- **No code execution** — Jarvis can write code but cannot run it server-side.
+- **Binary files (PDF, DOCX)** — not supported; only images and plain-text variants are processed end-to-end.
+- **Attachments not persisted** — only text content is saved to Supabase; tool call metadata and files are ephemeral.
 
 ## Customization Ideas
 
-- Add multiple conversations / conversation switcher
-- Add multiple AI model support
-- Add markdown rendering for assistant responses
+- Add a web search tool (Tavily / Brave Search API)
+- Add more domain-specific tools (weather, stock prices, calendar)
+- Enable conversation branching / multiple conversations per session
 - Add voice input/output
-
-## Notes
-
-The API route uses `gpt-4o-mini` by default. You can change the model in `app/api/chat/route.ts`.
-
+- Expand accepted file types (PDF text extraction, DOCX parsing)

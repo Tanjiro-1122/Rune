@@ -4,10 +4,11 @@ export default function HomePage() {
   return (
     <main className="page">
       <section className="hero">
-        <div className="badge">AI Assistant</div>
+        <div className="badge">Super Agent</div>
         <h1>Jarvis</h1>
         <p>
-          Your Vercel-ready AI chatbot starter. Ask anything and start building.
+          Your advanced AI assistant. Plan tasks, crunch numbers, analyze files,
+          and get things done — step by step.
         </p>
       </section>
 
