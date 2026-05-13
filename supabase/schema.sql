@@ -68,6 +68,11 @@ create table if not exists workspace_chunks (
   created_at   timestamptz default now()
 );
 
+alter table workspace_chunks
+  add column if not exists embedding jsonb,
+  add column if not exists embedding_model text,
+  add column if not exists embedding_generated_at timestamptz;
+
 create table if not exists workspace_artifacts (
   id            uuid primary key default gen_random_uuid(),
   workspace_id  uuid not null references workspaces(id) on delete cascade,
@@ -90,6 +95,55 @@ create table if not exists workspace_events (
   created_at     timestamptz default now()
 );
 
+create table if not exists workspace_project_files (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references workspaces(id) on delete cascade,
+  conversation_id uuid references conversations(id) on delete set null,
+  document_id    uuid references workspace_documents(id) on delete set null,
+  artifact_id    uuid references workspace_artifacts(id) on delete set null,
+  path           text not null,
+  display_name   text not null,
+  source_kind    text not null check (source_kind in ('upload', 'artifact', 'note')),
+  mime_type      text not null,
+  bytes          integer not null default 0,
+  summary        text,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now(),
+  unique (workspace_id, path)
+);
+
+create table if not exists workspace_tasks (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references workspaces(id) on delete cascade,
+  conversation_id uuid references conversations(id) on delete set null,
+  title          text not null,
+  input_text     text not null,
+  intent         text,
+  status         text not null check (status in ('queued', 'running', 'completed', 'failed', 'cancelled')),
+  progress       integer not null default 0,
+  result_summary text,
+  error_message  text,
+  resume_count   integer not null default 0,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now(),
+  started_at     timestamptz,
+  completed_at   timestamptz
+);
+
+create table if not exists workspace_task_steps (
+  id           uuid primary key default gen_random_uuid(),
+  task_id      uuid not null references workspace_tasks(id) on delete cascade,
+  step_key     text not null,
+  label        text not null,
+  order_index  integer not null,
+  status       text not null check (status in ('pending', 'running', 'completed', 'failed')),
+  detail       text,
+  started_at   timestamptz,
+  completed_at timestamptz,
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now()
+);
+
 create index if not exists workspaces_session_id_updated_at_idx
   on workspaces(session_id, updated_at desc);
 create index if not exists conversation_workspaces_workspace_id_updated_at_idx
@@ -106,6 +160,12 @@ create index if not exists workspace_events_workspace_id_created_at_idx
   on workspace_events(workspace_id, created_at desc);
 create index if not exists workspace_events_event_type_created_at_idx
   on workspace_events(event_type, created_at desc);
+create index if not exists workspace_project_files_workspace_id_updated_at_idx
+  on workspace_project_files(workspace_id, updated_at desc);
+create index if not exists workspace_tasks_workspace_id_updated_at_idx
+  on workspace_tasks(workspace_id, updated_at desc);
+create index if not exists workspace_task_steps_task_id_order_idx
+  on workspace_task_steps(task_id, order_index asc);
 
 insert into workspaces (session_id, name, description)
 select distinct c.session_id, 'General workspace', 'Imported workspace for legacy Jarvis chat history.'

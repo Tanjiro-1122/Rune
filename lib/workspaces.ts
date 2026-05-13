@@ -12,6 +12,10 @@ const CHUNK_OVERLAP = 140;
 const SHORT_TOKEN_MATCH_SCORE = 2;
 const LONG_TOKEN_MATCH_SCORE = 3;
 const WORKSPACE_ACCESS_ROLES = ["viewer", "editor", "owner"] as const;
+const MAX_RETRIEVAL_CHUNK_CANDIDATES = 220;
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_INPUT_MAX_CHARS = 2_400;
+const SEMANTIC_SCORE_MULTIPLIER = 16;
 
 interface WorkspaceRow {
   id: string;
@@ -65,10 +69,28 @@ interface WorkspaceChunkRow {
   source_label: string;
   chunk_index: number;
   content: string;
+  embedding?: number[] | null;
+  embedding_model?: string | null;
+  embedding_generated_at?: string | null;
   created_at?: string;
 }
 
 export type WorkspaceAccessRole = (typeof WORKSPACE_ACCESS_ROLES)[number];
+interface WorkspaceProjectFileRow {
+  id: string;
+  workspace_id: string;
+  conversation_id: string | null;
+  document_id: string | null;
+  artifact_id: string | null;
+  path: string;
+  display_name: string;
+  source_kind: string;
+  mime_type: string;
+  bytes: number;
+  summary: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface WorkspaceConversationSummary {
   id: string;
@@ -117,8 +139,22 @@ export interface WorkspaceBootstrapData {
   workspaces: WorkspaceSummary[];
   selectedWorkspaceId: string | null;
   selectedConversationId: string | null;
+  projectFiles: WorkspaceProjectFileSummary[];
   documents: WorkspaceDocumentSummary[];
   artifacts: WorkspaceArtifactSummary[];
+}
+
+export interface WorkspaceProjectFileSummary {
+  id: string;
+  conversationId: string | null;
+  path: string;
+  displayName: string;
+  sourceKind: string;
+  mimeType: string;
+  bytes: number;
+  summary: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkspaceRetrievalHit {
@@ -187,6 +223,7 @@ function buildLocalBootstrap(sessionId: string): WorkspaceBootstrapData {
     ],
     selectedWorkspaceId: workspaceId,
     selectedConversationId: conversationId,
+    projectFiles: [],
     documents: [],
     artifacts: [],
   };
@@ -393,6 +430,92 @@ function computeScore(query: string, content: string) {
   }
 
   return score;
+}
+
+function parseEmbeddingVector(value: unknown): number[] | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const vector = value.filter((item): item is number => typeof item === "number");
+    return vector.length ? vector : null;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parseEmbeddingVector(parsed);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function cosineSimilarity(left: number[], right: number[]) {
+  if (left.length !== right.length) return 0;
+  const size = left.length;
+  if (size === 0) return 0;
+
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  for (let index = 0; index < size; index += 1) {
+    dot += left[index] * right[index];
+    leftNorm += left[index] * left[index];
+    rightNorm += right[index] * right[index];
+  }
+
+  if (!leftNorm || !rightNorm) return 0;
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+}
+
+async function embedTexts(input: string[]) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const text = input
+    .map((entry) => sanitizeText(entry, EMBEDDING_INPUT_MAX_CHARS))
+    .filter(Boolean);
+  if (!apiKey || text.length === 0) return null;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: text,
+      }),
+    });
+
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      data?: Array<{ embedding?: number[] }>;
+    };
+    const vectors =
+      payload.data
+        ?.map((row) => row.embedding)
+        .filter((vector): vector is number[] => Array.isArray(vector)) ?? [];
+    return vectors.length === text.length ? vectors : null;
+  } catch {
+    return null;
+  }
+}
+
+function toProjectPath(prefix: string, rawName: string) {
+  const cleaned = rawName
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/[/\\]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase()
+    .slice(0, 96);
+  const safeNameCandidate = (cleaned || "item")
+    .split(".")
+    .filter((segment) => segment && segment !== "..")
+    .join(".");
+  const safeName = safeNameCandidate.replace(/^[-/.]+/, "") || "item";
+  return `${prefix}/${safeName}`;
 }
 
 function chunkText(content: string) {
@@ -611,7 +734,14 @@ export async function getWorkspaceBootstrap(
       ? requestedWorkspaceId
       : workspaces[0]?.id ?? null;
 
-  const [conversationResponse, mappingResponse, documentResponse, artifactMetaResponse, membershipResponse] =
+  const [
+    conversationResponse,
+    mappingResponse,
+    documentResponse,
+    artifactMetaResponse,
+    membershipResponse,
+    projectFileResponse,
+  ] =
     await Promise.all([
       supabase
         .from("conversations")
@@ -639,13 +769,22 @@ export async function getWorkspaceBootstrap(
         .select("workspace_id, role")
         .eq("session_id", sessionId)
         .in("workspace_id", workspaceIds),
+      supabase
+        .from("workspace_project_files")
+        .select(
+          "id, workspace_id, conversation_id, document_id, artifact_id, path, display_name, source_kind, mime_type, bytes, summary, created_at, updated_at"
+        )
+        .in("workspace_id", workspaceIds)
+        .order("updated_at", { ascending: false }),
     ]);
 
   if (
     conversationResponse.error ||
-    mappingResponse.error ||
-    documentResponse.error ||
-    artifactMetaResponse.error
+      mappingResponse.error ||
+      documentResponse.error ||
+      artifactMetaResponse.error ||
+      membershipResponse.error ||
+      projectFileResponse.error
   ) {
     const local = buildLocalBootstrap(sessionId);
     return {
@@ -657,6 +796,8 @@ export async function getWorkspaceBootstrap(
           mappingResponse.error?.message ??
           documentResponse.error?.message ??
           artifactMetaResponse.error?.message ??
+          membershipResponse.error?.message ??
+          projectFileResponse.error?.message ??
           "workspace query failed"
       ),
     };
@@ -674,6 +815,7 @@ export async function getWorkspaceBootstrap(
       (row) => [row.workspace_id, normalizeAccessRole(row.role)]
     )
   );
+  const projectFiles = (projectFileResponse.data ?? []) as WorkspaceProjectFileRow[];
 
   const conversationById = new Map(conversations.map((item) => [item.id, item]));
 
@@ -752,6 +894,22 @@ export async function getWorkspaceBootstrap(
       createdAt: document.created_at,
     }));
 
+  const selectedProjectFiles = projectFiles
+    .filter((file) => file.workspace_id === selectedWorkspaceId)
+    .slice(0, 120)
+    .map((file) => ({
+      id: file.id,
+      conversationId: file.conversation_id,
+      path: file.path,
+      displayName: file.display_name,
+      sourceKind: file.source_kind,
+      mimeType: file.mime_type,
+      bytes: file.bytes,
+      summary: file.summary,
+      createdAt: file.created_at,
+      updatedAt: file.updated_at,
+    }));
+
   const selectedWorkspace = workspacesWithCounts.find(
     (workspace) => workspace.id === selectedWorkspaceId
   );
@@ -763,6 +921,7 @@ export async function getWorkspaceBootstrap(
     workspaces: workspacesWithCounts,
     selectedWorkspaceId,
     selectedConversationId: selectedWorkspace?.conversations[0]?.id ?? null,
+    projectFiles: selectedProjectFiles,
     documents: selectedDocuments,
     artifacts: selectedArtifacts,
   };
@@ -1034,20 +1193,69 @@ async function insertDocumentWithChunks(options: {
     return null;
   }
 
-  const chunks = chunkText(storedContent).map((chunk, index) => ({
+  const chunks: WorkspaceChunkRow[] = chunkText(storedContent).map((chunk, index) => ({
     workspace_id: workspaceId,
     document_id: documentResponse.data.id,
     source_kind: sourceKind,
     source_label: name,
     chunk_index: index,
     content: chunk,
-  })) satisfies WorkspaceChunkRow[];
+  }));
+
+  const embeddings = await embedTexts(chunks.map((chunk) => chunk.content));
+  const now = nowIso();
+  if (embeddings && embeddings.length === chunks.length) {
+    for (let index = 0; index < chunks.length; index += 1) {
+      chunks[index].embedding = embeddings[index];
+      chunks[index].embedding_model = EMBEDDING_MODEL;
+      chunks[index].embedding_generated_at = now;
+    }
+  }
 
   if (chunks.length > 0) {
     await supabase.from("workspace_chunks").insert(chunks);
   }
 
   return documentResponse.data.id;
+}
+
+async function upsertProjectFile(options: {
+  workspaceId: string;
+  conversationId?: string | null;
+  documentId?: string | null;
+  artifactId?: string | null;
+  path: string;
+  displayName: string;
+  sourceKind: string;
+  mimeType: string;
+  bytes: number;
+  summary?: string | null;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase || isLocalWorkspaceId(options.workspaceId)) return;
+
+  try {
+    await supabase.from("workspace_project_files").upsert(
+      {
+        workspace_id: options.workspaceId,
+        conversation_id: isPersistedConversationId(options.conversationId)
+          ? options.conversationId
+          : null,
+        document_id: options.documentId ?? null,
+        artifact_id: options.artifactId ?? null,
+        path: options.path,
+        display_name: options.displayName,
+        source_kind: options.sourceKind,
+        mime_type: options.mimeType,
+        bytes: options.bytes,
+        summary: options.summary ?? null,
+        updated_at: nowIso(),
+      },
+      { onConflict: "workspace_id,path" }
+    );
+  } catch {
+    // Ignore schema-mismatch errors so retrieval/doc persistence remains functional.
+  }
 }
 
 export async function persistWorkspaceAttachments(options: {
@@ -1073,7 +1281,21 @@ export async function persistWorkspaceAttachments(options: {
       content,
     });
 
-    if (inserted) storedAny = true;
+    if (inserted) {
+      storedAny = true;
+      const displayName = cleanTitle(attachment.name, "Uploaded document");
+      await upsertProjectFile({
+        workspaceId,
+        conversationId,
+        documentId: inserted,
+        path: toProjectPath("uploads", displayName),
+        displayName,
+        sourceKind: "upload",
+        mimeType: attachment.contentType ?? "text/plain",
+        bytes: Buffer.byteLength(content, "utf-8"),
+        summary: summarizeText(content),
+      });
+    }
   }
 
   if (storedAny) {
@@ -1107,13 +1329,25 @@ export async function persistWorkspaceArtifacts(options: {
       .single();
 
     if (!artifactResponse.error) {
-      await insertDocumentWithChunks({
+      const documentId = await insertDocumentWithChunks({
         workspaceId,
         conversationId,
         name: artifact.name,
         contentType: artifact.mimeType,
         sourceKind: "artifact",
         content: artifact.content,
+      });
+      await upsertProjectFile({
+        workspaceId,
+        conversationId,
+        artifactId: artifactResponse.data?.id ?? null,
+        documentId,
+        path: toProjectPath("artifacts", artifact.name),
+        displayName: artifact.name,
+        sourceKind: "artifact",
+        mimeType: artifact.mimeType,
+        bytes: artifact.bytes,
+        summary: summarizeText(artifact.content),
       });
     }
   }
@@ -1159,10 +1393,10 @@ export async function getWorkspaceRetrievalContext(options: {
   const [chunkResponse, mappingResponse] = await Promise.all([
     supabase
       .from("workspace_chunks")
-      .select("source_kind, source_label, content")
+      .select("source_kind, source_label, content, embedding")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
-      .limit(160),
+      .limit(MAX_RETRIEVAL_CHUNK_CANDIDATES),
     supabase
       .from("conversation_workspaces")
       .select("conversation_id, title")
@@ -1193,17 +1427,29 @@ export async function getWorkspaceRetrievalContext(options: {
     return [] as WorkspaceRetrievalHit[];
   }
 
+  const queryEmbedding = (await embedTexts([query]))?.[0] ?? null;
+
   const chunkHits = ((chunkResponse.data ?? []) as Array<{
     source_kind: string;
     source_label: string;
     content: string;
+    embedding?: unknown;
   }>)
-    .map((row) => ({
-      sourceKind: row.source_kind === "artifact" ? "artifact" : "document",
-      sourceLabel: row.source_label,
-      excerpt: summarizeText(row.content, 260) ?? row.content,
-      score: computeScore(query, row.content),
-    }))
+    .map((row) => {
+      const lexicalScore = computeScore(query, row.content);
+      const chunkEmbedding = parseEmbeddingVector(row.embedding);
+      const semanticScore =
+        queryEmbedding && chunkEmbedding
+          ? cosineSimilarity(queryEmbedding, chunkEmbedding) * SEMANTIC_SCORE_MULTIPLIER
+          : 0;
+
+      return {
+        sourceKind: row.source_kind === "artifact" ? "artifact" : "document",
+        sourceLabel: row.source_label,
+        excerpt: summarizeText(row.content, 260) ?? row.content,
+        score: lexicalScore + semanticScore,
+      };
+    })
     .filter((hit) => hit.score > 0);
 
   const messageHits = ((messageResponse.data ?? []) as Array<{
