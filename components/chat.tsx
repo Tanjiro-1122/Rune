@@ -23,6 +23,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_current_datetime: "Checking date & time",
   calculate: "Calculating",
   create_task_plan: "Planning task",
+  web_search: "Searching the web",
+  analyze_github_repo: "Analyzing GitHub repo",
 };
 
 function getToolLabel(name: string) {
@@ -101,6 +103,166 @@ function DatetimeCard({ result }: { result?: { readable: string } }) {
   );
 }
 
+interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+interface WebSearchToolResult {
+  query: string;
+  answer?: string | null;
+  results?: WebSearchResult[];
+  error?: string;
+  configured?: boolean;
+}
+
+function WebSearchCard({
+  args,
+  result,
+}: {
+  args: { query?: string };
+  result?: WebSearchToolResult;
+}) {
+  const isPending = !result;
+  return (
+    <div className={`tool-card tool-card--search ${isPending ? "tool-card--pending" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">🔍</span>
+        <span className="tool-card-title">
+          {isPending ? `Searching: ${args.query ?? "…"}` : `Search: ${result.query}`}
+        </span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      {result && !result.error && (
+        <div className="tool-card-body">
+          {result.answer && (
+            <p className="search-answer">{result.answer}</p>
+          )}
+          {result.results && result.results.length > 0 && (
+            <ul className="search-results">
+              {result.results.map((r, i) => (
+                <li key={r.url || i} className="search-result-item">
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="search-result-title"
+                  >
+                    {r.title}
+                  </a>
+                  <span className="search-result-url">{r.url}</span>
+                  <span className="search-result-snippet">{r.snippet}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {result?.error && (
+        <div className="tool-card-body">
+          <span className="tool-error">{result.error}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface GitHubRepoToolResult {
+  name?: string;
+  description?: string | null;
+  primary_language?: string | null;
+  stars?: number;
+  forks?: number;
+  open_issues?: number;
+  topics?: string[];
+  license?: string | null;
+  url?: string;
+  updated_at?: string;
+  file_tree?: string[];
+  file_tree_note?: string;
+  error?: string;
+  repo?: string;
+}
+
+function GitHubRepoCard({
+  args,
+  result,
+}: {
+  args: { repo?: string };
+  result?: GitHubRepoToolResult;
+}) {
+  const isPending = !result;
+  const displayName = result?.name ?? args.repo ?? "repository";
+  return (
+    <div className={`tool-card tool-card--github ${isPending ? "tool-card--pending" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">🐙</span>
+        <span className="tool-card-title">
+          {isPending ? `Analyzing ${displayName}…` : displayName}
+        </span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      {result && !result.error && (
+        <div className="tool-card-body">
+          {result.description && (
+            <p className="github-description">{result.description}</p>
+          )}
+          <div className="github-meta">
+            {result.primary_language && (
+              <span className="github-badge">🔤 {result.primary_language}</span>
+            )}
+            {typeof result.stars === "number" && (
+              <span className="github-badge">⭐ {result.stars.toLocaleString()}</span>
+            )}
+            {typeof result.forks === "number" && (
+              <span className="github-badge">🍴 {result.forks.toLocaleString()}</span>
+            )}
+            {result.license && (
+              <span className="github-badge">📄 {result.license}</span>
+            )}
+          </div>
+          {result.topics && result.topics.length > 0 && (
+            <div className="github-topics">
+              {result.topics.slice(0, 8).map((t) => (
+                <span key={t} className="github-topic">{t}</span>
+              ))}
+            </div>
+          )}
+          {result.file_tree && result.file_tree.length > 0 && (
+            <details className="github-tree">
+              <summary>File structure ({result.file_tree.length} entries)</summary>
+              <ul className="github-tree-list">
+                {result.file_tree.map((entry, i) => (
+                  <li key={`${entry}-${i}`} className="github-tree-entry">{entry}</li>
+                ))}
+              </ul>
+              {result.file_tree_note && (
+                <p className="github-tree-note">{result.file_tree_note}</p>
+              )}
+            </details>
+          )}
+          {result.url && (
+            <a
+              href={result.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="github-link"
+            >
+              View on GitHub ↗
+            </a>
+          )}
+        </div>
+      )}
+      {result?.error && (
+        <div className="tool-card-body">
+          <span className="tool-error">{result.error}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const isPending =
     invocation.state === "partial-call" || invocation.state === "call";
@@ -139,6 +301,32 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
         result={
           invocation.state === "result"
             ? (invocation.result as { readable: string })
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (invocation.toolName === "web_search") {
+    return (
+      <WebSearchCard
+        args={invocation.args as { query?: string }}
+        result={
+          invocation.state === "result"
+            ? (invocation.result as WebSearchToolResult)
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (invocation.toolName === "analyze_github_repo") {
+    return (
+      <GitHubRepoCard
+        args={invocation.args as { repo?: string }}
+        result={
+          invocation.state === "result"
+            ? (invocation.result as GitHubRepoToolResult)
             : undefined
         }
       />
@@ -364,9 +552,27 @@ export function Chat() {
               <span className="pill">🔢 Calculations</span>
               <span className="pill">📋 Task planning</span>
               <span className="pill">🕐 Date &amp; time</span>
+              <span className="pill">🔍 Web search</span>
+              <span className="pill">🐙 GitHub analysis</span>
               <span className="pill">📎 File analysis</span>
             </div>
             <div className="starter-actions">
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() => fillStarterPrompt("Search the web for the latest news in AI today.")}
+              >
+                Latest AI news
+              </button>
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() =>
+                  fillStarterPrompt("Analyze the GitHub repository vercel/next.js and summarize its purpose, structure, and key features.")
+                }
+              >
+                Analyze a repo
+              </button>
               <button
                 type="button"
                 className="starter-button"
@@ -382,17 +588,6 @@ export function Chat() {
                 }
               >
                 Quick calculation
-              </button>
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() =>
-                  fillStarterPrompt(
-                    "I need help reviewing a GitHub repo. What details should I share so you can help effectively?"
-                  )
-                }
-              >
-                Repo help prompt
               </button>
             </div>
           </div>
