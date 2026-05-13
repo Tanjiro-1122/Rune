@@ -46,10 +46,13 @@ APP_PASSWORD=your_app_password_here
 
 # A long random secret used to sign the session cookie — keep this private
 # Generate one with: openssl rand -hex 32
-AUTH_SECRET=a_long_random_secret_string_here
+SESSION_SECRET=a_long_random_secret_string_here
+
+# Backward-compatible alias for older deployments:
+# AUTH_SECRET=a_long_random_secret_string_here
 ```
 
-> **Important:** `APP_PASSWORD` and `AUTH_SECRET` are required. Without them the login endpoint will return a 500 error.
+> **Important:** `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is still supported as a legacy alias for `SESSION_SECRET`.
 
 ### 3. Run locally
 
@@ -64,17 +67,17 @@ Open [http://localhost:3000](http://localhost:3000). You will be redirected to t
 Jarvis uses a lightweight password gate implemented with:
 
 - **Next.js Middleware** — redirects unauthenticated requests to `/login`.
-- **Signed session cookie** — an HMAC-SHA-256 token derived from `AUTH_SECRET` is stored as an `httpOnly` cookie (valid for 7 days).
-- **Environment variables** — no secrets are hardcoded. Change `APP_PASSWORD` or `AUTH_SECRET` at any time to invalidate existing sessions.
+- **Signed session cookie** — an HMAC-SHA-256 token derived from `SESSION_SECRET` (or `AUTH_SECRET` legacy alias) is stored as an `httpOnly` cookie (valid for 7 days).
+- **Environment variables** — no secrets are hardcoded. Change `APP_PASSWORD` or `SESSION_SECRET` at any time to invalidate existing sessions.
 - **Logout** — the "Sign out" button in the chat header clears the session cookie and returns you to the login page.
 
 ### Changing the password
 
-Update `APP_PASSWORD` in your environment and redeploy (or restart the dev server). Existing sessions will be invalidated automatically if you also rotate `AUTH_SECRET`.
+Update `APP_PASSWORD` in your environment and redeploy (or restart the dev server). Existing sessions will be invalidated automatically if you also rotate `SESSION_SECRET`.
 
 ### Revoking all sessions
 
-Change `AUTH_SECRET` to a new random value and redeploy.
+Change `SESSION_SECRET` to a new random value and redeploy.
 
 ## Project Structure
 
@@ -111,9 +114,11 @@ jarvis/
 3. Import this repository.
 4. Add the following environment variables in the Vercel project settings:
    - `OPENAI_API_KEY` — your OpenAI API key
-   - `APP_PASSWORD` — the password to protect the app
-   - `AUTH_SECRET` — a long random secret (generate with `openssl rand -hex 32`)
-5. Click **Deploy**.
+   - `APP_PASSWORD` — required password for login
+   - `SESSION_SECRET` — required session signing secret (generate with `openssl rand -hex 32`)
+   - (`AUTH_SECRET` is an optional legacy alias for `SESSION_SECRET`)
+5. Save the variables for the **Production** environment.
+6. Redeploy the app (or trigger a new production deployment) so the new env vars are applied.
 
 ## File & Image Upload
 

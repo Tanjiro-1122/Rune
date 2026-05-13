@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { computeToken, safeEqual } from "@/lib/auth";
+import { computeToken, getSessionSecret, safeEqual } from "@/lib/auth";
 
 const SESSION_COOKIE = "jarvis_session";
 
 async function verifyToken(token: string): Promise<boolean> {
-  const secret = process.env.AUTH_SECRET;
+  const secret = getSessionSecret();
   if (!secret) return false;
   const expected = await computeToken(secret);
   return safeEqual(token, expected);

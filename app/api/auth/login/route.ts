@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { computeToken, safeEqual } from "@/lib/auth";
+import {
+  computeToken,
+  getAppPassword,
+  getMissingAuthConfigVars,
+  getSessionSecret,
+  safeEqual,
+} from "@/lib/auth";
 
 const SESSION_COOKIE = "jarvis_session";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
@@ -17,12 +23,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Password is required." }, { status: 400 });
   }
 
-  const appPassword = process.env.APP_PASSWORD;
-  const authSecret = process.env.AUTH_SECRET;
+  const appPassword = getAppPassword();
+  const sessionSecret = getSessionSecret();
 
-  if (!appPassword || !authSecret) {
+  if (!appPassword || !sessionSecret) {
+    const missingVars = getMissingAuthConfigVars();
+    const missingMessage =
+      missingVars.length > 0 ? ` Missing: ${missingVars.join(", ")}.` : "";
     return NextResponse.json(
-      { error: "Server is not configured for authentication." },
+      {
+        error: `Server authentication is not configured.${missingMessage}`,
+      },
       { status: 500 }
     );
   }
@@ -31,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid password." }, { status: 401 });
   }
 
-  const token = await computeToken(authSecret);
+  const token = await computeToken(sessionSecret);
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, {
