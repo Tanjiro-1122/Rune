@@ -63,8 +63,9 @@ function cleanupRateWindow(now: number) {
 }
 
 const MAX_TASK_SUMMARY_LENGTH = 240;
+const githubToken = process.env.GITHUB_TOKEN;
 const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
+  ...(githubToken ? { auth: githubToken } : {}),
   userAgent: "Jarvis-Super-Agent/1.0",
 });
 
