@@ -406,10 +406,7 @@ function compileSnippet(
 function getFailureDetails(
   errorMessage: string
 ): Pick<CodeExecutionResult, "failureKind" | "failureGuidance"> {
-  if (
-    errorMessage.includes("Execution timed out") ||
-    errorMessage.includes("Script execution timed out")
-  ) {
+  if (/Execution timed out|Script execution timed out/.test(errorMessage)) {
     return {
       failureKind: "timeout",
       failureGuidance:
@@ -417,7 +414,7 @@ function getFailureDetails(
     };
   }
 
-  if (errorMessage === "Provide a non-empty JavaScript or TypeScript snippet.") {
+  if (errorMessage.includes("non-empty JavaScript or TypeScript snippet")) {
     return {
       failureKind: "empty_snippet",
       failureGuidance:
@@ -485,9 +482,9 @@ function getFailureDetails(
   }
 
   if (
-    errorMessage.includes("Cannot find name") ||
-    errorMessage.includes("Property") ||
-    errorMessage.includes("Type")
+    /Cannot find name\b/.test(errorMessage) ||
+    /Property '[^']+' does not exist on type/.test(errorMessage) ||
+    /Type '[^']+' is not assignable to type/.test(errorMessage)
   ) {
     return {
       failureKind: "compilation_error",
@@ -582,7 +579,6 @@ export async function executeSandboxedCode({
       available: false,
       language,
       success: false,
-      ...getFailureDetails(unavailableMessage),
       failureKind: "disabled",
       failureGuidance:
         "Set JARVIS_CODE_EXECUTION_ENABLED=true in this deployment to re-enable sandboxed execution.",

@@ -171,7 +171,7 @@ function parseOwnerRepo(input: string): string {
 }
 
 function getLatestUserText(messages: UIMessage[]) {
-  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
+  const lastUserMessage = messages.findLast((message) => message.role === "user");
   if (!lastUserMessage) return "";
 
   return lastUserMessage.parts
@@ -181,11 +181,11 @@ function getLatestUserText(messages: UIMessage[]) {
     .trim();
 }
 
-function shouldForceCodeExecutionTool(input: string, codeExecutionAvailable: boolean) {
+function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   if (!codeExecutionAvailable || !input.trim()) return false;
 
   const hasCodeBlock = /```[\s\S]*?```/.test(input);
-  const executionVerb = /\b(run|execute|test|simulate|debug|benchmark|time|profile|check)\b/i.test(
+  const executionVerb = /\b(run|execute|test|simulate|debug|benchmark|profile|check|evaluate)\b/i.test(
     input
   );
   const executionNoun = /\b(code|snippet|script|function|algorithm|javascript|typescript|js|ts|loop)\b/i.test(
@@ -222,7 +222,11 @@ function formatCodeExecutionSummary() {
 
 function getCodeExecutionGuidance(available: boolean) {
   return available
-    ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card. If the user asks to run/evaluate code, call `execute_code` first instead of replying with a prose-only refusal. For downloadable text output, create it via `createArtifact(name, content, mimeType?)` inside the snippet."
+    ? [
+        "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card.",
+        "- If the user asks to run/evaluate code, call `execute_code` first instead of replying with a prose-only refusal.",
+        "- For downloadable text output, create it via `createArtifact(name, content, mimeType?)` inside the snippet (supported mime types: `text/*` and `application/json`; omit `mimeType` for `text/plain`).",
+      ].join("\n")
     : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
 }
 
@@ -569,7 +573,7 @@ export async function POST(req: Request) {
     const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
     const agentTools = getAgentTools();
     const latestUserText = getLatestUserText(messages);
-    const forceCodeExecutionTool = shouldForceCodeExecutionTool(
+    const forceCodeExecutionTool = isCodeExecutionIntent(
       latestUserText,
       codeExecution.available
     );
