@@ -717,7 +717,7 @@ export async function POST(req: Request) {
         return msg;
       }
 
-      const imageRegex = /!\[.*?\]\((https?:\/\/.*?)\)/g;
+      const imageRegex = /!\[[^\]]{0,1000}\]\((https?:\/\/[^\s)]{1,4096})\)/g;
       const matches = [...msg.content.matchAll(imageRegex)];
 
       if (matches.length === 0) {
