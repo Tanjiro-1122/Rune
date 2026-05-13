@@ -31,6 +31,9 @@ const TOOL_LABELS: Record<string, string> = {
   web_search: "Searching the web",
   analyze_github_repo: "Analyzing GitHub repo",
   execute_code: "Running code",
+  listRepositoryTree: "Scanning repository file structure...",
+  readRepositoryFile: "Reading code file content...",
+  commitChangesDirectly: "Writing code changes directly to repository...",
 };
 
 function getToolLabel(name: string) {
@@ -559,6 +562,49 @@ function CodeExecutionCard({
   );
 }
 
+function GithubActivityCard({
+  name,
+  state,
+  args,
+  result,
+}: {
+  name: string;
+  state: "partial-call" | "call" | "result";
+  args: any;
+  result?: any;
+}) {
+  const isPending = state !== "result";
+  const hasFailed = !isPending && result?.success === false;
+  return (
+    <div className={`tool-card tool-card--github ${isPending ? "tool-card--pending" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">
+          {isPending ? "⚙️" : hasFailed ? "❌" : "✅"}
+        </span>
+        <span className="tool-card-title">{getToolLabel(name)}</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      {args?.path && (
+        <div className="tool-card-body">
+          <code className="tool-expr">{args.path}</code>
+        </div>
+      )}
+      {!isPending && result?.commitUrl && (
+        <div className="tool-card-body">
+          <a
+            href={result.commitUrl.startsWith("http") ? result.commitUrl : `https://${result.commitUrl}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="search-result-title"
+          >
+            View Live Commit on GitHub ↗
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const isPending =
     invocation.state === "partial-call" || invocation.state === "call";
@@ -641,6 +687,21 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
             ? (invocation.result as CodeExecutionToolResult)
             : undefined
         }
+      />
+    );
+  }
+
+  if (
+    invocation.toolName === "listRepositoryTree" ||
+    invocation.toolName === "readRepositoryFile" ||
+    invocation.toolName === "commitChangesDirectly"
+  ) {
+    return (
+      <GithubActivityCard
+        name={invocation.toolName}
+        state={invocation.state}
+        args={invocation.args}
+        result={invocation.state === "result" ? invocation.result : undefined}
       />
     );
   }
