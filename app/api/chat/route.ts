@@ -712,6 +712,37 @@ export async function POST(req: Request) {
       resumeTaskId?: string;
     } =
       await req.json();
+    const formattedMessages = messages.map((msg: any) => {
+      if (msg.role !== "user" || typeof msg.content !== "string") {
+        return msg;
+      }
+
+      const imageRegex = /!\[[^\]]{0,1000}\]\((https?:\/\/[^\s)]{1,4096})\)/g;
+      const matches = [...msg.content.matchAll(imageRegex)];
+
+      if (matches.length === 0) {
+        return msg;
+      }
+
+      const cleanText = msg.content.replace(imageRegex, "").trim();
+      const contentArray: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [];
+
+      if (cleanText) {
+        contentArray.push({ type: "text", text: cleanText });
+      }
+
+      matches.forEach((match) => {
+        contentArray.push({
+          type: "image",
+          image: match[1],
+        });
+      });
+
+      return {
+        ...msg,
+        content: contentArray,
+      };
+    });
     requestSessionId = sessionId ?? null;
     requestWorkspaceId = workspaceId;
     requestConversationId = conversationId;
@@ -952,7 +983,7 @@ ${plannerOutput.steps
 ### Formatting
 - Format responses in Markdown: **bold**, \`code\`, lists, headers, fenced code blocks
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
-      messages: convertToCoreMessages(messages),
+      messages: convertToCoreMessages(formattedMessages),
       tools: agentTools,
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 5,
