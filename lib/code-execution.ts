@@ -79,11 +79,11 @@ interface WorkerPayload {
 }
 
 const DEFAULT_LIMITS: ExecutionLimits = {
-  timeoutMs: 2_000,
-  maxSourceLength: 6_000,
-  maxOutputChars: 8_000,
-  maxArtifacts: 3,
-  maxArtifactBytes: 12_000,
+  timeoutMs: 5_000,
+  maxSourceLength: 10_000,
+  maxOutputChars: 12_000,
+  maxArtifacts: 5,
+  maxArtifactBytes: 24_000,
   memoryLimitMb: 64,
 };
 
@@ -154,12 +154,13 @@ function createArtifact(name, content, mimeType = "text/plain") {
   if (typeof name !== "string" || !name.trim()) {
     throw new Error("Artifacts require a non-empty string name.");
   }
-  if (
-    typeof mimeType !== "string" ||
-    (!mimeType.startsWith("text/") && mimeType !== "application/json")
-  ) {
+  const ALLOWED_MIME_TYPES = [
+    "text/plain", "text/csv", "text/html", "text/markdown",
+    "text/xml", "application/json", "application/xml", "image/svg+xml",
+  ];
+  if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.includes(mimeType)) {
     throw new Error(
-      "Artifacts must use a text/* or application/json MIME type."
+      "Artifact MIME type not supported. Allowed: text/plain, text/csv, text/html, text/markdown, text/xml, application/json, application/xml, image/svg+xml."
     );
   }
   const normalizedContent =
@@ -275,37 +276,37 @@ function getExecutionLimits(): ExecutionLimits {
       process.env.JARVIS_CODE_TIMEOUT_MS,
       DEFAULT_LIMITS.timeoutMs,
       250,
-      10_000
+      30_000
     ),
     maxSourceLength: clampNumber(
       process.env.JARVIS_CODE_MAX_SOURCE_LENGTH,
       DEFAULT_LIMITS.maxSourceLength,
       200,
-      20_000
+      50_000
     ),
     maxOutputChars: clampNumber(
       process.env.JARVIS_CODE_MAX_OUTPUT_CHARS,
       DEFAULT_LIMITS.maxOutputChars,
       500,
-      40_000
+      80_000
     ),
     maxArtifacts: clampNumber(
       process.env.JARVIS_CODE_MAX_ARTIFACTS,
       DEFAULT_LIMITS.maxArtifacts,
       0,
-      10
+      20
     ),
     maxArtifactBytes: clampNumber(
       process.env.JARVIS_CODE_MAX_ARTIFACT_BYTES,
       DEFAULT_LIMITS.maxArtifactBytes,
       512,
-      100_000
+      200_000
     ),
     memoryLimitMb: clampNumber(
       process.env.JARVIS_CODE_MEMORY_LIMIT_MB,
       DEFAULT_LIMITS.memoryLimitMb,
       32,
-      256
+      512
     ),
   };
 }

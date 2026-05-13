@@ -12,6 +12,12 @@ import {
   persistWorkspaceAttachments,
   saveConversationExchange,
 } from "@/lib/workspaces";
+import { logError } from "@/lib/errors";
+import {
+  formatCodeExecutionSummary,
+  getCodeExecutionGuidance,
+  getLatestUserText,
+} from "@/lib/orchestration";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 
@@ -176,17 +182,6 @@ function parseOwnerRepo(input: string): string {
   return input.trim().replace(/\.git$/, "");
 }
 
-function getLatestUserText(messages: UIMessage[]) {
-  const lastUserMessage = messages.findLast((message) => message.role === "user");
-  if (!lastUserMessage) return "";
-
-  return lastUserMessage.parts
-    .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-}
-
 function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   if (!codeExecutionAvailable || !input.trim()) return false;
 
@@ -298,33 +293,6 @@ function sanitizeAttachmentName(name: string | undefined) {
     .replace(/\s+/g, " ")
     .trim();
   return cleaned || "file";
-}
-
-function formatCodeExecutionSummary() {
-  const codeExecution = getCodeExecutionAvailability();
-
-  if (!codeExecution.available) {
-    return `- Sandboxed code execution is unavailable in this deployment because ${codeExecution.reason}.`;
-  }
-
-  const { limits } = codeExecution;
-
-  return [
-    "- `execute_code` — sandboxed JavaScript/TypeScript execution for short self-contained snippets only.",
-    `Limits: ${limits.timeoutMs} ms timeout, ${limits.maxSourceLength} characters of source, ${limits.maxOutputChars} characters of combined logs,`,
-    `up to ${limits.maxArtifacts} text artifacts of ${limits.maxArtifactBytes} bytes each, and an isolated worker memory limit of about ${limits.memoryLimitMb} MB.`,
-    "No imports, filesystem, process, or network access.",
-  ].join(" ");
-}
-
-function getCodeExecutionGuidance(available: boolean) {
-  return available
-    ? [
-        "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card.",
-        "- If the user asks to run/evaluate code, call `execute_code` first instead of replying with a prose-only refusal.",
-        "- For downloadable text output, create it via `createArtifact(name, content, mimeType?)` inside the snippet (supported mime types: `text/*` and `application/json`; omit `mimeType` for `text/plain`).",
-      ].join("\n")
-    : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
 }
 
 const baseAgentTools = {
@@ -645,7 +613,7 @@ function getAgentTools({
     ...baseAgentTools,
     execute_code: tool({
       description:
-        "Run a short, self-contained JavaScript or TypeScript snippet inside Jarvis's sandbox. Use for small coding checks, evaluating generated code, quick data transforms, and algorithm verification. The snippet must be self-contained, must not use imports or external modules, and should use `return` to surface a final value. Console output and text artifacts are returned to the chat UI.",
+        "Run a short, self-contained JavaScript or TypeScript snippet inside Jarvis's sandbox. Use for small coding checks, evaluating generated code, quick data transforms, algorithm verification, and generating downloadable text artifacts (CSV, JSON, SVG, HTML, Markdown). The snippet must be self-contained, must not use imports or external modules, and should use `return` to surface a final value. Console output and artifacts are returned to the chat UI.",
       parameters: z.object({
         language: z
           .enum(["javascript", "typescript"])
@@ -655,7 +623,7 @@ function getAgentTools({
         code: z
           .string()
           .describe(
-            "A short self-contained snippet. No imports, file access, network access, or process access. Use `return` for the final value."
+            "A short self-contained snippet. No imports, file access, network access, or process access. Use `return` for the final value. Use createArtifact(name, content, mimeType?) for downloadable output."
           ),
       }),
       execute: async ({ code, language = "typescript" }) => {
@@ -683,7 +651,7 @@ export async function POST(req: Request) {
       await req.json();
 
     const codeExecution = getCodeExecutionAvailability();
-    const codeExecutionSummary = formatCodeExecutionSummary();
+    const codeExecutionSummary = formatCodeExecutionSummary(codeExecution);
     const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
     const latestUserText = getLatestUserText(messages);
     const lastUserMessage = [...messages]
@@ -805,7 +773,7 @@ ${workspaceContextSection}
 
     return result.toDataStreamResponse();
   } catch (error) {
-    console.error("Chat API error:", error);
+    logError("api.chat.POST", error);
     return new Response(
       JSON.stringify({ error: "Something went wrong processing your request." }),
       {

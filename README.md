@@ -120,11 +120,13 @@ SUPABASE_ANON_KEY=your_supabase_anon_key_here
 TAVILY_API_KEY=
 GITHUB_TOKEN=
 JARVIS_CODE_EXECUTION_ENABLED=true
-JARVIS_CODE_TIMEOUT_MS=2000
-JARVIS_CODE_MAX_SOURCE_LENGTH=6000
-JARVIS_CODE_MAX_OUTPUT_CHARS=8000
-JARVIS_CODE_MAX_ARTIFACTS=3
-JARVIS_CODE_MAX_ARTIFACT_BYTES=12000
+
+# Optional sandbox tuning — defaults shown; all values are clamped to safe ranges
+JARVIS_CODE_TIMEOUT_MS=5000
+JARVIS_CODE_MAX_SOURCE_LENGTH=10000
+JARVIS_CODE_MAX_OUTPUT_CHARS=12000
+JARVIS_CODE_MAX_ARTIFACTS=5
+JARVIS_CODE_MAX_ARTIFACT_BYTES=24000
 JARVIS_CODE_MEMORY_LIMIT_MB=64
 ```
 
@@ -182,7 +184,7 @@ Execution remains intentionally constrained:
 - no imports or external packages
 - no filesystem/process/network access
 - strict timeout/output limits
-- text and `application/json` artifacts only
+- supported artifact MIME types: `text/plain`, `text/csv`, `text/markdown`, `text/html`, `text/xml`, `application/json`, `application/xml`, `image/svg+xml`
 
 ## Uploads and indexed content
 
@@ -206,6 +208,7 @@ Current indexing behavior:
 jarvis/
 ├─ app/
 │  ├─ api/
+│  │  ├─ artifacts/route.ts
 │  │  ├─ auth/
 │  │  ├─ chat/route.ts
 │  │  ├─ conversations/route.ts
@@ -220,6 +223,9 @@ jarvis/
 ├─ lib/
 │  ├─ auth.ts
 │  ├─ code-execution.ts
+│  ├─ db.ts
+│  ├─ errors.ts
+│  ├─ orchestration.ts
 │  ├─ supabase.ts
 │  └─ workspaces.ts
 ├─ supabase/
@@ -274,7 +280,7 @@ There is no separate test suite in the repository today.
 
 - Web search still requires `TAVILY_API_KEY`
 - GitHub repo analysis is still public-repo-oriented unless `GITHUB_TOKEN` has broader access
-- Sandbox execution is still intentionally narrow and cannot run arbitrary repos or installs
+- Sandbox execution is still intentionally narrow and cannot run arbitrary repos, installs, or external I/O
 - Workspace retrieval is stronger than before, but not yet embedding-backed
 - Images are not indexed into retrieval in this stage
 - Supabase remains optional, but persistent workspace features require the schema in `supabase/schema.sql`

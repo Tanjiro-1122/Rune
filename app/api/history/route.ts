@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logError } from "@/lib/errors";
 import { getConversationHistory } from "@/lib/workspaces";
 
 const MAX_SESSION_ID_LENGTH = 128;
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(history);
   } catch (error) {
-    console.error("Failed to load conversation history:", error);
+    logError("api.history.GET", error);
     return NextResponse.json(
       { error: "Failed to load conversation history." },
       { status: 500 }
