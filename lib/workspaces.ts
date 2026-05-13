@@ -11,6 +11,7 @@ const CHUNK_SIZE = 900;
 const CHUNK_OVERLAP = 140;
 const SHORT_TOKEN_MATCH_SCORE = 2;
 const LONG_TOKEN_MATCH_SCORE = 3;
+const WORKSPACE_ACCESS_ROLES = ["viewer", "editor", "owner"] as const;
 const MAX_RETRIEVAL_CHUNK_CANDIDATES = 220;
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_INPUT_MAX_CHARS = 2_400;
@@ -74,6 +75,7 @@ interface WorkspaceChunkRow {
   created_at?: string;
 }
 
+export type WorkspaceAccessRole = (typeof WORKSPACE_ACCESS_ROLES)[number];
 interface WorkspaceProjectFileRow {
   id: string;
   workspace_id: string;
@@ -103,6 +105,7 @@ export interface WorkspaceSummary {
   description: string | null;
   createdAt: string;
   updatedAt: string;
+  accessRole: WorkspaceAccessRole;
   conversationCount: number;
   documentCount: number;
   artifactCount: number;
@@ -204,6 +207,7 @@ function buildLocalBootstrap(sessionId: string): WorkspaceBootstrapData {
         description: "Single-session mode without Supabase persistence.",
         createdAt: now,
         updatedAt: now,
+        accessRole: "owner",
         conversationCount: 1,
         documentCount: 0,
         artifactCount: 0,
@@ -232,6 +236,140 @@ function cleanTitle(input: string | null | undefined, fallback: string) {
 
 function isPersistedConversationId(conversationId?: string | null) {
   return Boolean(conversationId && !isLocalConversationId(conversationId));
+}
+
+function normalizeAccessRole(role: string | null | undefined): WorkspaceAccessRole | null {
+  if (!role) return null;
+  return WORKSPACE_ACCESS_ROLES.includes(role as WorkspaceAccessRole)
+    ? (role as WorkspaceAccessRole)
+    : null;
+}
+
+function roleAllows(required: WorkspaceAccessRole, actual: WorkspaceAccessRole) {
+  const rank: Record<WorkspaceAccessRole, number> = {
+    viewer: 1,
+    editor: 2,
+    owner: 3,
+  };
+  return rank[actual] >= rank[required];
+}
+
+async function resolveWorkspaceAccessRole(
+  sessionId: string,
+  workspaceId: string
+): Promise<WorkspaceAccessRole | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return isLocalWorkspaceId(workspaceId) ? "owner" : null;
+  }
+
+  const workspaceResponse = await supabase
+    .from("workspaces")
+    .select("id, session_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+
+  if (workspaceResponse.error || !workspaceResponse.data) {
+    return null;
+  }
+
+  if (workspaceResponse.data.session_id === sessionId) {
+    return "owner";
+  }
+
+  const membershipResponse = await supabase
+    .from("workspace_memberships")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("session_id", sessionId)
+    .maybeSingle();
+
+  if (membershipResponse.error) {
+    return null;
+  }
+
+  return normalizeAccessRole(membershipResponse.data?.role);
+}
+
+export async function assertWorkspaceAccess(options: {
+  sessionId: string;
+  workspaceId: string;
+  requiredRole?: WorkspaceAccessRole;
+}) {
+  const { sessionId, workspaceId, requiredRole = "viewer" } = options;
+
+  if (isLocalWorkspaceId(workspaceId)) {
+    if (workspaceId !== buildLocalWorkspaceId(sessionId)) {
+      throw new Error("Workspace access denied.");
+    }
+    return;
+  }
+
+  const role = await resolveWorkspaceAccessRole(sessionId, workspaceId);
+  if (!role || !roleAllows(requiredRole, role)) {
+    throw new Error("Workspace access denied.");
+  }
+}
+
+export async function assertConversationAccess(options: {
+  sessionId: string;
+  conversationId: string;
+  workspaceId?: string | null;
+  requiredRole?: WorkspaceAccessRole;
+}) {
+  const { sessionId, conversationId, workspaceId, requiredRole = "viewer" } = options;
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    if (!isLocalConversationId(conversationId)) {
+      throw new Error("Conversation access denied.");
+    }
+    return;
+  }
+
+  const conversationResponse = await supabase
+    .from("conversations")
+    .select("id, session_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  if (!conversationResponse.error && conversationResponse.data?.session_id === sessionId) {
+    if (workspaceId) {
+      const mappingResponse = await supabase
+        .from("conversation_workspaces")
+        .select("workspace_id")
+        .eq("conversation_id", conversationId)
+        .maybeSingle();
+
+      if (mappingResponse.error) {
+        throw new Error("Conversation access denied.");
+      }
+
+      if (mappingResponse.data?.workspace_id && mappingResponse.data.workspace_id !== workspaceId) {
+        throw new Error("Conversation access denied.");
+      }
+    }
+    return;
+  }
+
+  const mappingResponse = await supabase
+    .from("conversation_workspaces")
+    .select("workspace_id")
+    .eq("conversation_id", conversationId)
+    .maybeSingle();
+
+  if (mappingResponse.error || !mappingResponse.data?.workspace_id) {
+    throw new Error("Conversation access denied.");
+  }
+
+  if (workspaceId && workspaceId !== mappingResponse.data.workspace_id) {
+    throw new Error("Conversation access denied.");
+  }
+
+  await assertWorkspaceAccess({
+    sessionId,
+    workspaceId: mappingResponse.data.workspace_id,
+    requiredRole,
+  });
 }
 
 function getDefaultWorkspaceId(workspaces: WorkspaceRow[]) {
@@ -446,6 +584,42 @@ async function ensureWorkspaceRows(sessionId: string) {
 
   let workspaces = (workspaceResponse.data ?? []) as WorkspaceRow[];
 
+  const membershipResponse = await supabase
+    .from("workspace_memberships")
+    .select("workspace_id")
+    .eq("session_id", sessionId);
+
+  if (!membershipResponse.error) {
+    const membershipWorkspaceIds = Array.from(
+      new Set(
+        ((membershipResponse.data ?? []) as Array<{ workspace_id: string }>)
+          .map((row) => row.workspace_id)
+          .filter(Boolean)
+      )
+    );
+
+    const sharedWorkspaceIds = membershipWorkspaceIds.filter(
+      (workspaceId) => !workspaces.some((workspace) => workspace.id === workspaceId)
+    );
+
+    if (sharedWorkspaceIds.length > 0) {
+      const sharedResponse = await supabase
+        .from("workspaces")
+        .select("id, session_id, name, description, created_at, updated_at")
+        .in("id", sharedWorkspaceIds)
+        .order("updated_at", { ascending: false });
+
+      if (!sharedResponse.error) {
+        workspaces = [
+          ...workspaces,
+          ...(((sharedResponse.data ?? []) as WorkspaceRow[]).filter(
+            (workspace) => workspace.session_id !== sessionId
+          ) as WorkspaceRow[]),
+        ];
+      }
+    }
+  }
+
   if (workspaces.length === 0) {
     const inserted = await supabase
       .from("workspaces")
@@ -465,6 +639,15 @@ async function ensureWorkspaceRows(sessionId: string) {
         workspaces: [] as WorkspaceRow[],
       };
     }
+
+    await supabase.from("workspace_memberships").upsert(
+      {
+        workspace_id: inserted.data.id,
+        session_id: sessionId,
+        role: "owner",
+      },
+      { onConflict: "workspace_id,session_id" }
+    );
 
     workspaces = [inserted.data as WorkspaceRow];
   }
@@ -556,6 +739,7 @@ export async function getWorkspaceBootstrap(
     mappingResponse,
     documentResponse,
     artifactMetaResponse,
+    membershipResponse,
     projectFileResponse,
   ] =
     await Promise.all([
@@ -581,6 +765,11 @@ export async function getWorkspaceBootstrap(
         .in("workspace_id", workspaceIds)
         .order("created_at", { ascending: false }),
       supabase
+        .from("workspace_memberships")
+        .select("workspace_id, role")
+        .eq("session_id", sessionId)
+        .in("workspace_id", workspaceIds),
+      supabase
         .from("workspace_project_files")
         .select(
           "id, workspace_id, conversation_id, document_id, artifact_id, path, display_name, source_kind, mime_type, bytes, summary, created_at, updated_at"
@@ -591,10 +780,11 @@ export async function getWorkspaceBootstrap(
 
   if (
     conversationResponse.error ||
-    mappingResponse.error ||
-    documentResponse.error ||
-    artifactMetaResponse.error ||
-    projectFileResponse.error
+      mappingResponse.error ||
+      documentResponse.error ||
+      artifactMetaResponse.error ||
+      membershipResponse.error ||
+      projectFileResponse.error
   ) {
     const local = buildLocalBootstrap(sessionId);
     return {
@@ -606,6 +796,7 @@ export async function getWorkspaceBootstrap(
           mappingResponse.error?.message ??
           documentResponse.error?.message ??
           artifactMetaResponse.error?.message ??
+          membershipResponse.error?.message ??
           projectFileResponse.error?.message ??
           "workspace query failed"
       ),
@@ -619,36 +810,50 @@ export async function getWorkspaceBootstrap(
     (artifactMetaResponse.data ?? []) as Array<
       Omit<WorkspaceArtifactRow, "content"> & { content?: string }
     >;
+  const membershipByWorkspace = new Map(
+    ((membershipResponse.data ?? []) as Array<{ workspace_id: string; role: string }>).map(
+      (row) => [row.workspace_id, normalizeAccessRole(row.role)]
+    )
+  );
   const projectFiles = (projectFileResponse.data ?? []) as WorkspaceProjectFileRow[];
 
   const conversationById = new Map(conversations.map((item) => [item.id, item]));
 
-  const workspacesWithCounts = workspaces.map((workspace) => {
-    const workspaceMappings = mappings
-      .filter((mapping) => mapping.workspace_id === workspace.id)
-      .map((mapping) => {
-        const conversation = conversationById.get(mapping.conversation_id);
-        return {
-          id: mapping.conversation_id,
-          title: cleanTitle(mapping.title, "Untitled chat"),
-          createdAt: conversation?.created_at ?? mapping.created_at,
-          updatedAt: mapping.updated_at,
-        } satisfies WorkspaceConversationSummary;
-      })
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  const workspacesWithCounts = workspaces
+    .map((workspace) => {
+      const accessRole =
+        workspace.session_id === sessionId
+          ? "owner"
+          : membershipByWorkspace.get(workspace.id) ?? null;
+      if (!accessRole) return null;
 
-    return {
-      id: workspace.id,
-      name: workspace.name,
-      description: workspace.description,
-      createdAt: workspace.created_at,
-      updatedAt: workspace.updated_at,
-      conversationCount: workspaceMappings.length,
-      documentCount: documents.filter((document) => document.workspace_id === workspace.id).length,
-      artifactCount: artifactMeta.filter((artifact) => artifact.workspace_id === workspace.id).length,
-      conversations: workspaceMappings,
-    } satisfies WorkspaceSummary;
-  });
+      const workspaceMappings = mappings
+        .filter((mapping) => mapping.workspace_id === workspace.id)
+        .map((mapping) => {
+          const conversation = conversationById.get(mapping.conversation_id);
+          return {
+            id: mapping.conversation_id,
+            title: cleanTitle(mapping.title, "Untitled chat"),
+            createdAt: conversation?.created_at ?? mapping.created_at,
+            updatedAt: mapping.updated_at,
+          } satisfies WorkspaceConversationSummary;
+        })
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+      return {
+        id: workspace.id,
+        name: workspace.name,
+        description: workspace.description,
+        createdAt: workspace.created_at,
+        updatedAt: workspace.updated_at,
+        accessRole,
+        conversationCount: workspaceMappings.length,
+        documentCount: documents.filter((document) => document.workspace_id === workspace.id).length,
+        artifactCount: artifactMeta.filter((artifact) => artifact.workspace_id === workspace.id).length,
+        conversations: workspaceMappings,
+      } satisfies WorkspaceSummary;
+    })
+    .filter((workspace): workspace is WorkspaceSummary => Boolean(workspace));
 
   let selectedArtifacts: WorkspaceArtifactSummary[] = [];
   if (selectedWorkspaceId) {
@@ -761,6 +966,15 @@ export async function createWorkspace(options: {
     throw new Error(response.error?.message ?? "Failed to create workspace.");
   }
 
+  await supabase.from("workspace_memberships").upsert(
+    {
+      workspace_id: response.data.id,
+      session_id: sessionId,
+      role: "owner",
+    },
+    { onConflict: "workspace_id,session_id" }
+  );
+
   return {
     id: response.data.id,
     name: response.data.name,
@@ -787,6 +1001,12 @@ export async function createConversation(options: {
       updatedAt: now,
     };
   }
+
+  await assertWorkspaceAccess({
+    sessionId,
+    workspaceId,
+    requiredRole: "editor",
+  });
 
   const conversationResponse = await supabase
     .from("conversations")
@@ -839,6 +1059,10 @@ export async function getConversationHistory(options: {
     };
   }
 
+  if (workspaceId) {
+    await assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "viewer" });
+  }
+
   let resolvedConversationId = conversationId ?? null;
 
   if (!resolvedConversationId && workspaceId) {
@@ -860,6 +1084,13 @@ export async function getConversationHistory(options: {
   if (!resolvedConversationId) {
     return { conversationId: null, messages: [] as { id: string; role: string; content: string }[] };
   }
+
+  await assertConversationAccess({
+    sessionId,
+    workspaceId,
+    conversationId: resolvedConversationId,
+    requiredRole: "viewer",
+  });
 
   const messageResponse = await supabase
     .from("messages")
@@ -1125,6 +1356,28 @@ export async function persistWorkspaceArtifacts(options: {
   if (conversationId) {
     await touchConversation(conversationId);
   }
+}
+
+export async function recordWorkspaceEvent(options: {
+  sessionId: string;
+  workspaceId?: string | null;
+  conversationId?: string | null;
+  eventType: string;
+  status: "started" | "success" | "failure";
+  details?: Record<string, unknown>;
+}) {
+  const { sessionId, workspaceId, conversationId, eventType, status, details } = options;
+  const supabase = getSupabaseClient();
+  if (!supabase || !workspaceId || isLocalWorkspaceId(workspaceId)) return;
+
+  await supabase.from("workspace_events").insert({
+    workspace_id: workspaceId,
+    conversation_id: isPersistedConversationId(conversationId) ? conversationId : null,
+    session_id: sessionId,
+    event_type: eventType,
+    status,
+    details: details ?? {},
+  });
 }
 
 export async function getWorkspaceRetrievalContext(options: {

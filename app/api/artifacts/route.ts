@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { saveArtifact, getConversationArtifacts } from "@/lib/db";
 import { logError } from "@/lib/errors";
+import { assertConversationAccess } from "@/lib/workspaces";
 
 // 200 KB is generous for text-based artifacts while keeping the endpoint safe.
 const MAX_ARTIFACT_CONTENT_LENGTH = 200_000;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_SESSION_ID_LENGTH = 128;
 
 const saveArtifactSchema = z.object({
   conversationId: z.string().regex(UUID_RE, "conversationId must be a UUID"),
@@ -21,6 +23,18 @@ const saveArtifactSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const conversationId = req.nextUrl.searchParams.get("conversationId");
+  const sessionId = req.nextUrl.searchParams.get("sessionId");
+
+  if (!sessionId) {
+    return NextResponse.json(
+      { error: "sessionId query parameter is required." },
+      { status: 400 }
+    );
+  }
+
+  if (sessionId.length > MAX_SESSION_ID_LENGTH) {
+    return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
+  }
 
   if (!conversationId) {
     return NextResponse.json(
@@ -34,6 +48,16 @@ export async function GET(req: NextRequest) {
       { error: "Invalid conversationId format." },
       { status: 400 }
     );
+  }
+
+  try {
+    await assertConversationAccess({
+      sessionId,
+      conversationId,
+      requiredRole: "viewer",
+    });
+  } catch {
+    return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
   }
 
   const artifacts = await getConversationArtifacts(conversationId);
@@ -59,6 +83,29 @@ export async function POST(req: NextRequest) {
   }
 
   const { conversationId, name, mimeType, content, bytes } = parsed.data;
+  const sessionId =
+    body &&
+    typeof body === "object" &&
+    typeof (body as Record<string, unknown>).sessionId === "string"
+      ? ((body as Record<string, unknown>).sessionId as string)
+      : "";
+
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId is required." }, { status: 400 });
+  }
+  if (sessionId.length > MAX_SESSION_ID_LENGTH) {
+    return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
+  }
+
+  try {
+    await assertConversationAccess({
+      sessionId,
+      conversationId,
+      requiredRole: "editor",
+    });
+  } catch {
+    return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
+  }
 
   const saved = await saveArtifact(conversationId, {
     name,

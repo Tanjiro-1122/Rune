@@ -688,7 +688,7 @@ export function Chat() {
     status,
     setMessages,
     setInput,
-  } = useChat({ body: { conversationId, workspaceId, resumeTaskId } });
+  } = useChat({ body: { sessionId, conversationId, workspaceId, resumeTaskId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);

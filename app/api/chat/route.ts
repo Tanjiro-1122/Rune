@@ -6,10 +6,13 @@ import {
   getCodeExecutionAvailability,
 } from "@/lib/code-execution";
 import {
+  assertConversationAccess,
+  assertWorkspaceAccess,
   deriveConversationTitle,
   getWorkspaceRetrievalContext,
   persistWorkspaceArtifacts,
   persistWorkspaceAttachments,
+  recordWorkspaceEvent,
   saveConversationExchange,
 } from "@/lib/workspaces";
 import { logError } from "@/lib/errors";
@@ -28,6 +31,36 @@ import {
 } from "@/lib/tasks";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
+const MAX_SESSION_ID_LENGTH = 128;
+const CHAT_RATE_WINDOW_MS = 60_000;
+const MAX_TRACKED_CHAT_SESSIONS = 2_000;
+const MAX_EVENT_ERROR_MESSAGE_LENGTH = 280;
+const chatRateWindow = new Map<string, number[]>();
+
+function getMaxChatRequestsPerMinute() {
+  const raw = process.env.JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE;
+  if (!raw) return 20;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return 20;
+  return Math.round(Math.min(Math.max(parsed, 5), 300));
+}
+
+function cleanupRateWindow(now: number) {
+  if (chatRateWindow.size <= MAX_TRACKED_CHAT_SESSIONS) return;
+
+  for (const [sessionId, timestamps] of chatRateWindow) {
+    const recent = timestamps.filter((timestamp) => now - timestamp < CHAT_RATE_WINDOW_MS);
+    if (recent.length === 0) {
+      chatRateWindow.delete(sessionId);
+    } else {
+      chatRateWindow.set(sessionId, recent);
+    }
+    if (chatRateWindow.size <= MAX_TRACKED_CHAT_SESSIONS) {
+      break;
+    }
+  }
+}
+
 const MAX_TASK_SUMMARY_LENGTH = 240;
 
 function summarizeTaskResult(input: string) {
@@ -660,20 +693,89 @@ function getAgentTools({
 }
 
 export async function POST(req: Request) {
+  let requestSessionId: string | null = null;
+  let requestWorkspaceId: string | undefined;
+  let requestConversationId: string | undefined;
   let activeTaskId: string | null = null;
   try {
     const {
       messages,
+      sessionId,
       conversationId,
       workspaceId,
       resumeTaskId,
     }: {
       messages: UIMessage[];
+      sessionId?: string;
       conversationId?: string;
       workspaceId?: string;
       resumeTaskId?: string;
     } =
       await req.json();
+    requestSessionId = sessionId ?? null;
+    requestWorkspaceId = workspaceId;
+    requestConversationId = conversationId;
+
+    if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Invalid sessionId." }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const now = Date.now();
+    cleanupRateWindow(now);
+    const recentRequests =
+      (chatRateWindow.get(sessionId) ?? []).filter(
+        (timestamp) => now - timestamp < CHAT_RATE_WINDOW_MS
+      );
+    if (recentRequests.length >= getMaxChatRequestsPerMinute()) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Rate limit reached for this workspace session. Wait a minute and retry.",
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": "60",
+          },
+        }
+      );
+    }
+    recentRequests.push(now);
+    chatRateWindow.set(sessionId, recentRequests);
+
+    if (workspaceId) {
+      await assertWorkspaceAccess({
+        sessionId,
+        workspaceId,
+        requiredRole: "editor",
+      });
+    }
+    if (conversationId) {
+      await assertConversationAccess({
+        sessionId,
+        conversationId,
+        workspaceId,
+        requiredRole: "editor",
+      });
+    }
+
+    await recordWorkspaceEvent({
+      sessionId,
+      workspaceId,
+      conversationId,
+      eventType: "chat.request",
+      status: "started",
+      details: {
+        messageCount: messages.length,
+      },
+    });
 
     const codeExecution = getCodeExecutionAvailability();
     const codeExecutionSummary = formatCodeExecutionSummary(codeExecution);
@@ -898,7 +1000,6 @@ ${plannerOutput.steps
             userContent || attachmentSummary || "Untitled chat"
           ),
         });
-
         if (taskId) {
           await updateWorkspaceTaskStep({
             taskId,
@@ -912,11 +1013,49 @@ ${plannerOutput.steps
           await completeWorkspaceTask(taskId, taskSummary);
           activeTaskId = null;
         }
+        await recordWorkspaceEvent({
+          sessionId,
+          workspaceId,
+          conversationId,
+          eventType: "chat.request",
+          status: "success",
+          details: {
+            responseChars: (text ?? "").length,
+          },
+        });
       },
     });
 
     return result.toDataStreamResponse();
   } catch (error) {
+    if (requestSessionId) {
+      await recordWorkspaceEvent({
+        sessionId: requestSessionId,
+        workspaceId: requestWorkspaceId,
+        conversationId: requestConversationId,
+        eventType: "chat.request",
+        status: "failure",
+        details: {
+          message:
+            error instanceof Error
+              ? error.message.length > MAX_EVENT_ERROR_MESSAGE_LENGTH
+                ? `${error.message.slice(0, MAX_EVENT_ERROR_MESSAGE_LENGTH)}...`
+                : error.message
+              : "Unknown chat failure",
+        },
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("access denied")) {
+      return new Response(
+        JSON.stringify({ error: "Workspace or conversation access denied." }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
     logError("api.chat.POST", error);
     if (activeTaskId) {
       await failWorkspaceTask(

@@ -4,13 +4,16 @@ Jarvis is a Vercel-ready AI workspace built with Next.js and the Vercel AI SDK. 
 
 ## What this stage implements
 
-This stage does **not** claim exact Base44 or Emergent parity. It focuses on the highest-value remaining upgrades in one cohesive step:
+This stage does **not** claim exact Base44 or Emergent parity. It focuses on platform-hardening foundations needed before deeper maturity:
 
 - **Background/resumable task infrastructure** — chat work now creates persisted workspace tasks with step-level status, progress, failure recovery, and resume support after refresh.
 - **Semantic retrieval foundation** — workspace chunk retrieval now combines lexical relevance with embedding similarity for uploaded files, artifacts, and prior conversation context.
 - **Deeper project workspace model** — uploaded documents + generated artifacts are mapped into a persistent workspace project-file model so context feels like one coherent environment.
 - **Explicit planner/executor flow** — the backend creates a structured execution plan, tracks planner/executor phases, and surfaces consistent progress semantics across complex requests.
 - **Preserved Jarvis workspace UX** — existing auth/history/uploads/web search/GitHub analysis/sandbox/artifact flows remain intact while adding task + project-depth visibility.
+- **Security hardening** — stricter workspace/conversation access checks, safer sandbox blocking patterns, redacted execution errors, and request-rate usage controls.
+- **Operational readiness** — sandbox worker retry controls and durable workspace event logging for request start/success/failure visibility.
+- **Collaboration/admin foundation** — role-based workspace memberships (`viewer` / `editor` / `owner`) and clearer permission boundaries in workspace APIs.
 
 ## Core features retained
 
@@ -33,6 +36,8 @@ Jarvis keeps the original `conversations` + `messages` tables and layers new wor
 - `workspace_documents` — indexed uploaded text/code files and artifact content summaries
 - `workspace_chunks` — retrieval chunks for uploaded/project content
 - `workspace_artifacts` — persistent generated artifacts with download-ready content
+- `workspace_memberships` — role-based workspace access foundation (`viewer` / `editor` / `owner`)
+- `workspace_events` — operational lifecycle events for chat/workspace activity visibility
 - `workspace_project_files` — normalized project-level file map that links uploads/artifacts/documents into one workspace model
 - `workspace_tasks` — persisted execution tasks with progress/status for resumable long-running flows
 - `workspace_task_steps` — explicit planner/executor step state for each task
@@ -46,6 +51,7 @@ The supplied SQL is migration-safe for existing Jarvis installs:
 - Existing `conversations` and `messages` are preserved
 - Existing session conversations are backfilled into a default `General workspace`
 - New workspace tables are created with `if not exists`
+- Existing workspaces are backfilled into `workspace_memberships` as `owner`
 - Legacy history remains readable even after the workspace upgrade
 
 ## Retrieval and memory behavior in this stage
@@ -141,10 +147,15 @@ JARVIS_CODE_MAX_OUTPUT_CHARS=12000
 JARVIS_CODE_MAX_ARTIFACTS=5
 JARVIS_CODE_MAX_ARTIFACT_BYTES=24000
 JARVIS_CODE_MEMORY_LIMIT_MB=64
+JARVIS_CODE_MAX_WORKER_RETRIES=1
+JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE=20
 ```
 
 > `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` still works as a legacy alias for `SESSION_SECRET`.
 >
+> New hardening controls were added for this stage:
+> - `JARVIS_CODE_MAX_WORKER_RETRIES` — retries failed sandbox worker startups (clamped 0–2)
+> - `JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE` — per-session chat burst protection (clamped 5–300)
 > `OPENAI_API_KEY` is now also used for semantic retrieval embeddings in addition to chat completions.
 
 ### 3. Set up Supabase
@@ -197,7 +208,32 @@ Execution remains intentionally constrained:
 - no imports or external packages
 - no filesystem/process/network access
 - strict timeout/output limits
+- blocked dynamic code generation (`eval`, `Function`) and prototype mutation attempts
 - supported artifact MIME types: `text/plain`, `text/csv`, `text/markdown`, `text/html`, `text/xml`, `application/json`, `application/xml`, `image/svg+xml`
+
+Operational additions in this stage:
+
+- sandbox worker startup failures now retry up to `JARVIS_CODE_MAX_WORKER_RETRIES`
+- sandbox/runtime errors are sanitized before returning to the model/UI to reduce accidental secret leakage
+
+## Collaboration/admin foundations in this stage
+
+New schema additions:
+
+- `workspace_memberships` — role assignments for future shared-workspace patterns
+- `workspace_events` — durable operational event log (`started` / `success` / `failure`) for chat request visibility
+
+Current permission model:
+
+- workspace owners are still the creating `session_id`
+- membership roles allow controlled access expansion without removing existing owner model compatibility
+- API routes now enforce workspace/conversation access checks before history reads, chat execution, and artifact operations
+
+## Operational and usage controls in this stage
+
+- Per-session chat burst limiting (`JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE`) to reduce abuse/cost spikes
+- Workspace event logging for request lifecycle visibility and admin troubleshooting
+- Sandbox worker retry behavior for better resilience against transient worker startup failures
 
 ## Uploads and indexed content
 
@@ -266,6 +302,9 @@ This stage stops short of full autonomous AI workspace parity. Intentionally **n
 - PDF/DOCX ingestion pipelines and richer multimodal indexing
 - full containerized multi-file build/test execution environments
 - collaborative/shared workspaces across users
+- full invitation flows, identity-backed RBAC, and org-level policy administration
+- distributed/global rate limiting and enterprise-grade abuse prevention
+- job queue dashboards, dead-letter queues, and production SLO alerting
 - artifact version history or diffing
 - exact Base44 or Emergent feature matching
 

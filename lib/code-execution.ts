@@ -10,6 +10,7 @@ export interface ExecutionLimits {
   maxArtifacts: number;
   maxArtifactBytes: number;
   memoryLimitMb: number;
+  maxWorkerRetries: number;
 }
 
 export interface CodeExecutionArtifact {
@@ -85,6 +86,7 @@ const DEFAULT_LIMITS: ExecutionLimits = {
   maxArtifacts: 5,
   maxArtifactBytes: 24_000,
   memoryLimitMb: 64,
+  maxWorkerRetries: 1,
 };
 
 export const SUPPORTED_ARTIFACT_MIME_TYPES = [
@@ -318,7 +320,25 @@ function getExecutionLimits(): ExecutionLimits {
       32,
       512
     ),
+    maxWorkerRetries: clampNumber(
+      process.env.JARVIS_CODE_MAX_WORKER_RETRIES,
+      DEFAULT_LIMITS.maxWorkerRetries,
+      0,
+      2
+    ),
   };
+}
+
+function sanitizeExecutionError(rawMessage: string) {
+  return rawMessage
+    .replace(
+      /\b(?:sk-(?:proj-)?[a-z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{20,})\b/gi,
+      "[redacted-secret]"
+    )
+    .replace(
+      /\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|KEY))\s*[:=]\s*[^\s,;]+/g,
+      "$1=[redacted]"
+    );
 }
 
 export function getCodeExecutionAvailability() {
@@ -359,6 +379,18 @@ function validateSnippet(code: string, limits: ExecutionLimits) {
     [
       /\b(?:process|global|globalThis|window|document)\b/,
       "Access to host globals is blocked in the sandbox.",
+    ],
+    [
+      /\b(?:Function|eval)\s*\(/,
+      "Dynamic code generation is blocked in the sandbox.",
+    ],
+    [
+      /\b(?:globalThis|window)\s*\[\s*["']eval["']\s*\]|\bthis\.constructor\.constructor\b/,
+      "Dynamic code generation is blocked in the sandbox.",
+    ],
+    [
+      /\b(?:__proto__|prototype)\b/,
+      "Prototype mutation is blocked in the sandbox.",
     ],
     [
       /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\b/,
@@ -462,6 +494,22 @@ function getFailureDetails(
       failureKind: "blocked_host_global",
       failureGuidance:
         "Do not reference process/window/global objects. Keep logic self-contained.",
+    };
+  }
+
+  if (errorMessage.includes("Dynamic code generation is blocked")) {
+    return {
+      failureKind: "blocked_runtime_api",
+      failureGuidance:
+        "Avoid eval/Function constructors. Use direct deterministic code only.",
+    };
+  }
+
+  if (errorMessage.includes("Prototype mutation is blocked")) {
+    return {
+      failureKind: "blocked_runtime_api",
+      failureGuidance:
+        "Do not mutate prototypes in the sandbox. Keep logic local and side-effect free.",
     };
   }
 
@@ -635,29 +683,47 @@ export async function executeSandboxedCode({
   }
 
   try {
-    const message = await runWorker(
-      {
-        script: compiled.script,
-        timeoutMs: limits.timeoutMs,
-        maxOutputChars: limits.maxOutputChars,
-        maxArtifacts: limits.maxArtifacts,
-        maxArtifactBytes: limits.maxArtifactBytes,
-      },
-      limits
-    );
+    let message: WorkerMessage | null = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt <= limits.maxWorkerRetries; attempt++) {
+      try {
+        message = await runWorker(
+          {
+            script: compiled.script,
+            timeoutMs: limits.timeoutMs,
+            maxOutputChars: limits.maxOutputChars,
+            maxArtifacts: limits.maxArtifacts,
+            maxArtifactBytes: limits.maxArtifactBytes,
+          },
+          limits
+        );
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= limits.maxWorkerRetries) {
+          throw error;
+        }
+      }
+    }
+
+    if (!message) {
+      throw lastError ?? new Error("The sandbox worker failed to return a result.");
+    }
 
     if (!message.ok) {
+      const sanitizedError = sanitizeExecutionError(message.error);
       return {
         available: true,
         language,
         success: false,
-        ...getFailureDetails(message.error),
+        ...getFailureDetails(sanitizedError),
         durationMs: message.durationMs,
         logs: message.logs,
         errors: message.errors,
         artifacts: message.artifacts,
         limits,
-        error: message.error,
+        error: sanitizedError,
       };
     }
 
@@ -681,9 +747,10 @@ export async function executeSandboxedCode({
       typeof error.message === "string"
         ? error.message
         : String(error ?? "The sandbox worker failed to start in this deployment.");
-    const message = rawMessage.includes("Script execution timed out")
+    const sanitized = sanitizeExecutionError(rawMessage);
+    const message = sanitized.includes("Script execution timed out")
       ? `Execution timed out after ${limits.timeoutMs} ms.`
-      : rawMessage;
+      : sanitized;
 
     return {
       available: true,
