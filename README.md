@@ -4,13 +4,16 @@ Jarvis is a Vercel-ready AI workspace built with Next.js and the Vercel AI SDK. 
 
 ## What this stage implements
 
-This stage does **not** claim exact Base44 or Emergent parity. It focuses on the highest-impact missing pieces in one cohesive step:
+This stage does **not** claim exact Base44 or Emergent parity. It focuses on platform-hardening foundations needed before deeper maturity:
 
 - **Workspace system** — chats are grouped into named project workspaces instead of a single flat session.
 - **Persistent artifacts** — sandbox `createArtifact(...)` outputs are saved per workspace, browsable in a dedicated panel, and downloadable later.
 - **Indexed workspace context** — uploaded text/code/markdown/CSV documents and saved artifacts are chunked into retrieval records so Jarvis can reference prior workspace material more reliably.
 - **Stronger orchestration** — routing heuristics now push clearly-supported requests down the right tool path more consistently (code execution, math, time, GitHub, current events).
 - **Product-grade UI** — the app now uses a sidebar-based workspace layout with project switching, cleaner chat hierarchy, and a right-side artifacts/files panel.
+- **Security hardening** — stricter workspace/conversation access checks, safer sandbox blocking patterns, redacted execution errors, and request-rate usage controls.
+- **Operational readiness** — sandbox worker retry controls and durable workspace event logging for request start/success/failure visibility.
+- **Collaboration/admin foundation** — role-based workspace memberships (`viewer` / `editor` / `owner`) and clearer permission boundaries in workspace APIs.
 
 ## Core features retained
 
@@ -33,6 +36,8 @@ Jarvis keeps the original `conversations` + `messages` tables and layers new wor
 - `workspace_documents` — indexed uploaded text/code files and artifact content summaries
 - `workspace_chunks` — retrieval chunks for uploaded/project content
 - `workspace_artifacts` — persistent generated artifacts with download-ready content
+- `workspace_memberships` — role-based workspace access foundation (`viewer` / `editor` / `owner`)
+- `workspace_events` — operational lifecycle events for chat/workspace activity visibility
 
 The schema and migration SQL live in [`supabase/schema.sql`](./supabase/schema.sql).
 
@@ -43,6 +48,7 @@ The supplied SQL is migration-safe for existing Jarvis installs:
 - Existing `conversations` and `messages` are preserved
 - Existing session conversations are backfilled into a default `General workspace`
 - New workspace tables are created with `if not exists`
+- Existing workspaces are backfilled into `workspace_memberships` as `owner`
 - Legacy history remains readable even after the workspace upgrade
 
 ## Retrieval behavior in this stage
@@ -128,11 +134,15 @@ JARVIS_CODE_MAX_OUTPUT_CHARS=12000
 JARVIS_CODE_MAX_ARTIFACTS=5
 JARVIS_CODE_MAX_ARTIFACT_BYTES=24000
 JARVIS_CODE_MEMORY_LIMIT_MB=64
+JARVIS_CODE_MAX_WORKER_RETRIES=1
+JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE=20
 ```
 
 > `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` still works as a legacy alias for `SESSION_SECRET`.
 >
-> **No new environment variables were added for this workspace stage.**
+> New hardening controls were added for this stage:
+> - `JARVIS_CODE_MAX_WORKER_RETRIES` — retries failed sandbox worker startups (clamped 0–2)
+> - `JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE` — per-session chat burst protection (clamped 5–300)
 
 ### 3. Set up Supabase
 
@@ -184,7 +194,32 @@ Execution remains intentionally constrained:
 - no imports or external packages
 - no filesystem/process/network access
 - strict timeout/output limits
+- blocked dynamic code generation (`eval`, `Function`) and prototype mutation attempts
 - supported artifact MIME types: `text/plain`, `text/csv`, `text/markdown`, `text/html`, `text/xml`, `application/json`, `application/xml`, `image/svg+xml`
+
+Operational additions in this stage:
+
+- sandbox worker startup failures now retry up to `JARVIS_CODE_MAX_WORKER_RETRIES`
+- sandbox/runtime errors are sanitized before returning to the model/UI to reduce accidental secret leakage
+
+## Collaboration/admin foundations in this stage
+
+New schema additions:
+
+- `workspace_memberships` — role assignments for future shared-workspace patterns
+- `workspace_events` — durable operational event log (`started` / `success` / `failure`) for chat request visibility
+
+Current permission model:
+
+- workspace owners are still the creating `session_id`
+- membership roles allow controlled access expansion without removing existing owner model compatibility
+- API routes now enforce workspace/conversation access checks before history reads, chat execution, and artifact operations
+
+## Operational and usage controls in this stage
+
+- Per-session chat burst limiting (`JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE`) to reduce abuse/cost spikes
+- Workspace event logging for request lifecycle visibility and admin troubleshooting
+- Sandbox worker retry behavior for better resilience against transient worker startup failures
 
 ## Uploads and indexed content
 
@@ -254,6 +289,9 @@ This stage stops short of full autonomous AI workspace parity. Intentionally **n
 - background jobs or resumable long-running tasks
 - multi-file project execution/build environments
 - collaborative/shared workspaces across users
+- full invitation flows, identity-backed RBAC, and org-level policy administration
+- distributed/global rate limiting and enterprise-grade abuse prevention
+- job queue dashboards, dead-letter queues, and production SLO alerting
 - artifact version history or diffing
 - exact Base44 or Emergent feature matching
 
@@ -264,7 +302,9 @@ This stage stops short of full autonomous AI workspace parity. Intentionally **n
 3. **Resumable/background tasks** for long-running coding and research jobs
 4. **Deeper coding workflows** with broader execution infrastructure and multi-file iterations
 5. **Artifact lifecycle tools** like versioning, compare/history, and richer previews
-6. **Collaboration/security hardening** for multi-user or team-oriented workspace models
+6. **Identity-backed collaboration** (invites, account/user model, richer RBAC, audit UX)
+7. **Queue/worker scale maturity** (dead-lettering, advanced retries, cross-instance scheduling)
+8. **Admin analytics + governance** (usage dashboards, quota/billing policies, alerting)
 
 ## Validation
 

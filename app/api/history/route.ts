@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(history);
   } catch (error) {
+    if (error instanceof Error && error.message.includes("access denied")) {
+      return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
+    }
     logError("api.history.GET", error);
     return NextResponse.json(
       { error: "Failed to load conversation history." },

@@ -36,6 +36,15 @@ create table if not exists conversation_workspaces (
   updated_at      timestamptz default now()
 );
 
+create table if not exists workspace_memberships (
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  session_id   text not null,
+  role         text not null check (role in ('viewer', 'editor', 'owner')),
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now(),
+  primary key (workspace_id, session_id)
+);
+
 create table if not exists workspace_documents (
   id            uuid primary key default gen_random_uuid(),
   workspace_id   uuid not null references workspaces(id) on delete cascade,
@@ -70,6 +79,17 @@ create table if not exists workspace_artifacts (
   created_at    timestamptz default now()
 );
 
+create table if not exists workspace_events (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references workspaces(id) on delete cascade,
+  conversation_id uuid references conversations(id) on delete set null,
+  session_id     text not null,
+  event_type     text not null,
+  status         text not null check (status in ('started', 'success', 'failure')),
+  details        jsonb not null default '{}'::jsonb,
+  created_at     timestamptz default now()
+);
+
 create index if not exists workspaces_session_id_updated_at_idx
   on workspaces(session_id, updated_at desc);
 create index if not exists conversation_workspaces_workspace_id_updated_at_idx
@@ -80,6 +100,18 @@ create index if not exists workspace_chunks_workspace_id_created_at_idx
   on workspace_chunks(workspace_id, created_at desc);
 create index if not exists workspace_artifacts_workspace_id_created_at_idx
   on workspace_artifacts(workspace_id, created_at desc);
+create index if not exists workspace_memberships_session_id_idx
+  on workspace_memberships(session_id, workspace_id);
+create index if not exists workspace_events_workspace_id_created_at_idx
+  on workspace_events(workspace_id, created_at desc);
+create index if not exists workspace_events_event_type_created_at_idx
+  on workspace_events(event_type, created_at desc);
+
+insert into workspace_memberships (workspace_id, session_id, role)
+select id, session_id, 'owner'
+from workspaces
+on conflict (workspace_id, session_id) do update
+set role = excluded.role, updated_at = now();
 
 insert into workspaces (session_id, name, description)
 select distinct c.session_id, 'General workspace', 'Imported workspace for legacy Jarvis chat history.'
@@ -106,3 +138,9 @@ join lateral (
 left join conversation_workspaces cw on cw.conversation_id = c.id
 where cw.conversation_id is null
 on conflict (conversation_id) do nothing;
+
+insert into workspace_memberships (workspace_id, session_id, role)
+select id, session_id, 'owner'
+from workspaces
+on conflict (workspace_id, session_id) do update
+set role = excluded.role, updated_at = now();

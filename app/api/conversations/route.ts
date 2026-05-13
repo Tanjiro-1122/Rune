@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ conversation });
   } catch (error) {
+    if (error instanceof Error && error.message.includes("access denied")) {
+      return NextResponse.json({ error: "Workspace access denied." }, { status: 403 });
+    }
     console.error("Failed to create conversation:", error);
     return NextResponse.json(
       {

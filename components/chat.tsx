@@ -641,7 +641,7 @@ export function Chat() {
     status,
     setMessages,
     setInput,
-  } = useChat({ body: { conversationId, workspaceId } });
+  } = useChat({ body: { sessionId, conversationId, workspaceId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
