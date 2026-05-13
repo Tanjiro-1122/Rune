@@ -117,6 +117,10 @@ Jarvis uses `maxSteps: 5`, meaning a single user message can trigger up to 5 seq
 
 The chat header shows a live **activity badge** with the name of the currently running tool.
 
+### Capability-aware responses
+
+Jarvis is instructed to avoid broad generic limitation messages. If a request needs an integration that is not wired in this runtime (for example direct GitHub access), Jarvis now explains what this chat can do right now and asks for actionable alternatives (such as repository details, pasted code, or uploaded files) so the conversation can continue productively.
+
 ### Uploading files & images
 
 Click the **📎** button to attach one or more files. A preview appears before sending.
