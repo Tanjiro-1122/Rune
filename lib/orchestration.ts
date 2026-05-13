@@ -7,7 +7,10 @@
  */
 
 import type { UIMessage } from "ai";
-import type { ExecutionLimits } from "./code-execution";
+import {
+  SUPPORTED_ARTIFACT_MIME_TYPES,
+  type ExecutionLimits,
+} from "./code-execution";
 
 // ─── Capability descriptor ────────────────────────────────────────────────────
 
@@ -155,7 +158,7 @@ export function formatCodeExecutionSummary(codeExecution: {
   limits?: ExecutionLimits;
 }): string {
   if (!codeExecution.available) {
-    const reason = codeExecution.reason ?? "it has been disabled in this deployment";
+    const reason = codeExecution.reason ?? "no specific reason was provided";
     return `- Sandboxed code execution is unavailable in this deployment because ${reason}.`;
   }
 
@@ -171,7 +174,7 @@ export function formatCodeExecutionSummary(codeExecution: {
     `up to ${limits.maxArtifacts} artifacts of ${limits.maxArtifactBytes} bytes each,`,
     `and an isolated worker memory ceiling of ~${limits.memoryLimitMb}MB.`,
     "No imports, filesystem, process, or network access.",
-    "Supported artifact MIME types: text/plain, text/csv, text/markdown, text/html, application/json, image/svg+xml.",
+    `Supported artifact MIME types: ${SUPPORTED_ARTIFACT_MIME_TYPES.join(", ")}.`,
   ].join(" ");
 }
 
@@ -190,7 +193,7 @@ export function getCodeExecutionGuidance(available: boolean): string {
     "- Use `execute_code` for short self-contained JavaScript/TypeScript checks; include an explicit `return` to surface a final value.",
     "- If the user asks to run/evaluate code, call `execute_code` immediately rather than replying with prose alone.",
     "- For downloadable output use `createArtifact(name, content, mimeType?)` inside the snippet.",
-    "  Supported MIME types: `text/plain`, `text/csv`, `text/markdown`, `text/html`, `application/json`, `image/svg+xml`.",
+    `  Supported MIME types: ${SUPPORTED_ARTIFACT_MIME_TYPES.map((mimeType) => `\`${mimeType}\``).join(", ")}.`,
     "- You can generate SVG charts/diagrams as `image/svg+xml` artifacts for visual outputs.",
     "- For CSV exports: `createArtifact('data.csv', rows.join('\\n'), 'text/csv')`.",
   ].join("\n");

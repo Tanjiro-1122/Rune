@@ -87,6 +87,19 @@ const DEFAULT_LIMITS: ExecutionLimits = {
   memoryLimitMb: 64,
 };
 
+export const SUPPORTED_ARTIFACT_MIME_TYPES = [
+  "text/plain",
+  "text/csv",
+  "text/html",
+  "text/markdown",
+  "text/xml",
+  "application/json",
+  "application/xml",
+  "image/svg+xml",
+] as const;
+
+const SUPPORTED_ARTIFACT_MIME_TYPES_LIST = SUPPORTED_ARTIFACT_MIME_TYPES.join(", ");
+
 const WORKER_BOOTSTRAP = `
 const { parentPort, workerData } = require("node:worker_threads");
 const vm = require("node:vm");
@@ -154,13 +167,10 @@ function createArtifact(name, content, mimeType = "text/plain") {
   if (typeof name !== "string" || !name.trim()) {
     throw new Error("Artifacts require a non-empty string name.");
   }
-  const ALLOWED_MIME_TYPES = [
-    "text/plain", "text/csv", "text/html", "text/markdown",
-    "text/xml", "application/json", "application/xml", "image/svg+xml",
-  ];
+  const ALLOWED_MIME_TYPES = ${JSON.stringify(SUPPORTED_ARTIFACT_MIME_TYPES)};
   if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.includes(mimeType)) {
     throw new Error(
-      "Artifact MIME type not supported. Allowed: text/plain, text/csv, text/html, text/markdown, text/xml, application/json, application/xml, image/svg+xml."
+      "Artifact MIME type not supported. Allowed: ${SUPPORTED_ARTIFACT_MIME_TYPES_LIST}."
     );
   }
   const normalizedContent =
