@@ -94,7 +94,15 @@ on conflict do nothing;
 insert into conversation_workspaces (conversation_id, workspace_id, title)
 select c.id, w.id, 'Imported chat'
 from conversations c
-join workspaces w on w.session_id = c.session_id
+join lateral (
+  select id
+  from workspaces
+  where session_id = c.session_id
+  order by
+    case when name = 'General workspace' then 0 else 1 end,
+    created_at asc
+  limit 1
+) w on true
 left join conversation_workspaces cw on cw.conversation_id = c.id
 where cw.conversation_id is null
 on conflict (conversation_id) do nothing;

@@ -9,6 +9,9 @@ const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 const CODE_PREVIEW_MAX_LENGTH = 220;
 const CODE_PREVIEW_TRUNCATION_LENGTH = 2;
+const STORAGE_KEY_SESSION_ID = "jarvis_session_id";
+const STORAGE_KEY_WORKSPACE_ID = "jarvis_workspace_id";
+const STORAGE_KEY_CONVERSATION_ID = "jarvis_conversation_id";
 const ACCEPTED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -302,6 +305,22 @@ function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary | CodeExec
 
 function getDocumentKindLabel(sourceKind: string) {
   return sourceKind === "artifact" ? "Artifact" : sourceKind === "upload" ? "Upload" : "Context";
+}
+
+function getSafeAttachmentImageUrl(
+  url: string | undefined,
+  allowedProtocols: Array<"blob:" | "data:" | "http:" | "https:">
+) {
+  if (!url) return undefined;
+
+  try {
+    const parsed = new URL(url);
+    return allowedProtocols.includes(parsed.protocol as (typeof allowedProtocols)[number])
+      ? url
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function GitHubRepoCard({
@@ -772,10 +791,10 @@ export function Chat() {
       setWorkspaceId(resolvedWorkspaceId);
       setConversationId(resolvedConversationId);
       if (resolvedWorkspaceId) {
-        localStorage.setItem("jarvis_workspace_id", resolvedWorkspaceId);
+        localStorage.setItem(STORAGE_KEY_WORKSPACE_ID, resolvedWorkspaceId);
       }
       if (resolvedConversationId) {
-        localStorage.setItem("jarvis_conversation_id", resolvedConversationId);
+        localStorage.setItem(STORAGE_KEY_CONVERSATION_ID, resolvedConversationId);
       }
 
       await loadConversation(activeSessionId, resolvedWorkspaceId, resolvedConversationId);
@@ -792,12 +811,12 @@ export function Chat() {
   useEffect(() => {
     let active = true;
     const activeSessionId =
-      localStorage.getItem("jarvis_session_id") ?? crypto.randomUUID();
-    localStorage.setItem("jarvis_session_id", activeSessionId);
+      localStorage.getItem(STORAGE_KEY_SESSION_ID) ?? crypto.randomUUID();
+    localStorage.setItem(STORAGE_KEY_SESSION_ID, activeSessionId);
     setSessionId(activeSessionId);
 
-    const preferredWorkspaceId = localStorage.getItem("jarvis_workspace_id");
-    const preferredConversationId = localStorage.getItem("jarvis_conversation_id");
+    const preferredWorkspaceId = localStorage.getItem(STORAGE_KEY_WORKSPACE_ID);
+    const preferredConversationId = localStorage.getItem(STORAGE_KEY_CONVERSATION_ID);
 
     if (active) {
       void syncWorkspaceSelection(
@@ -960,7 +979,7 @@ export function Chat() {
     if (!sessionId || !workspaceId || nextConversationId === conversationId) return;
     setWorkspaceError("");
     setConversationId(nextConversationId);
-    localStorage.setItem("jarvis_conversation_id", nextConversationId);
+    localStorage.setItem(STORAGE_KEY_CONVERSATION_ID, nextConversationId);
     await loadConversation(sessionId, workspaceId, nextConversationId);
   }
 
@@ -1290,11 +1309,19 @@ export function Chat() {
                   message.experimental_attachments &&
                   message.experimental_attachments.length > 0 && (
                     <div className="message-attachments">
-                      {message.experimental_attachments.map((attachment, index) =>
-                        attachment.contentType?.startsWith("image/") ? (
+                      {message.experimental_attachments.map((attachment, index) => {
+                        const safeImageUrl = getSafeAttachmentImageUrl(attachment.url, [
+                          "blob:",
+                          "data:",
+                          "http:",
+                          "https:",
+                        ]);
+
+                        return attachment.contentType?.startsWith("image/") &&
+                          safeImageUrl ? (
                           <img
                             key={index}
-                            src={attachment.url}
+                            src={safeImageUrl}
                             alt={attachment.name ?? "Attached image"}
                             className="attachment-image"
                           />
@@ -1302,8 +1329,8 @@ export function Chat() {
                           <div key={index} className="attachment-file">
                             📎 {attachment.name ?? "File"}
                           </div>
-                        )
-                      )}
+                        );
+                      })}
                     </div>
                   )}
               </div>
@@ -1332,9 +1359,10 @@ export function Chat() {
           <div className="attachment-preview">
             {Array.from(files).map((file, idx) => (
               <div key={idx} className="attachment-preview-item">
-                {file.type.startsWith("image/") ? (
+                {file.type.startsWith("image/") &&
+                getSafeAttachmentImageUrl(previewUrls[idx], ["blob:"]) ? (
                   <img
-                    src={previewUrls[idx]?.startsWith("blob:") ? previewUrls[idx] : ""}
+                    src={getSafeAttachmentImageUrl(previewUrls[idx], ["blob:"]) ?? ""}
                     alt={file.name}
                     className="attachment-preview-img"
                   />

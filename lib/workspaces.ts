@@ -6,8 +6,11 @@ const LOCAL_WORKSPACE_PREFIX = "local-workspace-";
 const LOCAL_CONVERSATION_PREFIX = "local-conversation-";
 const MAX_STORED_TEXT_CHARS = 40_000;
 const MAX_RETRIEVAL_HITS = 6;
+const MAX_WORKSPACE_DOCUMENTS = 40;
 const CHUNK_SIZE = 900;
 const CHUNK_OVERLAP = 140;
+const SHORT_TOKEN_MATCH_SCORE = 2;
+const LONG_TOKEN_MATCH_SCORE = 3;
 
 interface WorkspaceRow {
   id: string;
@@ -189,6 +192,20 @@ function cleanTitle(input: string | null | undefined, fallback: string) {
   return text || fallback;
 }
 
+function isPersistedConversationId(conversationId?: string | null) {
+  return Boolean(conversationId && !isLocalConversationId(conversationId));
+}
+
+function getDefaultWorkspaceId(workspaces: WorkspaceRow[]) {
+  const generalWorkspace = workspaces.find(
+    (workspace) => workspace.name === DEFAULT_WORKSPACE_NAME
+  );
+  if (generalWorkspace) return generalWorkspace.id;
+
+  return [...workspaces]
+    .sort((left, right) => left.created_at.localeCompare(right.created_at))[0]?.id;
+}
+
 function getSchemaNotice(message: string) {
   return `Jarvis workspace tables are not available yet (${message}). Run the updated SQL from the README to enable persistent workspaces, indexed files, and saved artifacts.`;
 }
@@ -213,7 +230,7 @@ function tokenize(text: string) {
       text
         .toLowerCase()
         .match(/[a-z0-9_./#-]{2,}/g)
-        ?.filter((token) => token.length > 2) ?? []
+        ?.filter((token) => token.length > 2 && /[a-z0-9]/.test(token)) ?? []
     )
   );
 }
@@ -226,7 +243,7 @@ function computeScore(query: string, content: string) {
   let score = 0;
   for (const token of queryTokens) {
     if (haystack.includes(token)) {
-      score += token.length > 6 ? 3 : 2;
+      score += token.length > 6 ? LONG_TOKEN_MATCH_SCORE : SHORT_TOKEN_MATCH_SCORE;
     }
   }
 
@@ -396,7 +413,12 @@ export async function getWorkspaceBootstrap(
   }
 
   const workspaces = ensured.workspaces;
-  await mapLegacyConversations(sessionId, workspaces[0].id);
+  const defaultWorkspaceId = getDefaultWorkspaceId(workspaces);
+  if (!defaultWorkspaceId) {
+    return buildLocalBootstrap(sessionId);
+  }
+
+  await mapLegacyConversations(sessionId, defaultWorkspaceId);
 
   const workspaceIds = workspaces.map((workspace) => workspace.id);
   const selectedWorkspaceId =
@@ -515,7 +537,7 @@ export async function getWorkspaceBootstrap(
 
   const selectedDocuments = documents
     .filter((document) => document.workspace_id === selectedWorkspaceId)
-    .slice(0, 40)
+    .slice(0, MAX_WORKSPACE_DOCUMENTS)
     .map((document) => ({
       id: document.id,
       conversationId: document.conversation_id,
@@ -727,18 +749,13 @@ async function decodeAttachmentText(attachment: AttachmentLike) {
   if (!url) return null;
 
   try {
-    if (url.startsWith("data:")) {
-      const match = url.match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/);
-      if (!match) return null;
-      const data = match[3] ?? "";
-      return match[2]
-        ? Buffer.from(data, "base64").toString("utf-8")
-        : decodeURIComponent(data);
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    return await response.text();
+    if (!url.startsWith("data:")) return null;
+    const match = url.match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/);
+    if (!match) return null;
+    const data = match[3] ?? "";
+    return match[2]
+      ? Buffer.from(data, "base64").toString("utf-8")
+      : decodeURIComponent(data);
   } catch {
     return null;
   }
@@ -773,7 +790,7 @@ async function insertDocumentWithChunks(options: {
     .from("workspace_documents")
     .insert({
       workspace_id: workspaceId,
-      conversation_id: conversationId && !isLocalConversationId(conversationId) ? conversationId : null,
+      conversation_id: isPersistedConversationId(conversationId) ? conversationId : null,
       name,
       content_type: contentType,
       source_kind: sourceKind,
@@ -850,7 +867,7 @@ export async function persistWorkspaceArtifacts(options: {
       .from("workspace_artifacts")
       .insert({
         workspace_id: workspaceId,
-        conversation_id: conversationId && !isLocalConversationId(conversationId) ? conversationId : null,
+        conversation_id: isPersistedConversationId(conversationId) ? conversationId : null,
         name: artifact.name,
         mime_type: artifact.mimeType,
         content: artifact.content,
