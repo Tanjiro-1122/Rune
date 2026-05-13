@@ -107,12 +107,6 @@ create index if not exists workspace_events_workspace_id_created_at_idx
 create index if not exists workspace_events_event_type_created_at_idx
   on workspace_events(event_type, created_at desc);
 
-insert into workspace_memberships (workspace_id, session_id, role)
-select id, session_id, 'owner'
-from workspaces
-on conflict (workspace_id, session_id) do update
-set role = excluded.role, updated_at = now();
-
 insert into workspaces (session_id, name, description)
 select distinct c.session_id, 'General workspace', 'Imported workspace for legacy Jarvis chat history.'
 from conversations c

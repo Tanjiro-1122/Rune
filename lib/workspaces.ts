@@ -209,9 +209,12 @@ function normalizeAccessRole(role: string | null | undefined): WorkspaceAccessRo
 }
 
 function roleAllows(required: WorkspaceAccessRole, actual: WorkspaceAccessRole) {
-  if (actual === "owner") return true;
-  if (actual === "editor") return required !== "owner";
-  return required === "viewer";
+  const rank: Record<WorkspaceAccessRole, number> = {
+    viewer: 1,
+    editor: 2,
+    owner: 3,
+  };
+  return rank[actual] >= rank[required];
 }
 
 async function resolveWorkspaceAccessRole(

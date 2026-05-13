@@ -25,6 +25,8 @@ import {
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
 const CHAT_RATE_WINDOW_MS = 60_000;
+const MAX_TRACKED_CHAT_SESSIONS = 2_000;
+const MAX_EVENT_ERROR_MESSAGE_LENGTH = 280;
 const chatRateWindow = new Map<string, number[]>();
 
 function getMaxChatRequestsPerMinute() {
@@ -33,6 +35,22 @@ function getMaxChatRequestsPerMinute() {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return 20;
   return Math.round(Math.min(Math.max(parsed, 5), 300));
+}
+
+function cleanupRateWindow(now: number) {
+  if (chatRateWindow.size <= MAX_TRACKED_CHAT_SESSIONS) return;
+
+  for (const [sessionId, timestamps] of chatRateWindow) {
+    const recent = timestamps.filter((timestamp) => now - timestamp < CHAT_RATE_WINDOW_MS);
+    if (recent.length === 0) {
+      chatRateWindow.delete(sessionId);
+    } else {
+      chatRateWindow.set(sessionId, recent);
+    }
+    if (chatRateWindow.size <= MAX_TRACKED_CHAT_SESSIONS) {
+      break;
+    }
+  }
 }
 
 // ─── Safe math expression evaluator ─────────────────────────────────────────
@@ -687,6 +705,7 @@ export async function POST(req: Request) {
     }
 
     const now = Date.now();
+    cleanupRateWindow(now);
     const recentRequests =
       (chatRateWindow.get(sessionId) ?? []).filter(
         (timestamp) => now - timestamp < CHAT_RATE_WINDOW_MS
@@ -880,7 +899,7 @@ ${workspaceContextSection}
         details: {
           message:
             error instanceof Error
-              ? error.message.slice(0, 280)
+              ? error.message.slice(0, MAX_EVENT_ERROR_MESSAGE_LENGTH)
               : "Unknown chat failure",
         },
       });

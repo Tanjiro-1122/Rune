@@ -385,6 +385,10 @@ function validateSnippet(code: string, limits: ExecutionLimits) {
       "Dynamic code generation is blocked in the sandbox.",
     ],
     [
+      /\b(?:globalThis|window)\s*\[\s*["']eval["']\s*\]|\bthis\.constructor\.constructor\b/,
+      "Dynamic code generation is blocked in the sandbox.",
+    ],
+    [
       /\b(?:__proto__|prototype)\b/,
       "Prototype mutation is blocked in the sandbox.",
     ],
