@@ -282,8 +282,44 @@ interface WorkspaceBootstrapResponse {
   workspaces: WorkspaceSummary[];
   selectedWorkspaceId: string | null;
   selectedConversationId: string | null;
+  projectFiles: WorkspaceProjectFileSummary[];
   documents: WorkspaceDocumentSummary[];
   artifacts: WorkspaceArtifactSummary[];
+}
+
+interface WorkspaceProjectFileSummary {
+  id: string;
+  conversationId: string | null;
+  path: string;
+  displayName: string;
+  sourceKind: string;
+  mimeType: string;
+  bytes: number;
+  summary: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkspaceTaskStepSummary {
+  id: string;
+  key: string;
+  label: string;
+  orderIndex: number;
+  status: "pending" | "running" | "completed" | "failed";
+  detail: string | null;
+}
+
+interface WorkspaceTaskSummary {
+  id: string;
+  title: string;
+  inputText: string;
+  intent: string | null;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  progress: number;
+  resultSummary: string | null;
+  errorMessage: string | null;
+  updatedAt: string;
+  steps: WorkspaceTaskStepSummary[];
 }
 
 function formatTimestamp(value: string) {
@@ -305,6 +341,14 @@ function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary | CodeExec
 
 function getDocumentKindLabel(sourceKind: string) {
   return sourceKind === "artifact" ? "Artifact" : sourceKind === "upload" ? "Upload" : "Context";
+}
+
+function getTaskStatusLabel(status: WorkspaceTaskSummary["status"]) {
+  if (status === "running") return "Running";
+  if (status === "queued") return "Queued";
+  if (status === "completed") return "Completed";
+  if (status === "failed") return "Failed";
+  return "Stopped";
 }
 
 function getSafeAttachmentImageUrl(
@@ -621,8 +665,11 @@ export function Chat() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [projectFiles, setProjectFiles] = useState<WorkspaceProjectFileSummary[]>([]);
   const [documents, setDocuments] = useState<WorkspaceDocumentSummary[]>([]);
   const [artifacts, setArtifacts] = useState<WorkspaceArtifactSummary[]>([]);
+  const [tasks, setTasks] = useState<WorkspaceTaskSummary[]>([]);
+  const [resumeTaskId, setResumeTaskId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [persistenceEnabled, setPersistenceEnabled] = useState(false);
   const [schemaReady, setSchemaReady] = useState(true);
@@ -641,7 +688,7 @@ export function Chat() {
     status,
     setMessages,
     setInput,
-  } = useChat({ body: { conversationId, workspaceId } });
+  } = useChat({ body: { conversationId, workspaceId, resumeTaskId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -649,6 +696,7 @@ export function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const taskRefreshInFlightRef = useRef(false);
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
   const selectedArtifact =
@@ -674,11 +722,36 @@ export function Chat() {
 
   function applyWorkspaceData(data: WorkspaceBootstrapResponse) {
     setWorkspaces(data.workspaces);
+    setProjectFiles(data.projectFiles ?? []);
     setDocuments(data.documents);
     setArtifacts(data.artifacts);
     setPersistenceEnabled(data.persistenceEnabled);
     setSchemaReady(data.schemaReady);
     setWorkspaceNotice(data.notice);
+  }
+
+  async function refreshTasks(
+    activeSessionId: string,
+    nextWorkspaceId: string | null,
+    nextConversationId: string | null
+  ) {
+    if (!nextWorkspaceId) {
+      setTasks([]);
+      return;
+    }
+
+    const search = new URLSearchParams({
+      sessionId: activeSessionId,
+      workspaceId: nextWorkspaceId,
+    });
+    if (nextConversationId) {
+      search.set("conversationId", nextConversationId);
+    }
+
+    const response = await fetch(`/api/tasks?${search.toString()}`);
+    if (!response.ok) return;
+    const payload = (await response.json()) as { tasks?: WorkspaceTaskSummary[] };
+    setTasks(payload.tasks ?? []);
   }
 
   async function loadConversation(
@@ -796,6 +869,11 @@ export function Chat() {
       }
 
       await loadConversation(activeSessionId, resolvedWorkspaceId, resolvedConversationId);
+      await refreshTasks(
+        activeSessionId,
+        resolvedWorkspaceId,
+        resolvedConversationId
+      );
     } catch (error) {
       setWorkspaceError(
         error instanceof Error ? error.message : "Failed to load workspace data."
@@ -839,17 +917,40 @@ export function Chat() {
 
   useEffect(() => {
     if (status === "ready" && sessionId && workspaceId) {
+      setResumeTaskId(null);
       void (async () => {
         try {
           const data = await fetchWorkspaceData(sessionId, workspaceId);
           applyWorkspaceData(data);
+          await refreshTasks(sessionId, workspaceId, conversationId);
         } catch {
           // Keep the current UI state if the refresh fails.
         }
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sessionId, workspaceId]);
+  }, [status, sessionId, workspaceId, conversationId]);
+
+  useEffect(() => {
+    if (!sessionId || !workspaceId) return;
+
+    const hasActiveTask = tasks.some(
+      (task) => task.status === "queued" || task.status === "running"
+    );
+    if (!hasActiveTask && status !== "streaming" && status !== "submitted") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      if (taskRefreshInFlightRef.current) return;
+      taskRefreshInFlightRef.current = true;
+      void refreshTasks(sessionId, workspaceId, conversationId).finally(() => {
+        taskRefreshInFlightRef.current = false;
+      });
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [sessionId, workspaceId, conversationId, tasks, status]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -957,6 +1058,7 @@ export function Chat() {
       experimental_attachments: files,
       allowEmptySubmit: hasFiles && !input.trim(),
     });
+    if (!hasFiles || input.trim()) setResumeTaskId(null);
     clearAttachments();
   }
 
@@ -979,6 +1081,7 @@ export function Chat() {
     setConversationId(nextConversationId);
     localStorage.setItem(STORAGE_KEY_CONVERSATION_ID, nextConversationId);
     await loadConversation(sessionId, workspaceId, nextConversationId);
+    await refreshTasks(sessionId, workspaceId, nextConversationId);
   }
 
   async function handleCreateWorkspace(e: React.FormEvent<HTMLFormElement>) {
@@ -1032,6 +1135,26 @@ export function Chat() {
       );
     } finally {
       setWorkspaceBusy(false);
+    }
+  }
+
+  async function handleResumeTask(task: WorkspaceTaskSummary) {
+    if (!task.id) return;
+    try {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id }),
+      });
+      if (!response.ok) return;
+
+      setResumeTaskId(task.id);
+      setInput(task.inputText ?? "");
+      if (sessionId && workspaceId) {
+        await refreshTasks(sessionId, workspaceId, conversationId);
+      }
+    } catch {
+      // no-op
     }
   }
 
@@ -1178,6 +1301,9 @@ export function Chat() {
                 {activeToolName ?? "Thinking…"}
               </span>
             )}
+            {resumeTaskId && !isLoading && (
+              <span className="status-badge">Resuming task</span>
+            )}
             <button className="logout-button" onClick={handleLogout}>
               Sign out
             </button>
@@ -1189,7 +1315,9 @@ export function Chat() {
             {selectedWorkspace?.conversations.length ?? 0} chats
           </span>
           <span className="summary-chip">{documents.length} indexed files</span>
+          <span className="summary-chip">{projectFiles.length} project files</span>
           <span className="summary-chip">{artifacts.length} saved artifacts</span>
+          <span className="summary-chip">{tasks.length} tasks</span>
           <span className="summary-chip">
             {persistenceEnabled && schemaReady ? "Persistent" : "Single-session"}
           </span>
@@ -1472,6 +1600,96 @@ export function Chat() {
               <div className="context-empty">
                 Run code that calls <code>createArtifact(...)</code> to keep a
                 downloadable record in this workspace.
+              </div>
+            )}
+          </div>
+
+          <div className="context-panel-section">
+            <div className="context-panel-header">
+              <div>
+                <div className="side-section-label">Task timeline</div>
+                <p className="side-section-copy">
+                  Background task state persists, recovers after interruption, and can be resumed.
+                </p>
+              </div>
+            </div>
+
+            {tasks.length ? (
+              <div className="document-list">
+                {tasks.map((task) => (
+                  <div key={task.id} className="document-card">
+                    <div className="document-card-header">
+                      <span>{task.title}</span>
+                      <span className="document-kind-pill">
+                        {getTaskStatusLabel(task.status)}
+                      </span>
+                    </div>
+                    <div className="document-meta">
+                      {task.progress}% · {formatTimestamp(task.updatedAt)}
+                    </div>
+                    {task.steps.length > 0 && (
+                      <p className="document-summary">
+                        {task.steps
+                          .map((step) =>
+                            step.status === "completed" ? `✓ ${step.label}` : `• ${step.label}`
+                          )
+                          .join(" · ")}
+                      </p>
+                    )}
+                    {task.errorMessage && (
+                      <p className="document-summary">{task.errorMessage}</p>
+                    )}
+                    {task.status === "failed" && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleResumeTask(task)}
+                      >
+                        Resume
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="context-empty">
+                Task status will appear here for long-running or resumable work.
+              </div>
+            )}
+          </div>
+
+          <div className="context-panel-section">
+            <div className="context-panel-header">
+              <div>
+                <div className="side-section-label">Project files</div>
+                <p className="side-section-copy">
+                  Uploaded files and generated artifacts are mapped into one workspace file model.
+                </p>
+              </div>
+            </div>
+
+            {projectFiles.length ? (
+              <div className="document-list">
+                {projectFiles.map((file) => (
+                  <div key={file.id} className="document-card">
+                    <div className="document-card-header">
+                      <span>{file.displayName}</span>
+                      <span className="document-kind-pill">
+                        {getDocumentKindLabel(file.sourceKind)}
+                      </span>
+                    </div>
+                    <div className="document-meta">
+                      {file.path} · {file.mimeType} · {file.bytes} bytes
+                    </div>
+                    {file.summary && (
+                      <p className="document-summary">{file.summary}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="context-empty">
+                Upload documents or generate artifacts to populate the project file map.
               </div>
             )}
           </div>

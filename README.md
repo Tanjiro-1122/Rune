@@ -4,13 +4,13 @@ Jarvis is a Vercel-ready AI workspace built with Next.js and the Vercel AI SDK. 
 
 ## What this stage implements
 
-This stage does **not** claim exact Base44 or Emergent parity. It focuses on the highest-impact missing pieces in one cohesive step:
+This stage does **not** claim exact Base44 or Emergent parity. It focuses on the highest-value remaining upgrades in one cohesive step:
 
-- **Workspace system** — chats are grouped into named project workspaces instead of a single flat session.
-- **Persistent artifacts** — sandbox `createArtifact(...)` outputs are saved per workspace, browsable in a dedicated panel, and downloadable later.
-- **Indexed workspace context** — uploaded text/code/markdown/CSV documents and saved artifacts are chunked into retrieval records so Jarvis can reference prior workspace material more reliably.
-- **Stronger orchestration** — routing heuristics now push clearly-supported requests down the right tool path more consistently (code execution, math, time, GitHub, current events).
-- **Product-grade UI** — the app now uses a sidebar-based workspace layout with project switching, cleaner chat hierarchy, and a right-side artifacts/files panel.
+- **Background/resumable task infrastructure** — chat work now creates persisted workspace tasks with step-level status, progress, failure recovery, and resume support after refresh.
+- **Semantic retrieval foundation** — workspace chunk retrieval now combines lexical relevance with embedding similarity for uploaded files, artifacts, and prior conversation context.
+- **Deeper project workspace model** — uploaded documents + generated artifacts are mapped into a persistent workspace project-file model so context feels like one coherent environment.
+- **Explicit planner/executor flow** — the backend creates a structured execution plan, tracks planner/executor phases, and surfaces consistent progress semantics across complex requests.
+- **Preserved Jarvis workspace UX** — existing auth/history/uploads/web search/GitHub analysis/sandbox/artifact flows remain intact while adding task + project-depth visibility.
 
 ## Core features retained
 
@@ -24,7 +24,7 @@ This stage does **not** claim exact Base44 or Emergent parity. It focuses on the
 
 ## Workspace architecture
 
-### Workspace data model
+### Workspace + task data model
 
 Jarvis keeps the original `conversations` + `messages` tables and layers new workspace tables on top:
 
@@ -33,6 +33,9 @@ Jarvis keeps the original `conversations` + `messages` tables and layers new wor
 - `workspace_documents` — indexed uploaded text/code files and artifact content summaries
 - `workspace_chunks` — retrieval chunks for uploaded/project content
 - `workspace_artifacts` — persistent generated artifacts with download-ready content
+- `workspace_project_files` — normalized project-level file map that links uploads/artifacts/documents into one workspace model
+- `workspace_tasks` — persisted execution tasks with progress/status for resumable long-running flows
+- `workspace_task_steps` — explicit planner/executor step state for each task
 
 The schema and migration SQL live in [`supabase/schema.sql`](./supabase/schema.sql).
 
@@ -45,18 +48,19 @@ The supplied SQL is migration-safe for existing Jarvis installs:
 - New workspace tables are created with `if not exists`
 - Legacy history remains readable even after the workspace upgrade
 
-## Retrieval behavior in this stage
+## Retrieval and memory behavior in this stage
 
 Jarvis now has a stronger retrieval foundation than the original upload-only baseline:
 
 - uploaded text/code/markdown/CSV files are persisted as indexed workspace documents
 - saved artifacts are also indexed back into the workspace knowledge base
 - retrieval uses chunked project content plus prior workspace conversation text
+- chunk ranking combines lexical scoring with embedding similarity when `OPENAI_API_KEY` is present
 - the most relevant hits are injected into the chat system prompt as retrieved workspace context
 
-This is still a lightweight lexical/chunked retrieval layer — not a vector database or embedding-backed semantic search system yet.
+If embeddings are unavailable (missing key or upstream failure), retrieval safely falls back to lexical-only scoring.
 
-## Tool orchestration improvements
+## Tool orchestration + planner/executor improvements
 
 Jarvis now uses stronger request routing before the model responds:
 
@@ -65,6 +69,13 @@ Jarvis now uses stronger request routing before the model responds:
 - **date/time requests** are forced toward `get_current_datetime`
 - **GitHub repo analysis requests** are forced toward `analyze_github_repo`
 - **fresh/current-information requests** receive an explicit bias toward `web_search`
+
+Planner/executor behavior is now explicit and persisted:
+
+- planner derives a structured step list before execution starts
+- execution state is persisted per workspace task (`queued` → `running` → `completed`/`failed`)
+- step-level status is tracked for request capture, retrieval, execution, and persistence
+- interrupted tasks are marked recoverable and can be resumed from the workspace UI
 
 Capability messaging also remains precise:
 
@@ -78,6 +89,8 @@ Capability messaging also remains precise:
 - Left sidebar for workspaces and chat threads
 - Workspace creation form and per-workspace chat list
 - Right panel for persistent artifacts and indexed files
+- Right panel task timeline with resumable status
+- Project file mapping panel that unifies uploaded files + generated artifacts
 - Workspace counts for chats, docs, and artifacts
 - Cleaner, more product-style chat shell on desktop and mobile
 - Improved execution/tool card presentation inside chat
@@ -132,7 +145,7 @@ JARVIS_CODE_MEMORY_LIMIT_MB=64
 
 > `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` still works as a legacy alias for `SESSION_SECRET`.
 >
-> **No new environment variables were added for this workspace stage.**
+> `OPENAI_API_KEY` is now also used for semantic retrieval embeddings in addition to chat completions.
 
 ### 3. Set up Supabase
 
@@ -249,22 +262,20 @@ jarvis/
 
 This stage stops short of full autonomous AI workspace parity. Intentionally **not** included yet:
 
-- embeddings or vector-database retrieval
-- PDF/DOCX parsing pipelines
-- background jobs or resumable long-running tasks
-- multi-file project execution/build environments
+- external queue/worker infrastructure beyond request-scoped execution
+- PDF/DOCX ingestion pipelines and richer multimodal indexing
+- full containerized multi-file build/test execution environments
 - collaborative/shared workspaces across users
 - artifact version history or diffing
 - exact Base44 or Emergent feature matching
 
 ## Future stages that would improve Jarvis further
 
-1. **Embedding-backed retrieval** for higher-quality semantic recall across large workspaces
-2. **Richer document ingestion** for PDFs, DOCX, and more structured file pipelines
-3. **Resumable/background tasks** for long-running coding and research jobs
-4. **Deeper coding workflows** with broader execution infrastructure and multi-file iterations
-5. **Artifact lifecycle tools** like versioning, compare/history, and richer previews
-6. **Collaboration/security hardening** for multi-user or team-oriented workspace models
+1. **Queue-backed workers** for truly detached execution beyond request lifetimes
+2. **Richer ingestion** for PDFs, DOCX, and structured parsing pipelines
+3. **Broader execution breadth** (safe package install + staged build/test loops)
+4. **Artifact lifecycle controls** (versioning, compare/history, richer previews)
+5. **Collaboration + admin hardening** (shared workspaces, quotas, auditability)
 
 ## Validation
 
@@ -281,6 +292,6 @@ There is no separate test suite in the repository today.
 - Web search still requires `TAVILY_API_KEY`
 - GitHub repo analysis is still public-repo-oriented unless `GITHUB_TOKEN` has broader access
 - Sandbox execution is still intentionally narrow and cannot run arbitrary repos, installs, or external I/O
-- Workspace retrieval is stronger than before, but not yet embedding-backed
+- Workspace retrieval now includes embedding-assisted ranking, but remains Postgres-backed (no dedicated vector DB yet)
 - Images are not indexed into retrieval in this stage
 - Supabase remains optional, but persistent workspace features require the schema in `supabase/schema.sql`

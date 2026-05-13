@@ -127,6 +127,108 @@ export function detectToolIntent(
   return "general";
 }
 
+export interface PlannerStep {
+  key: string;
+  label: string;
+  detail: string;
+}
+
+export interface PlannerOutput {
+  intent: DetectedIntent;
+  forcedToolName:
+    | "execute_code"
+    | "calculate"
+    | "get_current_datetime"
+    | "analyze_github_repo"
+    | null;
+  routingHint: string;
+  steps: PlannerStep[];
+}
+
+export function buildPlannerOutput(options: {
+  input: string;
+  capabilities: AgentCapabilities;
+}): PlannerOutput {
+  const intent = detectToolIntent(options.input, options.capabilities);
+
+  const baseSteps: PlannerStep[] = [
+    {
+      key: "capture_request",
+      label: "Capture request",
+      detail: "Normalize user intent and validate task scope/capability fit.",
+    },
+    {
+      key: "retrieve_workspace_context",
+      label: "Retrieve workspace context",
+      detail: "Load relevant files, artifacts, and chat memory for grounding.",
+    },
+    {
+      key: "execute_plan",
+      label: "Execute plan",
+      detail: "Run the best matching tools with explicit step discipline.",
+    },
+    {
+      key: "persist_results",
+      label: "Persist results",
+      detail: "Save exchange/task outcome and refresh workspace state.",
+    },
+  ];
+
+  if (intent === "code_execution") {
+    return {
+      intent,
+      forcedToolName: "execute_code",
+      routingHint:
+        "- Planner decision: this is execution-heavy; prioritize execute_code with observable outputs.",
+      steps: baseSteps,
+    };
+  }
+  if (intent === "calculate") {
+    return {
+      intent,
+      forcedToolName: "calculate",
+      routingHint:
+        "- Planner decision: this is numeric; use calculate for deterministic math.",
+      steps: baseSteps,
+    };
+  }
+  if (intent === "datetime") {
+    return {
+      intent,
+      forcedToolName: "get_current_datetime",
+      routingHint:
+        "- Planner decision: this is time-sensitive; use get_current_datetime.",
+      steps: baseSteps,
+    };
+  }
+  if (intent === "github_analysis") {
+    return {
+      intent,
+      forcedToolName: "analyze_github_repo",
+      routingHint:
+        "- Planner decision: this targets a GitHub repo; use analyze_github_repo first.",
+      steps: baseSteps,
+    };
+  }
+  if (intent === "web_search") {
+    return {
+      intent,
+      forcedToolName: null,
+      routingHint:
+        "- Planner decision: this likely needs fresh information; prefer web_search early.",
+      steps: baseSteps,
+    };
+  }
+
+  return {
+    intent,
+    forcedToolName: null,
+    routingHint:
+      "- Planner decision: no hard route override; pick tools opportunistically based on concrete sub-steps.",
+    steps: baseSteps,
+  };
+}
+
 // ─── Message helpers ──────────────────────────────────────────────────────────
 
 /**

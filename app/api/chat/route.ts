@@ -14,12 +14,30 @@ import {
 } from "@/lib/workspaces";
 import { logError } from "@/lib/errors";
 import {
+  buildPlannerOutput,
   formatCodeExecutionSummary,
   getCodeExecutionGuidance,
   getLatestUserText,
 } from "@/lib/orchestration";
+import {
+  completeWorkspaceTask,
+  createWorkspaceTask,
+  failWorkspaceTask,
+  startWorkspaceTask,
+  updateWorkspaceTaskStep,
+} from "@/lib/tasks";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
+const MAX_TASK_SUMMARY_LENGTH = 240;
+
+function summarizeTaskResult(input: string) {
+  const compact = input.replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+  if (compact.length <= MAX_TASK_SUMMARY_LENGTH) return compact;
+  const clipped = compact.slice(0, MAX_TASK_SUMMARY_LENGTH);
+  const boundary = clipped.lastIndexOf(" ");
+  return `${(boundary > 60 ? clipped.slice(0, boundary) : clipped).trimEnd()}…`;
+}
 
 // ─── Safe math expression evaluator ─────────────────────────────────────────
 // A simple recursive-descent parser that evaluates arithmetic expressions
@@ -642,12 +660,19 @@ function getAgentTools({
 }
 
 export async function POST(req: Request) {
+  let activeTaskId: string | null = null;
   try {
     const {
       messages,
       conversationId,
       workspaceId,
-    }: { messages: UIMessage[]; conversationId?: string; workspaceId?: string } =
+      resumeTaskId,
+    }: {
+      messages: UIMessage[];
+      conversationId?: string;
+      workspaceId?: string;
+      resumeTaskId?: string;
+    } =
       await req.json();
 
     const codeExecution = getCodeExecutionAvailability();
@@ -661,15 +686,94 @@ export async function POST(req: Request) {
       (lastUserMessage?.experimental_attachments as
         | Array<{ name?: string; contentType?: string; url?: string }>
         | undefined) ?? [];
-    const forcedToolChoice = getForcedToolChoice(
+    const plannerOutput = buildPlannerOutput({
+      input: latestUserText,
+      capabilities: {
+        codeExecution,
+        webSearch: Boolean(process.env.TAVILY_API_KEY),
+        githubAnalysis: true,
+      },
+    });
+    const plannerForcedToolChoice = plannerOutput.forcedToolName
+      ? { type: "tool" as const, toolName: plannerOutput.forcedToolName }
+      : null;
+    const forcedToolChoice =
+      plannerForcedToolChoice ??
+      getForcedToolChoice(latestUserText, codeExecution.available);
+    const routingHint = `${plannerOutput.routingHint}\n${buildRoutingHint(
       latestUserText,
       codeExecution.available
-    );
-    const routingHint = buildRoutingHint(latestUserText, codeExecution.available);
+    )}`;
+    let taskId = resumeTaskId ?? null;
+
+    if (taskId) {
+      await startWorkspaceTask(taskId, 5);
+      await updateWorkspaceTaskStep({
+        taskId,
+        stepKey: "capture_request",
+        status: "running",
+        detail: "Resuming task from saved workspace context.",
+        progress: 8,
+      });
+    } else {
+      taskId = await createWorkspaceTask({
+        workspaceId,
+        conversationId,
+        title: deriveConversationTitle(latestUserText || "Workspace task"),
+        inputText: latestUserText,
+        intent: plannerOutput.intent,
+        steps: plannerOutput.steps.map((step) => ({
+          key: step.key,
+          label: step.label,
+          detail: step.detail,
+        })),
+      });
+    }
+    activeTaskId = taskId;
+
+    if (taskId) {
+      await updateWorkspaceTaskStep({
+        taskId,
+        stepKey: "capture_request",
+        status: "completed",
+        detail: `Intent detected: ${plannerOutput.intent}.`,
+        progress: 18,
+      });
+      await updateWorkspaceTaskStep({
+        taskId,
+        stepKey: "retrieve_workspace_context",
+        status: "running",
+        detail: "Scanning indexed project files, artifacts, and prior chat memory.",
+        progress: 24,
+      });
+    }
+
     const retrievalHits = await getWorkspaceRetrievalContext({
       workspaceId,
       query: latestUserText,
     });
+
+    if (taskId) {
+      await updateWorkspaceTaskStep({
+        taskId,
+        stepKey: "retrieve_workspace_context",
+        status: "completed",
+        detail: retrievalHits.length
+          ? `Retrieved ${retrievalHits.length} high-relevance workspace hits.`
+          : "No strong retrieval hits; continuing with direct user context.",
+        progress: 36,
+      });
+      await updateWorkspaceTaskStep({
+        taskId,
+        stepKey: "execute_plan",
+        status: "running",
+        detail:
+          forcedToolChoice?.type === "tool"
+            ? `Executing with forced tool: ${forcedToolChoice.toolName}.`
+            : "Executing with adaptive tool routing.",
+        progress: 45,
+      });
+    }
     const workspaceContextSection = retrievalHits.length
       ? `## Retrieved Workspace Context
 - This workspace has indexed prior material that may be relevant. Reuse it when it helps answer the request accurately.
@@ -725,6 +829,15 @@ ${routingHint}
 - Summarize, critique, explain, refactor, or answer questions about uploaded content with precision
 ${workspaceContextSection}
 
+## Planner / Executor
+- Intent: ${plannerOutput.intent}
+- Plan:
+${plannerOutput.steps
+  .map((step, index) => `${index + 1}. ${step.label} — ${step.detail}`)
+  .join("\n")}
+- Follow the plan in order unless the user explicitly asks to change course.
+- Report progress in your final response against the numbered plan steps.
+
 ### Capability-accurate responses
 - Do NOT use generic disclaimers such as "I can't access the internet" or "I have no access to external systems" as blanket statements
 - Be precise: if a specific tool is available and configured, say so and use it
@@ -743,6 +856,23 @@ ${workspaceContextSection}
       maxSteps: 5,
       onFinish: async ({ text }) => {
         if (!lastUserMessage) return;
+
+        if (taskId) {
+          await updateWorkspaceTaskStep({
+            taskId,
+            stepKey: "execute_plan",
+            status: "completed",
+            detail: "Primary generation step completed.",
+            progress: 78,
+          });
+          await updateWorkspaceTaskStep({
+            taskId,
+            stepKey: "persist_results",
+            status: "running",
+            detail: "Persisting final exchange and workspace updates.",
+            progress: 86,
+          });
+        }
 
         const userContent = lastUserMessage.parts
           .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
@@ -768,12 +898,34 @@ ${workspaceContextSection}
             userContent || attachmentSummary || "Untitled chat"
           ),
         });
+
+        if (taskId) {
+          await updateWorkspaceTaskStep({
+            taskId,
+            stepKey: "persist_results",
+            status: "completed",
+            detail: "Conversation and workspace state saved successfully.",
+            progress: 100,
+          });
+          const taskSummary =
+            summarizeTaskResult(text ?? "");
+          await completeWorkspaceTask(taskId, taskSummary);
+          activeTaskId = null;
+        }
       },
     });
 
     return result.toDataStreamResponse();
   } catch (error) {
     logError("api.chat.POST", error);
+    if (activeTaskId) {
+      await failWorkspaceTask(
+        activeTaskId,
+        error instanceof Error
+          ? error.message
+          : "Task failed while processing the request."
+      );
+    }
     return new Response(
       JSON.stringify({ error: "Something went wrong processing your request." }),
       {
