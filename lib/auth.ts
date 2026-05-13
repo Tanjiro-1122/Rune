@@ -27,11 +27,10 @@ export function getAppPassword(): string | undefined {
 
 /**
  * Returns the session signing secret. SESSION_SECRET is preferred, AUTH_SECRET
- * is supported for backward compatibility, and APP_PASSWORD is the fallback so
- * APP_PASSWORD-only deployments still work.
+ * is supported for backward compatibility.
  */
 export function getSessionSecret(): string | undefined {
-  return process.env.SESSION_SECRET ?? process.env.AUTH_SECRET ?? getAppPassword();
+  return process.env.SESSION_SECRET ?? process.env.AUTH_SECRET;
 }
 
 export function getMissingAuthConfigVars(): string[] {

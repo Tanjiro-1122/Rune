@@ -44,7 +44,6 @@ OPENAI_API_KEY=your_openai_api_key_here
 # The password users must enter to access the app
 APP_PASSWORD=your_app_password_here
 
-# Optional but strongly recommended:
 # A long random secret used to sign the session cookie — keep this private
 # Generate one with: openssl rand -hex 32
 SESSION_SECRET=a_long_random_secret_string_here
@@ -53,7 +52,7 @@ SESSION_SECRET=a_long_random_secret_string_here
 # AUTH_SECRET=a_long_random_secret_string_here
 ```
 
-> **Important:** `APP_PASSWORD` is required. `SESSION_SECRET` is strongly recommended in production. If you do not set `SESSION_SECRET`, Jarvis will securely fall back to `APP_PASSWORD` for session signing. `AUTH_SECRET` is still supported as a legacy alias.
+> **Important:** `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is still supported as a legacy alias for `SESSION_SECRET`.
 
 ### 3. Run locally
 
@@ -68,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000). You will be redirected to t
 Jarvis uses a lightweight password gate implemented with:
 
 - **Next.js Middleware** — redirects unauthenticated requests to `/login`.
-- **Signed session cookie** — an HMAC-SHA-256 token derived from `SESSION_SECRET` (or `AUTH_SECRET`, or `APP_PASSWORD` fallback) is stored as an `httpOnly` cookie (valid for 7 days).
+- **Signed session cookie** — an HMAC-SHA-256 token derived from `SESSION_SECRET` (or `AUTH_SECRET` legacy alias) is stored as an `httpOnly` cookie (valid for 7 days).
 - **Environment variables** — no secrets are hardcoded. Change `APP_PASSWORD` or `SESSION_SECRET` at any time to invalidate existing sessions.
 - **Logout** — the "Sign out" button in the chat header clears the session cookie and returns you to the login page.
 
@@ -116,7 +115,7 @@ jarvis/
 4. Add the following environment variables in the Vercel project settings:
    - `OPENAI_API_KEY` — your OpenAI API key
    - `APP_PASSWORD` — required password for login
-   - `SESSION_SECRET` — recommended session signing secret (generate with `openssl rand -hex 32`)
+   - `SESSION_SECRET` — required session signing secret (generate with `openssl rand -hex 32`)
    - (`AUTH_SECRET` is an optional legacy alias for `SESSION_SECRET`)
 5. Save the variables for the **Production** environment.
 6. Redeploy the app (or trigger a new production deployment) so the new env vars are applied.
