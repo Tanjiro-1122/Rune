@@ -63,11 +63,14 @@ function cleanupRateWindow(now: number) {
 }
 
 const MAX_TASK_SUMMARY_LENGTH = 240;
-const githubToken = process.env.GITHUB_TOKEN;
-const octokit = new Octokit({
-  ...(githubToken ? { auth: githubToken } : {}),
-  userAgent: "Jarvis-Super-Agent/1.0",
-});
+
+function getOctokitClient() {
+  const githubToken = process.env.GITHUB_TOKEN;
+  return new Octokit({
+    ...(githubToken ? { auth: githubToken } : {}),
+    userAgent: "Jarvis-Super-Agent/1.0",
+  });
+}
 
 function summarizeTaskResult(input: string) {
   const compact = input.replace(/\s+/g, " ").trim();
@@ -670,6 +673,7 @@ const baseAgentTools = {
     }),
     execute: async ({ owner, repo, path }) => {
       try {
+        const octokit = getOctokitClient();
         const { data } = await octokit.repos.getContent({
           owner,
           repo,
@@ -691,7 +695,7 @@ const baseAgentTools = {
         if (data.encoding !== "base64") {
           return {
             success: false,
-            error: `Unsupported file encoding: ${data.encoding ?? "unknown"}.`,
+            error: `Unsupported file encoding: ${data.encoding ?? "unknown"}. Only base64 encoding is supported.`,
           };
         }
 
@@ -712,6 +716,7 @@ const baseAgentTools = {
     }),
     execute: async ({ owner, repo }) => {
       try {
+        const octokit = getOctokitClient();
         const { data: repoData } = await octokit.repos.get({ owner, repo });
         const defaultBranch = repoData.default_branch;
 
