@@ -7,6 +7,8 @@ import ReactMarkdown from "react-markdown";
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
+const CODE_PREVIEW_MAX_LENGTH = 220;
+const CODE_PREVIEW_TRUNCATION_LENGTH = 2;
 const ACCEPTED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -25,6 +27,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_task_plan: "Planning task",
   web_search: "Searching the web",
   analyze_github_repo: "Analyzing GitHub repo",
+  execute_code: "Running code",
 };
 
 function getToolLabel(name: string) {
@@ -185,6 +188,34 @@ interface GitHubRepoToolResult {
   repo?: string;
 }
 
+interface CodeExecutionArtifact {
+  name: string;
+  mimeType: string;
+  content: string;
+  bytes: number;
+}
+
+interface CodeExecutionToolResult {
+  available: boolean;
+  language: "javascript" | "typescript";
+  success: boolean;
+  durationMs: number;
+  logs: string[];
+  errors: string[];
+  artifacts: CodeExecutionArtifact[];
+  result?: string;
+  resultType?: string;
+  error?: string;
+  limits: {
+    timeoutMs: number;
+    maxSourceLength: number;
+    maxOutputChars: number;
+    maxArtifacts: number;
+    maxArtifactBytes: number;
+    memoryLimitMb: number;
+  };
+}
+
 function GitHubRepoCard({
   args,
   result,
@@ -263,6 +294,109 @@ function GitHubRepoCard({
   );
 }
 
+function CodeExecutionCard({
+  args,
+  result,
+}: {
+  args: { code?: string; language?: "javascript" | "typescript" };
+  result?: CodeExecutionToolResult;
+}) {
+  const isPending = !result;
+  const preview = args.code?.trim() || "";
+  const codePreview =
+    preview.length > CODE_PREVIEW_MAX_LENGTH
+      ? `${preview.slice(0, Math.max(0, CODE_PREVIEW_MAX_LENGTH - CODE_PREVIEW_TRUNCATION_LENGTH))}\n…`
+      : preview || "Preparing snippet…";
+
+  return (
+    <div className={`tool-card tool-card--execution ${isPending ? "tool-card--pending" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">🧪</span>
+        <span className="tool-card-title">
+          {isPending
+            ? `Running ${args.language ?? "typescript"} snippet…`
+            : `${result.language} sandbox`}
+        </span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <pre className="tool-code-block">
+          <code>{codePreview}</code>
+        </pre>
+        {result && (
+          <>
+            <div className="execution-meta">
+              <span className={`execution-badge ${result.success ? "execution-badge--success" : "execution-badge--error"}`}>
+                {result.success ? "Completed" : "Failed"}
+              </span>
+              <span className="execution-badge">{result.durationMs} ms</span>
+              <span className="execution-badge">{result.limits.timeoutMs} ms timeout</span>
+              <span className="execution-badge">{result.limits.memoryLimitMb} MB worker</span>
+            </div>
+
+            {result.result && (
+              <div className="execution-section">
+                <div className="execution-section-title">
+                  Result{result.resultType ? ` · ${result.resultType}` : ""}
+                </div>
+                <pre className="execution-output">
+                  <code>{result.result}</code>
+                </pre>
+              </div>
+            )}
+
+            {result.logs.length > 0 && (
+              <div className="execution-section">
+                <div className="execution-section-title">Logs</div>
+                <pre className="execution-output">
+                  <code>{result.logs.join("\n")}</code>
+                </pre>
+              </div>
+            )}
+
+            {(result.errors.length > 0 || result.error) && (
+              <div className="execution-section">
+                <div className="execution-section-title">Errors</div>
+                <pre className="execution-output execution-output--error">
+                  <code>{[...result.errors, result.error].filter(Boolean).join("\n")}</code>
+                </pre>
+              </div>
+            )}
+
+            {result.artifacts.length > 0 && (
+              <div className="execution-section">
+                <div className="execution-section-title">Artifacts</div>
+                <div className="artifact-list">
+                  {result.artifacts.map((artifact, index) => (
+                    <div key={`${artifact.name}-${index}`} className="artifact-card">
+                      <div className="artifact-card-header">
+                        <span>{artifact.name}</span>
+                        <a
+                          className="artifact-link"
+                          href={`data:${artifact.mimeType};charset=utf-8,${encodeURIComponent(artifact.content)}`}
+                          download={artifact.name}
+                        >
+                          Download
+                        </a>
+                      </div>
+                      <div className="artifact-meta">
+                        {artifact.mimeType} · {artifact.bytes} bytes
+                      </div>
+                      <pre className="execution-output">
+                        <code>{artifact.content}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
   const isPending =
     invocation.state === "partial-call" || invocation.state === "call";
@@ -327,6 +461,22 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
         result={
           invocation.state === "result"
             ? (invocation.result as GitHubRepoToolResult)
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (invocation.toolName === "execute_code") {
+    return (
+      <CodeExecutionCard
+        args={invocation.args as {
+          code?: string;
+          language?: "javascript" | "typescript";
+        }}
+        result={
+          invocation.state === "result"
+            ? (invocation.result as CodeExecutionToolResult)
             : undefined
         }
       />
@@ -554,6 +704,7 @@ export function Chat() {
               <span className="pill">🕐 Date &amp; time</span>
               <span className="pill">🔍 Web search</span>
               <span className="pill">🐙 GitHub analysis</span>
+              <span className="pill">🧪 Code execution</span>
               <span className="pill">📎 File analysis</span>
             </div>
             <div className="starter-actions">
@@ -579,6 +730,15 @@ export function Chat() {
                 onClick={() => fillStarterPrompt("Plan my day in 5 practical steps.")}
               >
                 Plan my day
+              </button>
+              <button
+                type="button"
+                className="starter-button"
+                onClick={() =>
+                  fillStarterPrompt("Run a TypeScript snippet that reverses an array.")
+                }
+              >
+                Run code
               </button>
               <button
                 type="button"
