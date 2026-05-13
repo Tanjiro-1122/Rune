@@ -1036,6 +1036,45 @@ export function Chat() {
     }
   }
 
+  const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+
+        const file = items[i].getAsFile();
+        if (!file) continue;
+
+        if (file.size > MAX_FILE_SIZE) {
+          alert(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+
+          if (data.url) {
+            setInput((prev: string) =>
+              prev ? `${prev}\n![pasted screenshot](${data.url})` : `![pasted screenshot](${data.url})`
+            );
+          }
+        } catch (err) {
+          console.error("Failed to upload pasted image:", err);
+        }
+      }
+    }
+  };
+
   function clearAttachments() {
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setFiles(undefined);
@@ -1525,6 +1564,7 @@ export function Chat() {
             name="message"
             value={input}
             onChange={handleInputChange}
+            onPaste={handleScreenshotPaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
