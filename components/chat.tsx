@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useChat } from "ai/react";
 
 export function Chat() {
-  const [input, setInput] = useState("");
-
-  const { messages, sendMessage, status } = useChat();
+  const { messages, input, handleInputChange, handleSubmit, status } = useChat();
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -44,16 +41,17 @@ export function Chat() {
       <form
         className="input-form"
         onSubmit={(e) => {
-          e.preventDefault();
-          if (!input.trim() || isLoading) return;
-
-          sendMessage({ text: input });
-          setInput("");
+          if (!input.trim() || isLoading) {
+            e.preventDefault();
+            return;
+          }
+          handleSubmit(e);
         }}
       >
         <input
+          name="message"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Ask Jarvis anything..."
           className="chat-input"
         />

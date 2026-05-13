@@ -1,4 +1,4 @@
-import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { streamText, UIMessage, convertToCoreMessages } from "ai";
 import { openai } from "@ai-sdk/openai";
 
 export const maxDuration = 30;
@@ -11,10 +11,10 @@ export async function POST(req: Request) {
       model: openai("gpt-4o-mini"),
       system:
         "You are Jarvis, a helpful, fast, concise AI assistant. Be clear and practical.",
-      messages: convertToModelMessages(messages),
+      messages: convertToCoreMessages(messages),
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error("Chat API error:", error);
     return new Response(
