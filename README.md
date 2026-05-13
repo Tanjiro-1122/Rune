@@ -19,6 +19,27 @@ Jarvis is a Vercel-ready AI super-agent built with Next.js and the Vercel AI SDK
 - **Password-protected access** — HMAC-signed session cookie via Next.js Middleware
 - **Vercel-ready** — deploys to Vercel with no additional infrastructure
 
+## Staged Upgrade Roadmap (Base44/Emergent-inspired)
+
+This repo keeps Jarvis branding and current integrations, and is being improved in stages toward a more capable, production-grade AI workspace experience.
+
+### Stage 1 — Implemented in this PR
+
+- Reliability improvements for sandbox orchestration so execution-oriented requests trigger `execute_code` more consistently.
+- Stronger capability-aware prompting to prefer tool-backed execution/results over generic refusal prose.
+- Structured sandbox failure handling for timeout/import/network/runtime cases, including clearer guidance.
+- Better execution result UX in tool cards (clearer failure classification and remediation hints).
+- Artifact flow remains via sandbox `createArtifact(...)` and is surfaced in execution result cards.
+
+### Planned Next Stages
+
+- **Stage 2: Professional UI refinement** — cleaner premium visual design, stronger hierarchy, better mobile polish.
+- **Stage 3: Retrieval + workspace memory** — stronger context recall and higher-quality long-running task continuity.
+- **Stage 4: Project/file workspaces** — richer project-scoped context and file-level workflows.
+- **Stage 5: Artifact persistence + resumable tasks** — durable artifacts and resumable multi-step sessions.
+- **Stage 6: Rich coding workflows** — stronger iterative coding loops and deeper developer workflows.
+- **Stage 7: Safer broader execution infra** — expanded execution capabilities with stronger safety and operational controls.
+
 ## Stack
 
 | Layer | Technology |

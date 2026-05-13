@@ -34,6 +34,21 @@ function getToolLabel(name: string) {
   return TOOL_LABELS[name] ?? `Running ${name.replace(/_/g, " ")}`;
 }
 
+const EXECUTION_FAILURE_LABELS: Record<string, string> = {
+  disabled: "Execution disabled in deployment",
+  empty_snippet: "No executable snippet provided",
+  snippet_too_large: "Snippet exceeds source limit",
+  blocked_import_export: "Blocked: import/export",
+  blocked_modules: "Blocked: external modules",
+  blocked_host_global: "Blocked: host globals",
+  blocked_network: "Blocked: network access",
+  blocked_runtime_api: "Blocked: filesystem/process/runtime APIs",
+  compilation_error: "TypeScript compilation error",
+  timeout: "Timed out",
+  worker_error: "Sandbox worker error",
+  runtime_error: "Runtime error",
+};
+
 interface ToolInvocation {
   state: "partial-call" | "call" | "result";
   toolCallId: string;
@@ -199,6 +214,8 @@ interface CodeExecutionToolResult {
   available: boolean;
   language: "javascript" | "typescript";
   success: boolean;
+  failureKind?: string;
+  failureGuidance?: string;
   durationMs: number;
   logs: string[];
   errors: string[];
@@ -307,6 +324,10 @@ function CodeExecutionCard({
     preview.length > CODE_PREVIEW_MAX_LENGTH
       ? `${preview.slice(0, Math.max(0, CODE_PREVIEW_MAX_LENGTH - CODE_PREVIEW_TRUNCATION_LENGTH))}\n…`
       : preview || "Preparing snippet…";
+  const failureLabel =
+    result && !result.success && result.failureKind
+      ? EXECUTION_FAILURE_LABELS[result.failureKind] ?? result.failureKind
+      : null;
 
   return (
     <div className={`tool-card tool-card--execution ${isPending ? "tool-card--pending" : ""}`}>
@@ -329,10 +350,19 @@ function CodeExecutionCard({
               <span className={`execution-badge ${result.success ? "execution-badge--success" : "execution-badge--error"}`}>
                 {result.success ? "Completed" : "Failed"}
               </span>
+              {!result.success && failureLabel && (
+                <span className="execution-badge execution-badge--error">
+                  {failureLabel}
+                </span>
+              )}
               <span className="execution-badge">{result.durationMs} ms</span>
               <span className="execution-badge">{result.limits.timeoutMs} ms timeout</span>
               <span className="execution-badge">{result.limits.memoryLimitMb} MB worker</span>
             </div>
+
+            {!result.success && result.failureGuidance && (
+              <p className="execution-guidance">{result.failureGuidance}</p>
+            )}
 
             {result.result && (
               <div className="execution-section">

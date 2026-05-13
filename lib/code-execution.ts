@@ -23,6 +23,8 @@ export interface CodeExecutionResult {
   available: boolean;
   language: SupportedExecutionLanguage;
   success: boolean;
+  failureKind?: CodeExecutionFailureKind;
+  failureGuidance?: string;
   durationMs: number;
   logs: string[];
   errors: string[];
@@ -32,6 +34,20 @@ export interface CodeExecutionResult {
   resultType?: string;
   error?: string;
 }
+
+export type CodeExecutionFailureKind =
+  | "disabled"
+  | "empty_snippet"
+  | "snippet_too_large"
+  | "blocked_import_export"
+  | "blocked_modules"
+  | "blocked_host_global"
+  | "blocked_network"
+  | "blocked_runtime_api"
+  | "compilation_error"
+  | "timeout"
+  | "worker_error"
+  | "runtime_error";
 
 interface WorkerSuccessMessage {
   ok: true;
@@ -387,6 +403,103 @@ function compileSnippet(
   return { script: transpiled.outputText };
 }
 
+function getFailureDetails(
+  errorMessage: string
+): Pick<CodeExecutionResult, "failureKind" | "failureGuidance"> {
+  if (/Execution timed out|Script execution timed out/.test(errorMessage)) {
+    return {
+      failureKind: "timeout",
+      failureGuidance:
+        "The snippet exceeded the runtime limit. Try smaller inputs or fewer iterations.",
+    };
+  }
+
+  if (errorMessage.includes("non-empty JavaScript or TypeScript snippet")) {
+    return {
+      failureKind: "empty_snippet",
+      failureGuidance:
+        "Add executable JavaScript/TypeScript code and include `return` for a final value.",
+    };
+  }
+
+  if (errorMessage.includes("character limit")) {
+    return {
+      failureKind: "snippet_too_large",
+      failureGuidance:
+        "Split the request into smaller snippets or reduce inline data to fit the source limit.",
+    };
+  }
+
+  if (errorMessage.includes("Imports and exports are not allowed")) {
+    return {
+      failureKind: "blocked_import_export",
+      failureGuidance:
+        "Inline the required logic instead of using import/export statements.",
+    };
+  }
+
+  if (errorMessage.includes("Requiring external modules is not allowed")) {
+    return {
+      failureKind: "blocked_modules",
+      failureGuidance:
+        "Use only built-in sandbox globals; external packages are intentionally blocked.",
+    };
+  }
+
+  if (errorMessage.includes("Access to host globals is blocked")) {
+    return {
+      failureKind: "blocked_host_global",
+      failureGuidance:
+        "Do not reference process/window/global objects. Keep logic self-contained.",
+    };
+  }
+
+  if (errorMessage.includes("Network access is blocked")) {
+    return {
+      failureKind: "blocked_network",
+      failureGuidance:
+        "The sandbox has no outbound network access. Paste data directly into the snippet instead.",
+    };
+  }
+
+  if (errorMessage.includes("Filesystem, process, and runtime APIs are blocked")) {
+    return {
+      failureKind: "blocked_runtime_api",
+      failureGuidance:
+        "Filesystem/process/runtime APIs are unavailable. Use pure in-memory logic only.",
+    };
+  }
+
+  if (
+    errorMessage.includes("Sandbox worker exited unexpectedly") ||
+    errorMessage.includes("sandbox worker failed to start")
+  ) {
+    return {
+      failureKind: "worker_error",
+      failureGuidance:
+        "This deployment could not complete the sandbox run. Retry once or reduce snippet complexity.",
+    };
+  }
+
+  if (
+    /Cannot find name\b/.test(errorMessage) ||
+    /Property '[^']+' does not exist on type/.test(errorMessage) ||
+    /Type '[^']+' is not assignable to type/.test(errorMessage)
+  ) {
+    return {
+      failureKind: "compilation_error",
+      failureGuidance:
+        "Fix TypeScript errors in the snippet, or switch `language` to `javascript` for plain JS.",
+    };
+  }
+
+  return {
+    failureKind: "runtime_error",
+    failureGuidance:
+      "Review the error details and adjust the snippet. Keep code deterministic and self-contained.",
+  };
+}
+
 function runWorker(
   payload: WorkerPayload,
   limits: ExecutionLimits
@@ -461,16 +574,20 @@ export async function executeSandboxedCode({
   const { available, reason, limits } = getCodeExecutionAvailability();
 
   if (!available) {
+    const unavailableMessage = `Sandboxed execution is unavailable because ${reason}.`;
     return {
       available: false,
       language,
       success: false,
+      failureKind: "disabled",
+      failureGuidance:
+        "Set JARVIS_CODE_EXECUTION_ENABLED=true in this deployment to re-enable sandboxed execution.",
       durationMs: 0,
       logs: [],
       errors: [],
       artifacts: [],
       limits,
-      error: `Sandboxed execution is unavailable because ${reason}.`,
+      error: unavailableMessage,
     };
   }
 
@@ -480,6 +597,7 @@ export async function executeSandboxedCode({
       available: true,
       language,
       success: false,
+      ...getFailureDetails(validationError),
       durationMs: 0,
       logs: [],
       errors: [],
@@ -495,6 +613,7 @@ export async function executeSandboxedCode({
       available: true,
       language,
       success: false,
+      ...getFailureDetails(compiled.error),
       durationMs: 0,
       logs: [],
       errors: [],
@@ -521,6 +640,7 @@ export async function executeSandboxedCode({
         available: true,
         language,
         success: false,
+        ...getFailureDetails(message.error),
         durationMs: message.durationMs,
         logs: message.logs,
         errors: message.errors,
@@ -558,6 +678,7 @@ export async function executeSandboxedCode({
       available: true,
       language,
       success: false,
+      ...getFailureDetails(message),
       durationMs: 0,
       logs: [],
       errors: [],

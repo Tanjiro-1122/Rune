@@ -170,6 +170,39 @@ function parseOwnerRepo(input: string): string {
   return input.trim().replace(/\.git$/, "");
 }
 
+function getLatestUserText(messages: UIMessage[]) {
+  const lastUserMessage = messages.findLast((message) => message.role === "user");
+  if (!lastUserMessage) return "";
+
+  return lastUserMessage.parts
+    .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
+  if (!codeExecutionAvailable || !input.trim()) return false;
+
+  const hasCodeBlock = /```[\s\S]*?```/.test(input);
+  const executionVerb = /\b(run|execute|test|simulate|debug|benchmark|profile|check|evaluate)\b/i.test(
+    input
+  );
+  const executionNoun = /\b(code|snippet|script|function|algorithm|javascript|typescript|js|ts|loop)\b/i.test(
+    input
+  );
+  const artifactIntent =
+    /\b(create|generate|produce|build|export)\b[\s\S]*\b(artifact|file|download|csv|json|report|output)\b/i.test(
+      input
+    ) && /\b(code|snippet|script|javascript|typescript|js|ts)\b/i.test(input);
+  const explainOnly =
+    /\b(explain|review|summarize|understand|what does|why does)\b/i.test(input) &&
+    !executionVerb;
+
+  if (explainOnly) return false;
+  return hasCodeBlock || artifactIntent || (executionVerb && executionNoun);
+}
+
 function formatCodeExecutionSummary() {
   const codeExecution = getCodeExecutionAvailability();
 
@@ -189,7 +222,11 @@ function formatCodeExecutionSummary() {
 
 function getCodeExecutionGuidance(available: boolean) {
   return available
-    ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card"
+    ? [
+        "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card.",
+        "- If the user asks to run/evaluate code, call `execute_code` first instead of replying with a prose-only refusal.",
+        "- For downloadable text output, create it via `createArtifact(name, content, mimeType?)` inside the snippet (supported mime types: `text/*` and `application/json`; omit `mimeType` for `text/plain`).",
+      ].join("\n")
     : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
 }
 
@@ -501,12 +538,6 @@ const baseAgentTools = {
 };
 
 function getAgentTools() {
-  const codeExecution = getCodeExecutionAvailability();
-
-  if (!codeExecution.available) {
-    return baseAgentTools;
-  }
-
   return {
     ...baseAgentTools,
     execute_code: tool({
@@ -541,6 +572,11 @@ export async function POST(req: Request) {
     const codeExecutionSummary = formatCodeExecutionSummary();
     const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
     const agentTools = getAgentTools();
+    const latestUserText = getLatestUserText(messages);
+    const forceCodeExecutionTool = isCodeExecutionIntent(
+      latestUserText,
+      codeExecution.available
+    );
 
     const result = streamText({
       model: openai("gpt-4o-mini"),
@@ -567,6 +603,8 @@ ${codeExecutionSummary}
 - Use \`web_search\` for current events, recent releases, real-time facts, or anything that may have changed since your training cutoff
 - Use \`analyze_github_repo\` whenever the user provides a GitHub URL or owner/repo string and wants to understand or discuss that repository
 ${codeExecutionGuidance}
+- When a user asks to run/check code and \`execute_code\` is available, execute it in the sandbox even if you expect timeout or blocked APIs so the user gets a structured tool result card
+- For artifact/file-style outputs from code execution, use \`createArtifact(...)\` inside the sandbox snippet instead of describing the file in prose
 
 ### Document and code context
 - When a user uploads a code file or text document, read it carefully and reference specific sections in your response
@@ -587,6 +625,10 @@ ${codeExecutionGuidance}
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
       messages: convertToCoreMessages(messages),
       tools: agentTools,
+      toolChoice:
+        forceCodeExecutionTool && codeExecution.available
+          ? { type: "tool", toolName: "execute_code" }
+          : "auto",
       maxSteps: 5,
       onFinish: async ({ text }) => {
         if (!conversationId) return;
