@@ -696,16 +696,15 @@ export function Chat() {
           </div>
         ) : messages.length === 0 ? (
           <div className="empty-state">
-            <h2>Hello, I&apos;m Jarvis.</h2>
-            <p>How can I help you today?</p>
+            <h2>How can I help?</h2>
             <div className="capability-pills">
-              <span className="pill">🔢 Calculations</span>
-              <span className="pill">📋 Task planning</span>
-              <span className="pill">🕐 Date &amp; time</span>
-              <span className="pill">🔍 Web search</span>
-              <span className="pill">🐙 GitHub analysis</span>
-              <span className="pill">🧪 Code execution</span>
-              <span className="pill">📎 File analysis</span>
+              <span className="pill">Calculations</span>
+              <span className="pill">Task planning</span>
+              <span className="pill">Date &amp; time</span>
+              <span className="pill">Web search</span>
+              <span className="pill">GitHub analysis</span>
+              <span className="pill">Code execution</span>
+              <span className="pill">File analysis</span>
             </div>
             <div className="starter-actions">
               <button

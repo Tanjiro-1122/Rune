@@ -37,11 +37,11 @@ export default function LoginPage() {
 
   return (
     <main className="page">
-      <section className="hero">
-        <div className="badge">AI Assistant</div>
+      <header className="hero">
         <h1>Jarvis</h1>
-        <p>Enter your password to access Jarvis.</p>
-      </section>
+        <span className="hero-divider" aria-hidden="true">·</span>
+        <p>Sign in to continue</p>
+      </header>
 
       <section className="chat-shell">
         <form className="login-form" onSubmit={handleSubmit}>

@@ -3,14 +3,11 @@ import { Chat } from "@/components/chat";
 export default function HomePage() {
   return (
     <main className="page">
-      <section className="hero">
-        <div className="badge">Super Agent</div>
+      <header className="hero">
         <h1>Jarvis</h1>
-        <p>
-          Your advanced AI assistant. Plan tasks, crunch numbers, analyze files,
-          and get things done — step by step.
-        </p>
-      </section>
+        <span className="hero-divider" aria-hidden="true">·</span>
+        <p>Your AI assistant</p>
+      </header>
 
       <section className="chat-shell">
         <Chat />
