@@ -3,6 +3,7 @@
 import { useChat } from "ai/react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -16,13 +17,161 @@ const ACCEPTED_TYPES = [
   "text/markdown",
 ];
 
+// ─── Tool display helpers ────────────────────────────────────────────────────
+
+const TOOL_LABELS: Record<string, string> = {
+  get_current_datetime: "Checking date & time",
+  calculate: "Calculating",
+  create_task_plan: "Planning task",
+};
+
+function toolLabel(name: string) {
+  return TOOL_LABELS[name] ?? `Running ${name.replace(/_/g, " ")}`;
+}
+
+interface ToolInvocation {
+  state: "partial-call" | "call" | "result";
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  result?: unknown;
+}
+
+function TaskPlanCard({
+  result,
+}: {
+  result: { task: string; steps: string[] };
+}) {
+  return (
+    <div className="tool-card tool-card--plan">
+      <div className="tool-card-header">
+        <span className="tool-card-icon">🗺️</span>
+        <span className="tool-card-title">{result.task}</span>
+      </div>
+      <ol className="task-plan-steps">
+        {result.steps.map((step, i) => (
+          <li key={i} className="task-plan-step">
+            {step}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function CalculateCard({
+  args,
+  result,
+}: {
+  args: { expression?: string };
+  result?: { expression: string; result?: string; error?: string };
+}) {
+  return (
+    <div className="tool-card tool-card--calc">
+      <div className="tool-card-header">
+        <span className="tool-card-icon">��</span>
+        <span className="tool-card-title">Calculate</span>
+      </div>
+      <div className="tool-card-body">
+        <code className="tool-expr">{args.expression}</code>
+        {result && (
+          <span className="tool-result-value">
+            {result.error ? (
+              <span className="tool-error">{result.error}</span>
+            ) : (
+              <>= {result.result}</>
+            )}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DatetimeCard({ result }: { result?: { readable: string } }) {
+  return (
+    <div className="tool-card tool-card--datetime">
+      <div className="tool-card-header">
+        <span className="tool-card-icon">🕐</span>
+        <span className="tool-card-title">
+          {result ? result.readable : "Fetching date & time…"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
+  const isPending =
+    invocation.state === "partial-call" || invocation.state === "call";
+
+  if (
+    invocation.toolName === "create_task_plan" &&
+    invocation.state === "result"
+  ) {
+    return (
+      <TaskPlanCard
+        result={invocation.result as { task: string; steps: string[] }}
+      />
+    );
+  }
+
+  if (invocation.toolName === "calculate") {
+    return (
+      <CalculateCard
+        args={invocation.args as { expression?: string }}
+        result={
+          invocation.state === "result"
+            ? (invocation.result as {
+                expression: string;
+                result?: string;
+                error?: string;
+              })
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (invocation.toolName === "get_current_datetime") {
+    return (
+      <DatetimeCard
+        result={
+          invocation.state === "result"
+            ? (invocation.result as { readable: string })
+            : undefined
+        }
+      />
+    );
+  }
+
+  // Generic fallback card
+  return (
+    <div className={`tool-card ${isPending ? "tool-card--pending" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "⚙️" : "✅"}</span>
+        <span className="tool-card-title">{toolLabel(invocation.toolName)}</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Chat component ─────────────────────────────────────────────────────
+
 export function Chat() {
   const router = useRouter();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
-  const { messages, input, handleInputChange, handleSubmit, status, setMessages } =
-    useChat({ body: { conversationId } });
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    status,
+    setMessages,
+  } = useChat({ body: { conversationId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -69,8 +218,7 @@ export function Chat() {
       });
   }, [setMessages]);
 
-  // Scroll to the latest message when a response finishes or a new message is added,
-  // but not on every intermediate streaming token to avoid jank.
+  // Scroll to bottom when a response finishes or a new message is added.
   useEffect(() => {
     if (status === "ready" || status === "error") {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -84,6 +232,29 @@ export function Chat() {
   }
 
   const isLoading = status === "submitted" || status === "streaming";
+
+  // Determine the active tool name while streaming
+  const activeToolName = isLoading
+    ? (() => {
+        const last = messages[messages.length - 1];
+        if (!last || last.role !== "assistant") return null;
+        const pending = (last.parts ?? []).findLast(
+          (p) =>
+            p.type === "tool-invocation" &&
+            (p as { type: string; toolInvocation: ToolInvocation })
+              .toolInvocation.state !== "result"
+        );
+        if (!pending) return null;
+        return toolLabel(
+          (
+            pending as {
+              type: string;
+              toolInvocation: ToolInvocation;
+            }
+          ).toolInvocation.toolName
+        );
+      })()
+    : null;
 
   // Revoke object URLs when they change or component unmounts
   useEffect(() => {
@@ -157,10 +328,19 @@ export function Chat() {
     <div className="chat">
       <div className="chat-header">
         <span className="chat-header-title">Jarvis</span>
-        <button className="logout-button" onClick={handleLogout}>
-          Sign out
-        </button>
+        <div className="chat-header-right">
+          {isLoading && (
+            <span className="status-badge">
+              <span className="status-dot" />
+              {activeToolName ?? "Thinking…"}
+            </span>
+          )}
+          <button className="logout-button" onClick={handleLogout}>
+            Sign out
+          </button>
+        </div>
       </div>
+
       <div className="messages">
         {!historyLoaded ? (
           <div className="empty-state">
@@ -170,6 +350,12 @@ export function Chat() {
           <div className="empty-state">
             <h2>Hello, I&apos;m Jarvis.</h2>
             <p>How can I help you today?</p>
+            <div className="capability-pills">
+              <span className="pill">🔢 Calculations</span>
+              <span className="pill">📋 Task planning</span>
+              <span className="pill">🕐 Date &amp; time</span>
+              <span className="pill">📎 File analysis</span>
+            </div>
           </div>
         ) : (
           messages.map((message) => (
@@ -183,7 +369,33 @@ export function Chat() {
               <div className="message-content">
                 {message.parts.map((part, index) => {
                   if (part.type === "text") {
-                    return <p key={`${message.id}-${index}`}>{part.text}</p>;
+                    if (message.role === "assistant") {
+                      return (
+                        <div
+                          key={`${message.id}-${index}`}
+                          className="markdown-body"
+                        >
+                          <ReactMarkdown>{part.text}</ReactMarkdown>
+                        </div>
+                      );
+                    }
+                    return (
+                      <p key={`${message.id}-${index}`}>{part.text}</p>
+                    );
+                  }
+                  if (part.type === "tool-invocation") {
+                    const inv = (
+                      part as {
+                        type: string;
+                        toolInvocation: ToolInvocation;
+                      }
+                    ).toolInvocation;
+                    return (
+                      <ToolCallCard
+                        key={`${message.id}-${index}`}
+                        invocation={inv}
+                      />
+                    );
                   }
                   return null;
                 })}
@@ -229,7 +441,9 @@ export function Chat() {
                   className="attachment-preview-img"
                 />
               ) : (
-                <span className="attachment-preview-file">📎 {file.name}</span>
+                <span className="attachment-preview-file">
+                  📎 {file.name}
+                </span>
               )}
             </div>
           ))}
@@ -262,11 +476,11 @@ export function Chat() {
           name="message"
           value={input}
           onChange={handleInputChange}
-          placeholder="Ask Jarvis anything..."
+          placeholder="Ask Jarvis anything…"
           className="chat-input"
         />
         <button type="submit" className="send-button" disabled={isLoading}>
-          {isLoading ? "Thinking..." : "Send"}
+          {isLoading ? "Working…" : "Send"}
         </button>
       </form>
     </div>
