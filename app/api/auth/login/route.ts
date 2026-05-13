@@ -1,29 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { computeToken, safeEqual } from "@/lib/auth";
 
 const SESSION_COOKIE = "jarvis_session";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-async function computeToken(secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode("jarvis:authenticated")
-  );
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 export async function POST(req: NextRequest) {
-  const { password } = await req.json();
+  let password: unknown;
+  try {
+    const body = await req.json();
+    password = body?.password;
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+
+  if (typeof password !== "string" || !password) {
+    return NextResponse.json({ error: "Password is required." }, { status: 400 });
+  }
 
   const appPassword = process.env.APP_PASSWORD;
   const authSecret = process.env.AUTH_SECRET;
@@ -35,7 +27,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!password || password !== appPassword) {
+  if (!safeEqual(password, appPassword)) {
     return NextResponse.json({ error: "Invalid password." }, { status: 401 });
   }
 
