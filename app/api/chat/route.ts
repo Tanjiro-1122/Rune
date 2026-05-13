@@ -676,19 +676,27 @@ const baseAgentTools = {
           path,
         });
 
-        if (
-          !Array.isArray(data) &&
-          "content" in data &&
-          data.encoding === "base64" &&
-          typeof data.content === "string"
-        ) {
-          const decodedContent = Buffer.from(data.content, "base64").toString("utf-8");
-          return { success: true, path, content: decodedContent };
+        if (Array.isArray(data)) {
+          return {
+            success: false,
+            error: "The provided path points to a directory, not a file.",
+          };
         }
-        return {
-          success: false,
-          error: "File format is not readable text or layout is invalid.",
-        };
+        if (!("content" in data) || typeof data.content !== "string") {
+          return {
+            success: false,
+            error: "The file content is unavailable from the GitHub API response.",
+          };
+        }
+        if (data.encoding !== "base64") {
+          return {
+            success: false,
+            error: `Unsupported file encoding: ${data.encoding ?? "unknown"}.`,
+          };
+        }
+
+        const decodedContent = Buffer.from(data.content, "base64").toString("utf-8");
+        return { success: true, path, content: decodedContent };
       } catch (error: any) {
         return { success: false, error: error.message };
       }
