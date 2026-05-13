@@ -68,7 +68,7 @@ function getOctokitClient() {
   const githubToken = process.env.GITHUB_TOKEN;
   return new Octokit({
     ...(githubToken ? { auth: githubToken } : {}),
-    userAgent: "Jarvis-Super-Agent/1.0",
+    userAgent: "Jarvis-Super-Agent/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
   });
 }
 
