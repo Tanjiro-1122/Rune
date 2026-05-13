@@ -1048,7 +1048,7 @@ export function Chat() {
         if (!file) continue;
 
         if (file.size > MAX_FILE_SIZE) {
-          alert(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
+          setFileError(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
           continue;
         }
 
@@ -1062,19 +1062,20 @@ export function Chat() {
           });
 
           if (!res.ok) {
-            throw new Error("Upload failed");
+            throw new Error(`Upload failed with status ${res.status}`);
           }
 
           const data = await res.json();
 
           if (data.url) {
+            setFileError("");
             setInput((prev: string) =>
               `${prev}${prev ? "\n" : ""}![pasted screenshot](${data.url})`
             );
           }
         } catch (err) {
           console.error("Failed to upload pasted image:", err);
-          alert("Failed to upload pasted image");
+          setFileError("Failed to upload pasted image.");
         }
       }
     }
