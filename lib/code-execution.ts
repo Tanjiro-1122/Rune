@@ -324,7 +324,10 @@ function validateSnippet(code: string, limits: ExecutionLimits) {
   }
 
   const forbiddenPatterns: Array<[RegExp, string]> = [
-    [/\bimport\s+.+from\b|\bexport\b/, "Imports and exports are not allowed in the sandbox."],
+    [
+      /\bimport\s+.+from\b|\bimport\s*\(|\bexport\b/,
+      "Imports and exports are not allowed in the sandbox.",
+    ],
     [/\brequire\s*\(/, "Requiring external modules is not allowed in the sandbox."],
     [
       /\b(?:process|global|globalThis|window|document)\b/,

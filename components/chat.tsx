@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 const CODE_PREVIEW_MAX_LENGTH = 220;
+const CODE_PREVIEW_TRUNCATION_LENGTH = 2;
 const ACCEPTED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -304,7 +305,7 @@ function CodeExecutionCard({
   const preview = args.code?.trim() || "";
   const codePreview =
     preview.length > CODE_PREVIEW_MAX_LENGTH
-      ? `${preview.slice(0, Math.max(0, CODE_PREVIEW_MAX_LENGTH - 2))}\n…`
+      ? `${preview.slice(0, Math.max(0, CODE_PREVIEW_MAX_LENGTH - CODE_PREVIEW_TRUNCATION_LENGTH))}\n…`
       : preview || "Preparing snippet…";
 
   return (
@@ -734,7 +735,7 @@ export function Chat() {
                 type="button"
                 className="starter-button"
                 onClick={() =>
-                  fillStarterPrompt("Run a small TypeScript snippet that reverses ['jarvis', 'sandbox'], logs the intermediate array, and returns the joined string.")
+                  fillStarterPrompt("Run a TypeScript snippet that reverses an array.")
                 }
               >
                 Run code
