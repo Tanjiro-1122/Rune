@@ -22,8 +22,7 @@ export async function computeToken(secret: string): Promise<string> {
 }
 
 export function getAppPassword(): string | undefined {
-  const appPassword = process.env.APP_PASSWORD;
-  return appPassword ? appPassword : undefined;
+  return process.env.APP_PASSWORD;
 }
 
 /**
@@ -32,9 +31,7 @@ export function getAppPassword(): string | undefined {
  * APP_PASSWORD-only deployments still work.
  */
 export function getSessionSecret(): string | undefined {
-  const sessionSecret =
-    process.env.SESSION_SECRET ?? process.env.AUTH_SECRET ?? getAppPassword();
-  return sessionSecret ? sessionSecret : undefined;
+  return process.env.SESSION_SECRET ?? process.env.AUTH_SECRET ?? getAppPassword();
 }
 
 export function getMissingAuthConfigVars(): string[] {
