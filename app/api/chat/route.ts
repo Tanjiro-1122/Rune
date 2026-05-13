@@ -159,6 +159,13 @@ function evalMath(expression: string): number {
   return result;
 }
 
+// ─── GitHub URL / "owner/repo" normalizer ────────────────────────────────────
+function parseOwnerRepo(input: string): string {
+  const urlMatch = input.match(/github\.com\/([^/\s]+\/[^/\s#?]+)/);
+  if (urlMatch) return urlMatch[1].replace(/\.git$/, "");
+  return input.trim().replace(/\.git$/, "");
+}
+
 const agentTools = {
   get_current_datetime: tool({
     description:
@@ -226,6 +233,244 @@ const agentTools = {
     }),
     execute: async ({ task, steps }) => ({ task, steps }),
   }),
+
+  web_search: tool({
+    description:
+      "Search the web for current information, recent news, facts, documentation, or any topic. Use whenever the user asks for up-to-date information, current events, or anything that may have changed since the model's training cutoff. Requires TAVILY_API_KEY to be configured.",
+    parameters: z.object({
+      query: z.string().describe("The search query"),
+      max_results: z
+        .number()
+        .min(1)
+        .max(10)
+        .optional()
+        .default(5)
+        .describe("Number of results to return (1–10, default 5)"),
+    }),
+    execute: async ({ query, max_results = 5 }) => {
+      const apiKey = process.env.TAVILY_API_KEY;
+      if (!apiKey) {
+        return {
+          error:
+            "Web search is not configured in this deployment. Set the TAVILY_API_KEY environment variable to enable real-time search.",
+          query,
+          configured: false,
+        };
+      }
+      try {
+        const response = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: apiKey,
+            query,
+            search_depth: "basic",
+            max_results: Math.min(Math.max(max_results, 1), 10),
+            include_answer: true,
+          }),
+        });
+        if (!response.ok) {
+          return {
+            error: `Tavily API error: ${response.status} ${response.statusText}`,
+            query,
+          };
+        }
+        const raw = await response.json();
+        const data = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+        const answer = typeof data.answer === "string" ? data.answer : null;
+        const rawResults = Array.isArray(data.results) ? data.results : [];
+        return {
+          query,
+          answer,
+          results: rawResults
+            .filter(
+              (r): r is { title: string; url: string; content: string } =>
+                r !== null &&
+                typeof r === "object" &&
+                typeof (r as Record<string, unknown>).url === "string"
+            )
+            .map((r) => ({
+              title: typeof r.title === "string" ? r.title : r.url,
+              url: r.url,
+              snippet: typeof r.content === "string" ? r.content : "",
+            })),
+        };
+      } catch (err) {
+        return {
+          error: err instanceof Error ? err.message : "Search request failed.",
+          query,
+        };
+      }
+    },
+  }),
+
+  analyze_github_repo: tool({
+    description:
+      "Analyze a public GitHub repository. Returns repository metadata, README content, top-level file structure, and language breakdown. Use when the user provides a GitHub URL or an 'owner/repo' string and wants to understand or discuss the repository.",
+    parameters: z.object({
+      repo: z
+        .string()
+        .describe(
+          "GitHub repository as 'owner/repo' or a full URL such as 'https://github.com/owner/repo'"
+        ),
+      include_readme: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Whether to fetch and include the README (default true)"),
+      include_tree: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Whether to include the top-level file tree (default true)"),
+    }),
+    execute: async ({ repo, include_readme = true, include_tree = true }) => {
+      const ownerRepo = parseOwnerRepo(repo);
+      if (!ownerRepo.includes("/")) {
+        return {
+          error:
+            "Could not parse repository. Please use 'owner/repo' format or a full GitHub URL.",
+          repo,
+        };
+      }
+
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "Jarvis-Super-Agent/1.0",
+      };
+      const token = process.env.GITHUB_TOKEN;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      try {
+        // 1. Repository metadata
+        const repoRes = await fetch(
+          `https://api.github.com/repos/${ownerRepo}`,
+          { headers }
+        );
+        if (!repoRes.ok) {
+          if (repoRes.status === 404) {
+            return {
+              error: `Repository '${ownerRepo}' not found. It may be private or the name may be incorrect.`,
+              repo: ownerRepo,
+            };
+          }
+          if (repoRes.status === 403 || repoRes.status === 429) {
+            return {
+              error:
+                "GitHub API rate limit reached. Set the GITHUB_TOKEN environment variable for a higher rate limit.",
+              repo: ownerRepo,
+            };
+          }
+          return {
+            error: `GitHub API returned ${repoRes.status}: ${repoRes.statusText}`,
+            repo: ownerRepo,
+          };
+        }
+        const rawRepo = await repoRes.json();
+        if (!rawRepo || typeof rawRepo !== "object") {
+          return { error: "Unexpected response from GitHub API.", repo: ownerRepo };
+        }
+        const repoData = rawRepo as Record<string, unknown>;
+        const defaultBranch = typeof repoData.default_branch === "string"
+          ? repoData.default_branch
+          : "main";
+
+        const result: Record<string, unknown> = {
+          name: typeof repoData.full_name === "string" ? repoData.full_name : ownerRepo,
+          description: typeof repoData.description === "string" ? repoData.description : null,
+          primary_language: typeof repoData.language === "string" ? repoData.language : null,
+          stars: typeof repoData.stargazers_count === "number" ? repoData.stargazers_count : 0,
+          forks: typeof repoData.forks_count === "number" ? repoData.forks_count : 0,
+          open_issues: typeof repoData.open_issues_count === "number" ? repoData.open_issues_count : 0,
+          topics: Array.isArray(repoData.topics) ? repoData.topics : [],
+          created_at: typeof repoData.created_at === "string" ? repoData.created_at : null,
+          updated_at: typeof repoData.updated_at === "string" ? repoData.updated_at : null,
+          default_branch: defaultBranch,
+          license:
+            repoData.license !== null &&
+            typeof repoData.license === "object" &&
+            typeof (repoData.license as Record<string, unknown>).spdx_id === "string"
+              ? (repoData.license as Record<string, unknown>).spdx_id
+              : null,
+          size_kb: typeof repoData.size === "number" ? repoData.size : 0,
+          url: typeof repoData.html_url === "string" ? repoData.html_url : null,
+        };
+
+        // 2. README
+        if (include_readme) {
+          const readmeRes = await fetch(
+            `https://api.github.com/repos/${ownerRepo}/readme`,
+            { headers }
+          );
+          if (readmeRes.ok) {
+            const rawReadme = await readmeRes.json();
+            const readmeContent =
+              rawReadme &&
+              typeof rawReadme === "object" &&
+              typeof (rawReadme as Record<string, unknown>).content === "string"
+                ? (rawReadme as Record<string, unknown>).content as string
+                : null;
+            if (readmeContent) {
+              const decoded = Buffer.from(readmeContent, "base64").toString("utf-8");
+              result.readme =
+                decoded.length > 4000
+                  ? decoded.slice(0, 4000) +
+                    "\n\n[README truncated — showing first 4 000 characters]"
+                  : decoded;
+            }
+          }
+        }
+
+        // 3. Top-level file tree (shallow)
+        if (include_tree) {
+          const treeRes = await fetch(
+            `https://api.github.com/repos/${ownerRepo}/git/trees/${defaultBranch}`,
+            { headers }
+          );
+          if (treeRes.ok) {
+            const rawTree = await treeRes.json();
+            const treeItems: { type?: unknown; path?: unknown }[] =
+              rawTree &&
+              typeof rawTree === "object" &&
+              Array.isArray((rawTree as Record<string, unknown>).tree)
+                ? (rawTree as Record<string, unknown>).tree as { type?: unknown; path?: unknown }[]
+                : [];
+            result.file_tree = treeItems
+              .filter(
+                (item) =>
+                  typeof item.path === "string" &&
+                  (item.type === "blob" || item.type === "tree")
+              )
+              .slice(0, 60)
+              .map((item) =>
+                item.type === "tree"
+                  ? `📁 ${item.path as string}/`
+                  : `📄 ${item.path as string}`
+              );
+            if (
+              rawTree &&
+              typeof rawTree === "object" &&
+              (rawTree as Record<string, unknown>).truncated === true
+            ) {
+              result.file_tree_note =
+                "Tree truncated by GitHub (repository is very large).";
+            }
+          }
+        }
+
+        return result;
+      } catch (err) {
+        return {
+          error:
+            err instanceof Error
+              ? err.message
+              : "Failed to reach the GitHub API.",
+          repo: ownerRepo,
+        };
+      }
+    },
+  }),
 };
 
 export async function POST(req: Request) {
@@ -239,21 +484,40 @@ export async function POST(req: Request) {
       model: openai("gpt-4o-mini"),
       system: `You are Jarvis, an advanced AI super-agent. You are intelligent, capable, and methodical.
 
-## Your Capabilities
-- Answer questions and hold conversations
-- Perform calculations using the \`calculate\` tool
-- Check the current date/time using the \`get_current_datetime\` tool
-- Plan complex tasks using the \`create_task_plan\` tool
-- Analyze uploaded images and text files
+## Your Built-in Tools
+- \`get_current_datetime\` — real current date and time (never guess the date)
+- \`calculate\` — arithmetic, percentages, unit conversions
+- \`create_task_plan\` — numbered step-by-step plan shown as a visual card
+- \`web_search\` — live web search via Tavily (requires TAVILY_API_KEY to be set in the deployment)
+- \`analyze_github_repo\` — fetch metadata, README, and file tree for any public GitHub repo
+
+## Additional Context from Uploads
+- Users may attach images (JPEG, PNG, GIF, WEBP) — you can see and describe them
+- Users may attach plain text files (.txt, .csv, .md) — their content is included in the message; read, quote, and reason over that content directly
 
 ## Behavior Guidelines
-- For complex or multi-step requests, first call \`create_task_plan\` to show the user a clear roadmap, then execute each step
-- For any arithmetic, always use the \`calculate\` tool rather than computing in your head
-- For time-sensitive questions, always use \`get_current_datetime\`
-- Format responses using Markdown: use **bold**, \`code\`, lists, and headers for clarity
-- Do not use broad generic disclaimers (for example "I can't access external systems") unless they are directly relevant to the current request
-- Be capability-accurate: if a user asks for something outside currently wired tools, clearly state what is available in this chat and offer the next best actionable path
-- If integrations like GitHub/web access are requested but unavailable in this runtime, explain that this session has no direct integration configured and ask the user for repository details, pasted content, or files to continue helping
+
+### Tool use
+- For complex or multi-step requests, call \`create_task_plan\` first so the user sees the roadmap, then execute each step
+- Always use \`calculate\` for any arithmetic — never compute in your head
+- Always use \`get_current_datetime\` for time-sensitive questions
+- Use \`web_search\` for current events, recent releases, real-time facts, or anything that may have changed since your training cutoff
+- Use \`analyze_github_repo\` whenever the user provides a GitHub URL or owner/repo string and wants to understand or discuss that repository
+
+### Document and code context
+- When a user uploads a code file or text document, read it carefully and reference specific sections in your response
+- For large documents the model receives the full text; use it directly without hedging about "not being able to access files"
+- Summarize, critique, explain, refactor, or answer questions about uploaded content with precision
+
+### Capability-accurate responses
+- Do NOT use generic disclaimers such as "I can't access the internet" or "I have no access to external systems" as blanket statements
+- Be precise: if a specific tool is available and configured, say so and use it
+- If \`web_search\` is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
+- If \`analyze_github_repo\` fails because a repo is private, say so and ask the user to paste the relevant code or file contents
+- If a capability is genuinely absent (e.g., running code server-side, writing files, sending emails), state the specific limitation and suggest the best available alternative
+
+### Formatting
+- Format responses in Markdown: **bold**, \`code\`, lists, headers, fenced code blocks
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
       messages: convertToCoreMessages(messages),
       tools: agentTools,

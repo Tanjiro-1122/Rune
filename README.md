@@ -10,6 +10,8 @@ Jarvis is a Vercel-ready AI super-agent built with Next.js and the Vercel AI SDK
 - **Live activity status** — the header shows which tool is running while Jarvis works
 - **Calculator tool** — arithmetic, percentages, and common math functions, verified by the model
 - **Date & time tool** — always-accurate current datetime, not hallucinated
+- **Web search** — real-time search via Tavily (requires `TAVILY_API_KEY`); surfaces direct answers and source links in the chat UI
+- **GitHub repository analysis** — analyze any public repo by URL or `owner/repo`; shows metadata, README, and file tree in a visual card (optionally authenticated with `GITHUB_TOKEN`)
 - **Markdown rendering** — assistant responses render headings, lists, code blocks, bold, etc.
 - **File & image uploads** — attach JPEG, PNG, GIF, WEBP images or plain-text/CSV/Markdown files
 - **Persistent chat history** — messages saved per session to Supabase
@@ -59,6 +61,14 @@ SESSION_SECRET=a_long_random_secret_string_here
 # Supabase — optional (app works without it, history won't persist)
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# Tavily — optional, enables real-time web search
+# Get a free API key at https://tavily.com
+TAVILY_API_KEY=
+
+# GitHub — optional, increases GitHub API rate limit from 60 to 5000 req/hr
+# Create a personal access token at https://github.com/settings/tokens (no scopes needed for public repos)
+GITHUB_TOKEN=
 ```
 
 > `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is supported as a legacy alias for `SESSION_SECRET`.
@@ -110,6 +120,8 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to the
 | `get_current_datetime` | Returns the real current date and time (not hallucinated) |
 | `calculate` | Evaluates arithmetic, percentages, and common math functions |
 | `create_task_plan` | Generates a step-by-step plan shown as a visual card before execution |
+| `web_search` | Searches the web via Tavily and returns direct answers + source links |
+| `analyze_github_repo` | Fetches public repo metadata, README, and file tree from GitHub |
 
 ### Multi-step execution
 
@@ -117,9 +129,29 @@ Jarvis uses `maxSteps: 5`, meaning a single user message can trigger up to 5 seq
 
 The chat header shows a live **activity badge** with the name of the currently running tool.
 
+### Web search
+
+When `TAVILY_API_KEY` is set Jarvis can search the web in real time. It returns a direct AI-generated answer along with source links, displayed in a search-result card in the chat. If the key is not configured, Jarvis will tell you exactly what's missing instead of giving a generic disclaimer.
+
+Get a free Tavily API key at [tavily.com](https://tavily.com).
+
+### GitHub repository analysis
+
+Provide any public GitHub URL (e.g. `https://github.com/vercel/next.js`) or an `owner/repo` string. Jarvis calls `analyze_github_repo` and displays a card with:
+
+- Repository description, language, star count, forks, license, and topics
+- README content (first 4 000 characters)
+- Top-level file tree
+
+**Rate limits** — unauthenticated GitHub API requests are limited to 60/hour per IP. Set `GITHUB_TOKEN` (a personal access token with no extra scopes needed for public repos) to raise the limit to 5 000/hour. Private repositories are not accessible unless the token has the appropriate permissions.
+
 ### Capability-aware responses
 
-Jarvis is instructed to avoid broad generic limitation messages. If a request needs an integration that is not wired in this runtime (for example direct GitHub access), Jarvis now explains what this chat can do right now and asks for actionable alternatives (such as repository details, pasted code, or uploaded files) so the conversation can continue productively.
+Jarvis gives precise, actionable responses instead of broad generic disclaimers:
+
+- If `web_search` is unconfigured it says exactly what environment variable to add.
+- If a GitHub repo is private or not found it explains why and asks for pasted content instead.
+- If a capability is genuinely absent (code execution, writing files, sending email) it names the specific limitation and suggests the best available alternative.
 
 ### Uploading files & images
 
@@ -186,23 +218,20 @@ jarvis/
    - `OPENAI_API_KEY` — your OpenAI API key
    - `APP_PASSWORD` — login password
    - `SESSION_SECRET` — session signing secret (`openssl rand -hex 32`)
-   - `SUPABASE_URL` — Supabase project URL
-   - `SUPABASE_ANON_KEY` — Supabase anon/public key
+   - `SUPABASE_URL` — Supabase project URL *(optional)*
+   - `SUPABASE_ANON_KEY` — Supabase anon/public key *(optional)*
+   - `TAVILY_API_KEY` — Tavily search key *(optional, enables web search)*
+   - `GITHUB_TOKEN` — GitHub personal access token *(optional, higher rate limits)*
 4. Deploy.
 
 > **Note:** The default Vercel Hobby plan has a 10-second function timeout. `maxDuration` is set to **60 seconds** to allow multi-step agent execution. This requires a **Vercel Pro** plan or higher. On Hobby, single-step responses will still work normally; only long multi-step tasks may time out.
 
 ## Limitations
 
-- **No web search** — Jarvis cannot browse the internet by default. Adding a search tool (e.g. Tavily) would require a `TAVILY_API_KEY` environment variable and a new tool definition in `app/api/chat/route.ts`.
-- **No code execution** — Jarvis can write code but cannot run it server-side.
+- **Web search requires TAVILY_API_KEY** — without it, Jarvis will tell you the key is missing and suggest adding it. Get a free key at [tavily.com](https://tavily.com).
+- **GitHub analysis is public-only by default** — private repos require a `GITHUB_TOKEN` with appropriate permissions.
+- **No code execution** — Jarvis can write and explain code but cannot run it server-side.
 - **Binary files (PDF, DOCX)** — not supported; only images and plain-text variants are processed end-to-end.
 - **Attachments not persisted** — only text content is saved to Supabase; tool call metadata and files are ephemeral.
+- **GitHub API rate limit** — without `GITHUB_TOKEN`, unauthenticated requests are limited to 60/hour per IP.
 
-## Customization Ideas
-
-- Add a web search tool (Tavily / Brave Search API)
-- Add more domain-specific tools (weather, stock prices, calendar)
-- Enable conversation branching / multiple conversations per session
-- Add voice input/output
-- Expand accepted file types (PDF text extraction, DOCX parsing)
