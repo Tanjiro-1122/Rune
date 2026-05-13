@@ -76,13 +76,35 @@ jarvis/
 4. Add the `OPENAI_API_KEY` environment variable in the Vercel project settings.
 5. Click **Deploy**.
 
+## File & Image Upload
+
+Jarvis supports attaching files and images to your messages.
+
+### How to use
+Click the **📎** button in the chat input to select one or more files. A preview appears before you send. The file is sent alongside your message to the AI.
+
+### Supported types (end-to-end)
+| Type | Extensions | AI processing |
+|------|-----------|--------------|
+| Images | JPEG / JPG, PNG, GIF, WEBP | ✅ Full – model sees the image |
+| Plain text | .txt, .csv, .md | ✅ Full – text is read by the model |
+| Other binary (PDF, DOCX, …) | — | ⚠️ Not supported by `gpt-4o-mini` |
+
+### Limits
+- **Maximum file size:** 10 MB per file
+- **Accepted MIME types:** `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `text/plain`, `text/csv`, `text/markdown`
+- Files that exceed the size limit or have an unsupported type are rejected with a user-friendly error before being sent.
+
+### Notes
+- `gpt-4o-mini` supports image inputs natively. Images are base64-encoded in the browser and sent as multimodal content via the Vercel AI SDK's `experimental_attachments` API.
+- Unsupported file types (e.g. PDFs) are blocked on the client so they never reach the server, avoiding model errors.
+
 ## Customization Ideas
 
 - Add conversation history persistence with a database
 - Add authentication
 - Add multiple AI model support
 - Add markdown rendering for assistant responses
-- Add file upload support
 - Add voice input/output
 
 ## Notes
