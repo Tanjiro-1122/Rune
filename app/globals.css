@@ -170,6 +170,54 @@ body {
   cursor: not-allowed;
 }
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 15, 29, 0.85);
+}
+
+.chat-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.logout-button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.logout-button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 32px 24px;
+}
+
+.login-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 14px;
+  text-align: center;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 24px 12px;

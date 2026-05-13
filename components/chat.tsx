@@ -1,14 +1,28 @@
 "use client";
 
 import { useChat } from "ai/react";
+import { useRouter } from "next/navigation";
 
 export function Chat() {
+  const router = useRouter();
   const { messages, input, handleInputChange, handleSubmit, status } = useChat();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   const isLoading = status === "submitted" || status === "streaming";
 
   return (
     <div className="chat">
+      <div className="chat-header">
+        <span className="chat-header-title">Jarvis</span>
+        <button className="logout-button" onClick={handleLogout}>
+          Sign out
+        </button>
+      </div>
       <div className="messages">
         {messages.length === 0 ? (
           <div className="empty-state">
