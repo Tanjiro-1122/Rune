@@ -1040,11 +1040,11 @@ export function Chat() {
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      if (items[itemIndex].type.indexOf("image") !== -1) {
         e.preventDefault();
 
-        const file = items[i].getAsFile();
+        const file = items[itemIndex].getAsFile();
         if (!file) continue;
 
         if (file.size > MAX_FILE_SIZE) {
@@ -1070,7 +1070,7 @@ export function Chat() {
           if (data.url) {
             setFileError("");
             setInput((prev: string) =>
-              `${prev}${prev ? "\n" : ""}![pasted screenshot](${data.url})`
+              `${prev}${prev ? "\n" : ""}![pasted screenshot ${itemIndex + 1}](${data.url})`
             );
           }
         } catch (err) {
