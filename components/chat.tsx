@@ -304,7 +304,7 @@ function CodeExecutionCard({
   const preview = args.code?.trim() || "";
   const codePreview =
     preview.length > CODE_PREVIEW_MAX_LENGTH
-      ? `${preview.slice(0, CODE_PREVIEW_MAX_LENGTH)}\n…`
+      ? `${preview.slice(0, Math.max(0, CODE_PREVIEW_MAX_LENGTH - 2))}\n…`
       : preview || "Preparing snippet…";
 
   return (

@@ -248,7 +248,7 @@ function clampNumber(
   max: number
 ) {
   if (value == null || value.trim() === "") return fallback;
-  const parsed = Number(value ?? "");
+  const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.round(Math.min(Math.max(parsed, min), max));
 }

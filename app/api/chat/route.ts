@@ -187,6 +187,12 @@ function formatCodeExecutionSummary() {
   ].join(" ");
 }
 
+function getCodeExecutionGuidance(available: boolean) {
+  return available
+    ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card"
+    : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
+}
+
 const baseAgentTools = {
   get_current_datetime: tool({
     description:
@@ -533,9 +539,7 @@ export async function POST(req: Request) {
 
     const codeExecution = getCodeExecutionAvailability();
     const codeExecutionSummary = formatCodeExecutionSummary();
-    const codeExecutionGuidance = codeExecution.available
-      ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card"
-      : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
+    const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
     const agentTools = getAgentTools();
 
     const result = streamText({
