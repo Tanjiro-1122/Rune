@@ -5,7 +5,13 @@ import {
   executeSandboxedCode,
   getCodeExecutionAvailability,
 } from "@/lib/code-execution";
-import { getSupabaseClient } from "@/lib/supabase";
+import {
+  deriveConversationTitle,
+  getWorkspaceRetrievalContext,
+  persistWorkspaceArtifacts,
+  persistWorkspaceAttachments,
+  saveConversationExchange,
+} from "@/lib/workspaces";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 
@@ -201,6 +207,89 @@ function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
 
   if (explainOnly) return false;
   return hasCodeBlock || artifactIntent || (executionVerb && executionNoun);
+}
+
+function isCalculationIntent(input: string) {
+  if (!input.trim()) return false;
+  return (
+    /\b(calculate|compute|what is|solve|tip|percentage|percent|sum|total|convert)\b/i.test(
+      input
+    ) &&
+    /[\d()%/*+\-]/.test(input)
+  );
+}
+
+function isDatetimeIntent(input: string) {
+  return /\b(date|time|day of the week|what day|today|tomorrow|current time)\b/i.test(
+    input
+  );
+}
+
+function isGitHubAnalysisIntent(input: string) {
+  const trimmed = input.trim();
+  return (
+    /github\.com\/[\w.-]+\/[\w.-]+/i.test(trimmed) ||
+    (/^[\w.-]+\/[\w.-]+$/.test(trimmed) &&
+      !trimmed.includes(" ") &&
+      !trimmed.startsWith("http")) ||
+    /\banalyze\b[\s\S]*\b(repo|repository)\b/i.test(trimmed)
+  );
+}
+
+function isWebSearchIntent(input: string) {
+  if (!input.trim()) return false;
+  if (isGitHubAnalysisIntent(input) || isCalculationIntent(input) || isDatetimeIntent(input)) {
+    return false;
+  }
+
+  return /\b(latest|recent|current|today|news|release|launched|announced|updated)\b/i.test(
+    input
+  );
+}
+
+function getForcedToolChoice(
+  input: string,
+  codeExecutionAvailable: boolean
+):
+  | { type: "tool"; toolName: "execute_code" | "calculate" | "get_current_datetime" | "analyze_github_repo" }
+  | null {
+  if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
+    return { type: "tool", toolName: "execute_code" };
+  }
+  if (isCalculationIntent(input)) {
+    return { type: "tool", toolName: "calculate" };
+  }
+  if (isDatetimeIntent(input)) {
+    return { type: "tool", toolName: "get_current_datetime" };
+  }
+  if (isGitHubAnalysisIntent(input)) {
+    return { type: "tool", toolName: "analyze_github_repo" };
+  }
+  return null;
+}
+
+function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
+  const hints: string[] = [];
+
+  if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
+    hints.push(
+      "- Strong routing signal: this request is execution-oriented, so use `execute_code` before giving analysis."
+    );
+  } else if (isCalculationIntent(input)) {
+    hints.push("- Strong routing signal: this request is numeric, so use `calculate`.");
+  } else if (isDatetimeIntent(input)) {
+    hints.push("- Strong routing signal: this request is time-sensitive, so use `get_current_datetime`.");
+  } else if (isGitHubAnalysisIntent(input)) {
+    hints.push("- Strong routing signal: this request is about a GitHub repository, so use `analyze_github_repo`.");
+  } else if (isWebSearchIntent(input)) {
+    hints.push("- Strong routing signal: this request needs fresh/current information, so prefer `web_search`.");
+  }
+
+  if (!hints.length) {
+    hints.push("- Use the best matching tool whenever one is clearly applicable; do not default to prose-only capability disclaimers.");
+  }
+
+  return hints.join("\n");
 }
 
 function formatCodeExecutionSummary() {
@@ -537,7 +626,13 @@ const baseAgentTools = {
   }),
 };
 
-function getAgentTools() {
+function getAgentTools({
+  workspaceId,
+  conversationId,
+}: {
+  workspaceId?: string;
+  conversationId?: string;
+}) {
   return {
     ...baseAgentTools,
     execute_code: tool({
@@ -555,8 +650,17 @@ function getAgentTools() {
             "A short self-contained snippet. No imports, file access, network access, or process access. Use `return` for the final value."
           ),
       }),
-      execute: async ({ code, language = "typescript" }) =>
-        executeSandboxedCode({ code, language }),
+      execute: async ({ code, language = "typescript" }) => {
+        const result = await executeSandboxedCode({ code, language });
+        if (result.artifacts.length > 0) {
+          await persistWorkspaceArtifacts({
+            workspaceId,
+            conversationId,
+            artifacts: result.artifacts,
+          });
+        }
+        return result;
+      },
     }),
   };
 }
@@ -566,17 +670,49 @@ export async function POST(req: Request) {
     const {
       messages,
       conversationId,
-    }: { messages: UIMessage[]; conversationId?: string } = await req.json();
+      workspaceId,
+    }: { messages: UIMessage[]; conversationId?: string; workspaceId?: string } =
+      await req.json();
 
     const codeExecution = getCodeExecutionAvailability();
     const codeExecutionSummary = formatCodeExecutionSummary();
     const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
-    const agentTools = getAgentTools();
     const latestUserText = getLatestUserText(messages);
-    const forceCodeExecutionTool = isCodeExecutionIntent(
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "user");
+    const latestAttachments =
+      (lastUserMessage?.experimental_attachments as
+        | Array<{ name?: string; contentType?: string; url?: string }>
+        | undefined) ?? [];
+    const forcedToolChoice = getForcedToolChoice(
       latestUserText,
       codeExecution.available
     );
+    const routingHint = buildRoutingHint(latestUserText, codeExecution.available);
+    const retrievalHits = await getWorkspaceRetrievalContext({
+      workspaceId,
+      query: latestUserText,
+    });
+    const workspaceContextSection = retrievalHits.length
+      ? `## Retrieved Workspace Context
+- This workspace has indexed prior material that may be relevant. Reuse it when it helps answer the request accurately.
+${retrievalHits
+  .map(
+    (hit, index) =>
+      `${index + 1}. [${hit.sourceKind}] ${hit.sourceLabel}: ${hit.excerpt}`
+  )
+  .join("\n")}`
+      : `## Retrieved Workspace Context
+- No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
+
+    await persistWorkspaceAttachments({
+      workspaceId,
+      conversationId,
+      attachments: latestAttachments,
+    });
+
+    const agentTools = getAgentTools({ workspaceId, conversationId });
 
     const result = streamText({
       model: openai("gpt-4o-mini"),
@@ -605,11 +741,13 @@ ${codeExecutionSummary}
 ${codeExecutionGuidance}
 - When a user asks to run/check code and \`execute_code\` is available, execute it in the sandbox even if you expect timeout or blocked APIs so the user gets a structured tool result card
 - For artifact/file-style outputs from code execution, use \`createArtifact(...)\` inside the sandbox snippet instead of describing the file in prose
+${routingHint}
 
 ### Document and code context
 - When a user uploads a code file or text document, read it carefully and reference specific sections in your response
 - For large documents the model receives the full text; use it directly without hedging about "not being able to access files"
 - Summarize, critique, explain, refactor, or answer questions about uploaded content with precision
+${workspaceContextSection}
 
 ### Capability-accurate responses
 - Do NOT use generic disclaimers such as "I can't access the internet" or "I have no access to external systems" as blanket statements
@@ -625,41 +763,35 @@ ${codeExecutionGuidance}
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
       messages: convertToCoreMessages(messages),
       tools: agentTools,
-      toolChoice:
-        forceCodeExecutionTool && codeExecution.available
-          ? { type: "tool", toolName: "execute_code" }
-          : "auto",
+      toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 5,
       onFinish: async ({ text }) => {
-        if (!conversationId) return;
-        const supabase = getSupabaseClient();
-        if (!supabase) return;
-
-        // Save the latest user message and the assistant response.
-        const lastUserMessage = [...messages]
-          .reverse()
-          .find((m) => m.role === "user");
         if (!lastUserMessage) return;
 
         const userContent = lastUserMessage.parts
           .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
           .map((p) => p.text)
-          .join("");
+          .join("\n")
+          .trim();
+        const attachmentSummary =
+          latestAttachments.length > 0
+            ? `Uploaded: ${latestAttachments
+                .map((attachment) => attachment.name ?? "file")
+                .join(", ")}`
+            : "";
+        const combinedUserContent = [userContent, attachmentSummary]
+          .filter(Boolean)
+          .join("\n\n");
 
-        if (!userContent || !text) return;
-
-        await supabase.from("messages").insert([
-          {
-            conversation_id: conversationId,
-            role: "user",
-            content: userContent,
-          },
-          {
-            conversation_id: conversationId,
-            role: "assistant",
-            content: text,
-          },
-        ]);
+        await saveConversationExchange({
+          conversationId,
+          workspaceId,
+          userContent: combinedUserContent,
+          assistantContent: text ?? "",
+          preferredTitle: deriveConversationTitle(
+            userContent || attachmentSummary || "Untitled chat"
+          ),
+        });
       },
     });
 

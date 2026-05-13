@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Jarvis",
-  description: "An AI chatbot template for Vercel",
+  description: "Jarvis AI workspace with project chats, indexed files, and persistent artifacts.",
 };
 
 export default function RootLayout({

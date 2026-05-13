@@ -233,6 +233,77 @@ interface CodeExecutionToolResult {
   };
 }
 
+interface WorkspaceConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkspaceSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  conversationCount: number;
+  documentCount: number;
+  artifactCount: number;
+  conversations: WorkspaceConversationSummary[];
+}
+
+interface WorkspaceDocumentSummary {
+  id: string;
+  conversationId: string | null;
+  name: string;
+  contentType: string;
+  sourceKind: string;
+  summary: string | null;
+  createdAt: string;
+}
+
+interface WorkspaceArtifactSummary {
+  id: string;
+  conversationId: string | null;
+  name: string;
+  mimeType: string;
+  content: string;
+  bytes: number;
+  createdAt: string;
+}
+
+interface WorkspaceBootstrapResponse {
+  persistenceEnabled: boolean;
+  schemaReady: boolean;
+  notice: string | null;
+  workspaces: WorkspaceSummary[];
+  selectedWorkspaceId: string | null;
+  selectedConversationId: string | null;
+  documents: WorkspaceDocumentSummary[];
+  artifacts: WorkspaceArtifactSummary[];
+}
+
+function formatTimestamp(value: string) {
+  try {
+    return new Date(value).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
+}
+
+function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary | CodeExecutionArtifact) {
+  return `data:${artifact.mimeType};charset=utf-8,${encodeURIComponent(artifact.content)}`;
+}
+
+function getDocumentKindLabel(sourceKind: string) {
+  return sourceKind === "artifact" ? "Artifact" : sourceKind === "upload" ? "Upload" : "Context";
+}
+
 function GitHubRepoCard({
   args,
   result,
@@ -529,8 +600,21 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
 
 export function Chat() {
   const router = useRouter();
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [documents, setDocuments] = useState<WorkspaceDocumentSummary[]>([]);
+  const [artifacts, setArtifacts] = useState<WorkspaceArtifactSummary[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [persistenceEnabled, setPersistenceEnabled] = useState(false);
+  const [schemaReady, setSchemaReady] = useState(true);
+  const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
+  const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
 
   const {
     messages,
@@ -540,7 +624,7 @@ export function Chat() {
     status,
     setMessages,
     setInput,
-  } = useChat({ body: { conversationId } });
+  } = useChat({ body: { conversationId, workspaceId } });
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -548,45 +632,180 @@ export function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedWorkspace =
+    workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
+  const selectedArtifact =
+    artifacts.find((artifact) => artifact.id === artifactPreviewId) ?? artifacts[0] ?? null;
+  const canManageWorkspaces = persistenceEnabled && schemaReady;
 
-  // Load or create a session ID and fetch conversation history on mount.
-  useEffect(() => {
-    let sessionId = localStorage.getItem("jarvis_session_id");
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      localStorage.setItem("jarvis_session_id", sessionId);
+  async function fetchWorkspaceData(
+    activeSessionId: string,
+    nextWorkspaceId?: string | null
+  ): Promise<WorkspaceBootstrapResponse> {
+    const search = new URLSearchParams({ sessionId: activeSessionId });
+    if (nextWorkspaceId) {
+      search.set("workspaceId", nextWorkspaceId);
     }
 
-    fetch(`/api/history?sessionId=${encodeURIComponent(sessionId)}`)
-      .then((r) => r.json())
-      .then(
-        ({
-          conversationId: convId,
-          messages: history,
-        }: {
-          conversationId: string | null;
-          messages: { id: string; role: string; content: string }[];
-        }) => {
-          setConversationId(convId);
-          if (history.length > 0) {
-            setMessages(
-              history.map((m) => ({
-                id: m.id,
-                role: m.role as "user" | "assistant",
-                content: m.content,
-                parts: [{ type: "text" as const, text: m.content }],
-              }))
-            );
-          }
-        }
-      )
-      .catch(() => {
-        // History unavailable — continue without persistence.
-      })
-      .finally(() => {
-        setHistoryLoaded(true);
-      });
-  }, [setMessages]);
+    const response = await fetch(`/api/workspaces?${search.toString()}`);
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "Failed to load workspace data.");
+    }
+    return (await response.json()) as WorkspaceBootstrapResponse;
+  }
+
+  function applyWorkspaceData(data: WorkspaceBootstrapResponse) {
+    setWorkspaces(data.workspaces);
+    setDocuments(data.documents);
+    setArtifacts(data.artifacts);
+    setPersistenceEnabled(data.persistenceEnabled);
+    setSchemaReady(data.schemaReady);
+    setWorkspaceNotice(data.notice);
+  }
+
+  async function loadConversation(
+    activeSessionId: string,
+    nextWorkspaceId: string | null,
+    nextConversationId: string | null
+  ) {
+    setHistoryLoaded(false);
+    try {
+      if (!nextConversationId) {
+        setMessages([]);
+        return;
+      }
+
+      const search = new URLSearchParams({ sessionId: activeSessionId });
+      if (nextWorkspaceId) search.set("workspaceId", nextWorkspaceId);
+      search.set("conversationId", nextConversationId);
+      const response = await fetch(`/api/history?${search.toString()}`);
+      if (!response.ok) {
+        throw new Error("Failed to load conversation history.");
+      }
+
+      const payload = (await response.json()) as {
+        conversationId: string | null;
+        messages: { id: string; role: string; content: string }[];
+      };
+
+      setConversationId(payload.conversationId ?? nextConversationId);
+      setMessages(
+        (payload.messages ?? []).map((message) => ({
+          id: message.id,
+          role: message.role as "user" | "assistant",
+          content: message.content,
+          parts: [{ type: "text" as const, text: message.content }],
+        }))
+      );
+    } finally {
+      setHistoryLoaded(true);
+    }
+  }
+
+  async function createConversationForWorkspace(
+    activeSessionId: string,
+    nextWorkspaceId: string
+  ) {
+    const response = await fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: activeSessionId,
+        workspaceId: nextWorkspaceId,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "Failed to create a new chat.");
+    }
+
+    const payload = (await response.json()) as {
+      conversation: WorkspaceConversationSummary;
+    };
+    return payload.conversation;
+  }
+
+  async function syncWorkspaceSelection(
+    nextWorkspaceId?: string | null,
+    preferredConversationId?: string | null
+  ) {
+    if (!sessionId) return;
+
+    setWorkspaceBusy(true);
+    setWorkspaceError("");
+
+    try {
+      let workspaceData = await fetchWorkspaceData(sessionId, nextWorkspaceId);
+      applyWorkspaceData(workspaceData);
+
+      const resolvedWorkspaceId =
+        workspaceData.selectedWorkspaceId ??
+        nextWorkspaceId ??
+        workspaceData.workspaces[0]?.id ??
+        null;
+      const resolvedWorkspace = workspaceData.workspaces.find(
+        (workspace) => workspace.id === resolvedWorkspaceId
+      );
+
+      let resolvedConversationId =
+        preferredConversationId &&
+        resolvedWorkspace?.conversations.some(
+          (conversation) => conversation.id === preferredConversationId
+        )
+          ? preferredConversationId
+          : resolvedWorkspace?.conversations[0]?.id ?? null;
+
+      if (!resolvedConversationId && resolvedWorkspaceId) {
+        const createdConversation = await createConversationForWorkspace(
+          sessionId,
+          resolvedWorkspaceId
+        );
+        workspaceData = await fetchWorkspaceData(sessionId, resolvedWorkspaceId);
+        applyWorkspaceData(workspaceData);
+        resolvedConversationId = createdConversation.id;
+      }
+
+      setWorkspaceId(resolvedWorkspaceId);
+      setConversationId(resolvedConversationId);
+      if (resolvedWorkspaceId) {
+        localStorage.setItem("jarvis_workspace_id", resolvedWorkspaceId);
+      }
+      if (resolvedConversationId) {
+        localStorage.setItem("jarvis_conversation_id", resolvedConversationId);
+      }
+
+      await loadConversation(sessionId, resolvedWorkspaceId, resolvedConversationId);
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Failed to load workspace data."
+      );
+      setHistoryLoaded(true);
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    const activeSessionId =
+      localStorage.getItem("jarvis_session_id") ?? crypto.randomUUID();
+    localStorage.setItem("jarvis_session_id", activeSessionId);
+    setSessionId(activeSessionId);
+
+    const preferredWorkspaceId = localStorage.getItem("jarvis_workspace_id");
+    const preferredConversationId = localStorage.getItem("jarvis_conversation_id");
+
+    if (active) {
+      void syncWorkspaceSelection(preferredWorkspaceId, preferredConversationId);
+    }
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Scroll to bottom when a response finishes or a new message is added.
   useEffect(() => {
@@ -594,6 +813,20 @@ export function Chat() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [status, messages.length]);
+
+  useEffect(() => {
+    if (status === "ready" && sessionId && workspaceId) {
+      void (async () => {
+        try {
+          const data = await fetchWorkspaceData(sessionId, workspaceId);
+          applyWorkspaceData(data);
+        } catch {
+          // Keep the current UI state if the refresh fails.
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, sessionId, workspaceId]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -632,6 +865,16 @@ export function Chat() {
       previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [previewUrls]);
+
+  useEffect(() => {
+    if (!artifacts.length) {
+      setArtifactPreviewId(null);
+      return;
+    }
+    if (!artifactPreviewId || !artifacts.some((artifact) => artifact.id === artifactPreviewId)) {
+      setArtifactPreviewId(artifacts[0].id);
+    }
+  }, [artifacts, artifactPreviewId]);
 
   function validateFiles(fileList: FileList): string {
     for (const file of Array.from(fileList)) {
@@ -702,240 +945,553 @@ export function Chat() {
     setInput(prompt);
   }
 
-  return (
-    <div className="chat">
-      <div className="chat-header">
-        <span className="chat-header-title">Jarvis</span>
-        <div className="chat-header-right">
-          {isLoading && (
-            <span className="status-badge">
-              <span className="status-dot" />
-              {activeToolName ?? "Thinking…"}
-            </span>
-          )}
-          <button className="logout-button" onClick={handleLogout}>
-            Sign out
-          </button>
-        </div>
-      </div>
+  async function handleWorkspaceSelect(nextWorkspaceId: string) {
+    if (workspaceBusy || nextWorkspaceId === workspaceId) return;
+    await syncWorkspaceSelection(nextWorkspaceId, null);
+  }
 
-      <div className="messages">
-        {!historyLoaded ? (
-          <div className="empty-state">
-            <p>Loading…</p>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="empty-state">
-            <h2>How can I help?</h2>
-            <div className="capability-pills">
-              <span className="pill">Calculations</span>
-              <span className="pill">Task planning</span>
-              <span className="pill">Date &amp; time</span>
-              <span className="pill">Web search</span>
-              <span className="pill">GitHub analysis</span>
-              <span className="pill">Code execution</span>
-              <span className="pill">File analysis</span>
+  async function handleConversationSelect(nextConversationId: string) {
+    if (!sessionId || !workspaceId || nextConversationId === conversationId) return;
+    setWorkspaceError("");
+    setConversationId(nextConversationId);
+    localStorage.setItem("jarvis_conversation_id", nextConversationId);
+    await loadConversation(sessionId, workspaceId, nextConversationId);
+  }
+
+  async function handleCreateWorkspace(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!sessionId || !canManageWorkspaces || workspaceBusy) return;
+
+    setWorkspaceBusy(true);
+    setWorkspaceError("");
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          name: newWorkspaceName,
+          description: newWorkspaceDescription,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Failed to create workspace.");
+      }
+
+      const payload = (await response.json()) as {
+        workspace: { id: string };
+      };
+      setNewWorkspaceName("");
+      setNewWorkspaceDescription("");
+      await syncWorkspaceSelection(payload.workspace.id, null);
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Failed to create workspace."
+      );
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }
+
+  async function handleNewChat() {
+    if (!sessionId || !workspaceId || workspaceBusy || !canManageWorkspaces) return;
+    setWorkspaceBusy(true);
+    setWorkspaceError("");
+    try {
+      const conversation = await createConversationForWorkspace(sessionId, workspaceId);
+      await syncWorkspaceSelection(workspaceId, conversation.id);
+      setMessages([]);
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Failed to start a new chat."
+      );
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }
+
+  return (
+    <div className="workspace-app">
+      <aside className="workspace-sidebar">
+        <div className="workspace-sidebar-top">
+          <div className="workspace-brand">
+            <span className="workspace-brand-mark">J</span>
+            <div>
+              <div className="workspace-brand-title">Jarvis</div>
+              <p className="workspace-brand-subtitle">AI workspace</p>
             </div>
-            <div className="starter-actions">
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() => fillStarterPrompt("Search the web for the latest news in AI today.")}
-              >
-                Latest AI news
-              </button>
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() =>
-                  fillStarterPrompt("Analyze the GitHub repository vercel/next.js and summarize its purpose, structure, and key features.")
-                }
-              >
-                Analyze a repo
-              </button>
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() => fillStarterPrompt("Plan my day in 5 practical steps.")}
-              >
-                Plan my day
-              </button>
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() =>
-                  fillStarterPrompt("Run a TypeScript snippet that reverses an array.")
-                }
-              >
-                Run code
-              </button>
-              <button
-                type="button"
-                className="starter-button"
-                onClick={() =>
-                  fillStarterPrompt("Calculate 18% tip on $64.50 and total.")
-                }
-              >
-                Quick calculation
-              </button>
-            </div>
           </div>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`message ${message.role === "user" ? "user" : "assistant"}`}
+
+          <form className="workspace-create-form" onSubmit={handleCreateWorkspace}>
+            <input
+              value={newWorkspaceName}
+              onChange={(e) => setNewWorkspaceName(e.target.value)}
+              className="workspace-field"
+              placeholder="New workspace name"
+              disabled={!canManageWorkspaces || workspaceBusy}
+            />
+            <textarea
+              value={newWorkspaceDescription}
+              onChange={(e) => setNewWorkspaceDescription(e.target.value)}
+              className="workspace-field workspace-field--multiline"
+              placeholder="What is this project for?"
+              rows={2}
+              disabled={!canManageWorkspaces || workspaceBusy}
+            />
+            <button
+              type="submit"
+              className="workspace-create-button"
+              disabled={!canManageWorkspaces || workspaceBusy}
             >
-              <div className="message-role">
-                {message.role === "user" ? "You" : "Jarvis"}
+              {workspaceBusy ? "Working…" : "Create workspace"}
+            </button>
+          </form>
+
+          {workspaceNotice && (
+            <div className="workspace-notice">
+              <strong>Workspace status</strong>
+              <p>{workspaceNotice}</p>
+            </div>
+          )}
+          {workspaceError && <div className="workspace-error">{workspaceError}</div>}
+        </div>
+
+        <div className="workspace-list">
+          {workspaces.map((workspace) => {
+            const isActive = workspace.id === workspaceId;
+            return (
+              <button
+                key={workspace.id}
+                type="button"
+                className={`workspace-list-item ${isActive ? "workspace-list-item--active" : ""}`}
+                onClick={() => handleWorkspaceSelect(workspace.id)}
+              >
+                <div className="workspace-list-item-header">
+                  <span>{workspace.name}</span>
+                  <span className="workspace-count-pill">
+                    {workspace.artifactCount + workspace.documentCount}
+                  </span>
+                </div>
+                {workspace.description && (
+                  <p className="workspace-list-item-description">
+                    {workspace.description}
+                  </p>
+                )}
+                <div className="workspace-list-item-meta">
+                  <span>{workspace.conversationCount} chats</span>
+                  <span>{workspace.documentCount} docs</span>
+                  <span>{workspace.artifactCount} artifacts</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="conversation-sidebar">
+          <div className="conversation-sidebar-header">
+            <div>
+              <div className="side-section-label">Chats</div>
+              <p className="side-section-copy">
+                Keep project-specific threads separated by workspace.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleNewChat}
+              disabled={!canManageWorkspaces || workspaceBusy}
+            >
+              New chat
+            </button>
+          </div>
+
+          <div className="conversation-list">
+            {selectedWorkspace?.conversations.length ? (
+              selectedWorkspace.conversations.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  className={`conversation-list-item ${
+                    conversation.id === conversationId
+                      ? "conversation-list-item--active"
+                      : ""
+                  }`}
+                  onClick={() => handleConversationSelect(conversation.id)}
+                >
+                  <span className="conversation-list-title">
+                    {conversation.title}
+                  </span>
+                  <span className="conversation-list-meta">
+                    {formatTimestamp(conversation.updatedAt)}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="conversation-empty">
+                Start a new chat to separate work within this workspace.
               </div>
-              <div className="message-content">
-                {message.parts.map((part, index) => {
-                  if (part.type === "text") {
-                    if (message.role === "assistant") {
+            )}
+          </div>
+        </div>
+      </aside>
+
+      <section className="chat-panel">
+        <div className="chat-header chat-header--workspace">
+          <div className="chat-header-copy">
+            <span className="chat-header-title">
+              {selectedWorkspace?.name ?? "Jarvis workspace"}
+            </span>
+            <p className="chat-header-subtitle">
+              {selectedWorkspace?.description ??
+                "Organize chats, uploaded files, and artifacts by project."}
+            </p>
+          </div>
+          <div className="chat-header-right">
+            {isLoading && (
+              <span className="status-badge">
+                <span className="status-dot" />
+                {activeToolName ?? "Thinking…"}
+              </span>
+            )}
+            <button className="logout-button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+
+        <div className="workspace-summary-bar">
+          <span className="summary-chip">
+            {selectedWorkspace?.conversations.length ?? 0} chats
+          </span>
+          <span className="summary-chip">{documents.length} indexed files</span>
+          <span className="summary-chip">{artifacts.length} saved artifacts</span>
+          <span className="summary-chip">
+            {persistenceEnabled && schemaReady ? "Persistent" : "Single-session"}
+          </span>
+        </div>
+
+        <div className="messages">
+          {!historyLoaded ? (
+            <div className="empty-state">
+              <p>Loading workspace…</p>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="empty-state empty-state--workspace">
+              <h2>Work inside {selectedWorkspace?.name ?? "Jarvis"}</h2>
+              <p className="empty-state-copy">
+                Jarvis keeps project chats, uploaded text/code files, generated
+                artifacts, and retrieved context grouped together here.
+              </p>
+              <div className="capability-pills">
+                <span className="pill">Workspace retrieval</span>
+                <span className="pill">Persistent artifacts</span>
+                <span className="pill">Web search</span>
+                <span className="pill">GitHub analysis</span>
+                <span className="pill">Code execution</span>
+                <span className="pill">File analysis</span>
+              </div>
+              <div className="starter-actions">
+                <button
+                  type="button"
+                  className="starter-button"
+                  onClick={() =>
+                    fillStarterPrompt("Search the web for the latest news in AI today.")
+                  }
+                >
+                  Latest AI news
+                </button>
+                <button
+                  type="button"
+                  className="starter-button"
+                  onClick={() =>
+                    fillStarterPrompt(
+                      "Analyze the GitHub repository vercel/next.js and summarize its purpose, structure, and key features."
+                    )
+                  }
+                >
+                  Analyze a repo
+                </button>
+                <button
+                  type="button"
+                  className="starter-button"
+                  onClick={() =>
+                    fillStarterPrompt(
+                      "Run a TypeScript snippet that creates a CSV artifact summarizing quarterly revenue."
+                    )
+                  }
+                >
+                  Generate an artifact
+                </button>
+                <button
+                  type="button"
+                  className="starter-button"
+                  onClick={() =>
+                    fillStarterPrompt(
+                      "Review the uploaded document and answer questions using prior workspace context."
+                    )
+                  }
+                >
+                  Use retrieved context
+                </button>
+              </div>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`message ${message.role === "user" ? "user" : "assistant"}`}
+              >
+                <div className="message-role">
+                  {message.role === "user" ? "You" : "Jarvis"}
+                </div>
+                <div className="message-content">
+                  {message.parts.map((part, index) => {
+                    if (part.type === "text") {
+                      if (message.role === "assistant") {
+                        return (
+                          <div
+                            key={`${message.id}-${index}`}
+                            className="markdown-body"
+                          >
+                            <ReactMarkdown>{part.text}</ReactMarkdown>
+                          </div>
+                        );
+                      }
+                      return <p key={`${message.id}-${index}`}>{part.text}</p>;
+                    }
+
+                    if (part.type === "tool-invocation") {
+                      const invocation = (
+                        part as {
+                          type: string;
+                          toolInvocation: ToolInvocation;
+                        }
+                      ).toolInvocation;
                       return (
-                        <div
+                        <ToolCallCard
                           key={`${message.id}-${index}`}
-                          className="markdown-body"
-                        >
-                          <ReactMarkdown>{part.text}</ReactMarkdown>
-                        </div>
+                          invocation={invocation}
+                        />
                       );
                     }
-                    return (
-                      <p key={`${message.id}-${index}`}>{part.text}</p>
-                    );
-                  }
-                  if (part.type === "tool-invocation") {
-                    const inv = (
-                      part as {
-                        type: string;
-                        toolInvocation: ToolInvocation;
-                      }
-                    ).toolInvocation;
-                    return (
-                      <ToolCallCard
-                        key={`${message.id}-${index}`}
-                        invocation={inv}
-                      />
-                    );
-                  }
-                  return null;
-                })}
+
+                    return null;
+                  })}
+                </div>
+                {message.role === "user" &&
+                  message.experimental_attachments &&
+                  message.experimental_attachments.length > 0 && (
+                    <div className="message-attachments">
+                      {message.experimental_attachments.map((attachment, index) =>
+                        attachment.contentType?.startsWith("image/") ? (
+                          <img
+                            key={index}
+                            src={attachment.url}
+                            alt={attachment.name ?? "Attached image"}
+                            className="attachment-image"
+                          />
+                        ) : (
+                          <div key={index} className="attachment-file">
+                            📎 {attachment.name ?? "File"}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
               </div>
-              {message.role === "user" &&
-                message.experimental_attachments &&
-                message.experimental_attachments.length > 0 && (
-                  <div className="message-attachments">
-                    {message.experimental_attachments.map((att, idx) =>
-                      att.contentType?.startsWith("image/") ? (
-                        <img
-                          key={idx}
-                          src={att.url}
-                          alt={att.name ?? "Attached image"}
-                          className="attachment-image"
-                        />
-                      ) : (
-                        <div key={idx} className="attachment-file">
-                          📎 {att.name ?? "File"}
-                        </div>
-                      )
-                    )}
-                  </div>
+            ))
+          )}
+
+          {showTypingIndicator && (
+            <div className="message assistant message--typing">
+              <div className="message-role">Jarvis</div>
+              <div
+                className="typing-indicator"
+                role="status"
+                aria-live="polite"
+                aria-label="Jarvis is thinking"
+              >
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {files != null && files.length > 0 && (
+          <div className="attachment-preview">
+            {Array.from(files).map((file, idx) => (
+              <div key={idx} className="attachment-preview-item">
+                {file.type.startsWith("image/") ? (
+                  <img
+                    src={previewUrls[idx]?.startsWith("blob:") ? previewUrls[idx] : ""}
+                    alt={file.name}
+                    className="attachment-preview-img"
+                  />
+                ) : (
+                  <span className="attachment-preview-file">📎 {file.name}</span>
                 )}
-            </div>
-          ))
-        )}
-        {showTypingIndicator && (
-          <div className="message assistant message--typing">
-            <div className="message-role">Jarvis</div>
-            <div
-              className="typing-indicator"
-              role="status"
-              aria-live="polite"
-              aria-label="Jarvis is thinking"
+              </div>
+            ))}
+            <button
+              type="button"
+              className="attachment-clear"
+              onClick={clearAttachments}
+              aria-label="Clear attachments"
             >
-              <span />
-              <span />
-              <span />
-            </div>
+              ✕
+            </button>
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {files != null && files.length > 0 && (
-        <div className="attachment-preview">
-          {Array.from(files).map((file, idx) => (
-            <div key={idx} className="attachment-preview-item">
-              {file.type.startsWith("image/") ? (
-                <img
-                  src={
-                    previewUrls[idx]?.startsWith("blob:")
-                      ? previewUrls[idx]
-                      : ""
-                  }
-                  alt={file.name}
-                  className="attachment-preview-img"
-                />
-              ) : (
-                <span className="attachment-preview-file">
-                  📎 {file.name}
-                </span>
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            className="attachment-clear"
-            onClick={clearAttachments}
-            aria-label="Clear attachments"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+        {fileError && <div className="file-error">{fileError}</div>}
 
-      {fileError && <div className="file-error">{fileError}</div>}
-
-      <form ref={formRef} className="input-form" onSubmit={handleFormSubmit}>
-        <label className="attach-button" title="Attach image or text file">
-          📎
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_TYPES.join(",")}
-            onChange={handleFileChange}
-            className="file-input-hidden"
+        <form ref={formRef} className="input-form" onSubmit={handleFormSubmit}>
+          <label className="attach-button" title="Attach image or text file">
+            📎
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPTED_TYPES.join(",")}
+              onChange={handleFileChange}
+              className="file-input-hidden"
+            />
+          </label>
+          <label htmlFor="chat-message-input" className="sr-only">
+            Message input
+          </label>
+          <span id="chat-input-help" className="sr-only">
+            Press Enter to send. Press Shift plus Enter for a new line.
+          </span>
+          <textarea
+            id="chat-message-input"
+            aria-describedby="chat-input-help"
+            name="message"
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                formRef.current?.requestSubmit();
+              }
+            }}
+            placeholder="Ask Jarvis anything for this workspace…"
+            className="chat-input"
+            rows={1}
           />
-        </label>
-        <label htmlFor="chat-message-input" className="sr-only">
-          Message input
-        </label>
-        <span id="chat-input-help" className="sr-only">
-          Press Enter to send. Press Shift plus Enter for a new line.
-        </span>
-        <textarea
-          id="chat-message-input"
-          aria-describedby="chat-input-help"
-          name="message"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              formRef.current?.requestSubmit();
-            }
-          }}
-          placeholder="Ask Jarvis anything…"
-          className="chat-input"
-          rows={1}
-        />
-        <button type="submit" className="send-button" disabled={isLoading}>
-          {isLoading ? "Working…" : "Send"}
-        </button>
-      </form>
+          <button type="submit" className="send-button" disabled={isLoading}>
+            {isLoading ? "Working…" : "Send"}
+          </button>
+        </form>
+      </section>
+
+      <aside className="context-sidebar">
+        <div className="context-panel">
+          <div className="context-panel-section">
+            <div className="context-panel-header">
+              <div>
+                <div className="side-section-label">Artifacts</div>
+                <p className="side-section-copy">
+                  Generated files now persist per workspace and can be
+                  downloaded later.
+                </p>
+              </div>
+            </div>
+
+            {artifacts.length ? (
+              <>
+                <div className="saved-artifact-list">
+                  {artifacts.map((artifact) => (
+                    <button
+                      key={artifact.id}
+                      type="button"
+                      className={`saved-artifact-item ${
+                        artifact.id === selectedArtifact?.id
+                          ? "saved-artifact-item--active"
+                          : ""
+                      }`}
+                      onClick={() => setArtifactPreviewId(artifact.id)}
+                    >
+                      <span className="saved-artifact-name">{artifact.name}</span>
+                      <span className="saved-artifact-meta">
+                        {artifact.mimeType} · {artifact.bytes} bytes
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {selectedArtifact && (
+                  <div className="artifact-preview-card">
+                    <div className="artifact-card-header">
+                      <span>{selectedArtifact.name}</span>
+                      <a
+                        className="artifact-link"
+                        href={buildArtifactDownloadHref(selectedArtifact)}
+                        download={selectedArtifact.name}
+                      >
+                        Download
+                      </a>
+                    </div>
+                    <div className="artifact-meta">
+                      Saved {formatTimestamp(selectedArtifact.createdAt)}
+                    </div>
+                    <pre className="execution-output">
+                      <code>{selectedArtifact.content}</code>
+                    </pre>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="context-empty">
+                Run code that calls <code>createArtifact(...)</code> to keep a
+                downloadable record in this workspace.
+              </div>
+            )}
+          </div>
+
+          <div className="context-panel-section">
+            <div className="context-panel-header">
+              <div>
+                <div className="side-section-label">Indexed files</div>
+                <p className="side-section-copy">
+                  Uploaded text, code, markdown, CSV, and generated artifacts
+                  feed workspace retrieval.
+                </p>
+              </div>
+            </div>
+
+            {documents.length ? (
+              <div className="document-list">
+                {documents.map((document) => (
+                  <div key={document.id} className="document-card">
+                    <div className="document-card-header">
+                      <span>{document.name}</span>
+                      <span className="document-kind-pill">
+                        {getDocumentKindLabel(document.sourceKind)}
+                      </span>
+                    </div>
+                    <div className="document-meta">
+                      {document.contentType} · {formatTimestamp(document.createdAt)}
+                    </div>
+                    {document.summary && (
+                      <p className="document-summary">{document.summary}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="context-empty">
+                Upload a text/code document or generate an artifact to strengthen
+                future workspace retrieval.
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
