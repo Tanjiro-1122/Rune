@@ -740,6 +740,7 @@ export function Chat() {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
   const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
+  const [showInfoSidebar, setShowInfoSidebar] = useState(false);
 
   const {
     messages,
@@ -1410,6 +1411,15 @@ export function Chat() {
             {resumeTaskId && !isLoading && (
               <span className="status-badge">Resuming task</span>
             )}
+            <button
+              type="button"
+              className="secondary-button"
+              aria-label={showInfoSidebar ? "Hide info panels" : "Show info panels"}
+              aria-expanded={showInfoSidebar}
+              onClick={() => setShowInfoSidebar((prev) => !prev)}
+            >
+              {showInfoSidebar ? "Hide Help Panels ➔" : "📊 Show Info Panels"}
+            </button>
             <button className="logout-button" onClick={handleLogout}>
               Sign out
             </button>
@@ -1648,198 +1658,200 @@ export function Chat() {
         </form>
       </section>
 
-      <aside className="context-sidebar">
-        <div className="context-panel">
-          <div className="context-panel-section">
-            <div className="context-panel-header">
-              <div>
-                <div className="side-section-label">Artifacts</div>
-                <p className="side-section-copy">
-                  Generated files now persist per workspace and can be
-                  downloaded later.
-                </p>
+      {showInfoSidebar && (
+        <aside className="context-sidebar">
+          <div className="context-panel">
+            <div className="context-panel-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Artifacts</div>
+                  <p className="side-section-copy">
+                    Generated files now persist per workspace and can be
+                    downloaded later.
+                  </p>
+                </div>
               </div>
+
+              {artifacts.length ? (
+                <>
+                  <div className="saved-artifact-list">
+                    {artifacts.map((artifact) => (
+                      <button
+                        key={artifact.id}
+                        type="button"
+                        className={`saved-artifact-item ${
+                          artifact.id === selectedArtifact?.id
+                            ? "saved-artifact-item--active"
+                            : ""
+                        }`}
+                        onClick={() => setArtifactPreviewId(artifact.id)}
+                      >
+                        <span className="saved-artifact-name">{artifact.name}</span>
+                        <span className="saved-artifact-meta">
+                          {artifact.mimeType} · {artifact.bytes} bytes
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedArtifact && (
+                    <div className="artifact-preview-card">
+                      <div className="artifact-card-header">
+                        <span>{selectedArtifact.name}</span>
+                        <a
+                          className="artifact-link"
+                          href={buildArtifactDownloadHref(selectedArtifact)}
+                          download={selectedArtifact.name}
+                        >
+                          Download
+                        </a>
+                      </div>
+                      <div className="artifact-meta">
+                        Saved {formatTimestamp(selectedArtifact.createdAt)}
+                      </div>
+                      <pre className="execution-output">
+                        <code>{selectedArtifact.content}</code>
+                      </pre>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="context-empty">
+                  Run code that calls <code>createArtifact(...)</code> to keep a
+                  downloadable record in this workspace.
+                </div>
+              )}
             </div>
 
-            {artifacts.length ? (
-              <>
-                <div className="saved-artifact-list">
-                  {artifacts.map((artifact) => (
-                    <button
-                      key={artifact.id}
-                      type="button"
-                      className={`saved-artifact-item ${
-                        artifact.id === selectedArtifact?.id
-                          ? "saved-artifact-item--active"
-                          : ""
-                      }`}
-                      onClick={() => setArtifactPreviewId(artifact.id)}
-                    >
-                      <span className="saved-artifact-name">{artifact.name}</span>
-                      <span className="saved-artifact-meta">
-                        {artifact.mimeType} · {artifact.bytes} bytes
-                      </span>
-                    </button>
+            <div className="context-panel-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Task timeline</div>
+                  <p className="side-section-copy">
+                    Background task state persists, recovers after interruption, and can be resumed.
+                  </p>
+                </div>
+              </div>
+
+              {tasks.length ? (
+                <div className="document-list">
+                  {tasks.map((task) => (
+                    <div key={task.id} className="document-card">
+                      <div className="document-card-header">
+                        <span>{task.title}</span>
+                        <span className="document-kind-pill">
+                          {getTaskStatusLabel(task.status)}
+                        </span>
+                      </div>
+                      <div className="document-meta">
+                        {task.progress}% · {formatTimestamp(task.updatedAt)}
+                      </div>
+                      {task.steps.length > 0 && (
+                        <p className="document-summary">
+                          {task.steps
+                            .map((step) =>
+                              step.status === "completed" ? `✓ ${step.label}` : `• ${step.label}`
+                            )
+                            .join(" · ")}
+                        </p>
+                      )}
+                      {task.errorMessage && (
+                        <p className="document-summary">{task.errorMessage}</p>
+                      )}
+                      {task.status === "failed" && (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => handleResumeTask(task)}
+                        >
+                          Resume
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
-                {selectedArtifact && (
-                  <div className="artifact-preview-card">
-                    <div className="artifact-card-header">
-                      <span>{selectedArtifact.name}</span>
-                      <a
-                        className="artifact-link"
-                        href={buildArtifactDownloadHref(selectedArtifact)}
-                        download={selectedArtifact.name}
-                      >
-                        Download
-                      </a>
-                    </div>
-                    <div className="artifact-meta">
-                      Saved {formatTimestamp(selectedArtifact.createdAt)}
-                    </div>
-                    <pre className="execution-output">
-                      <code>{selectedArtifact.content}</code>
-                    </pre>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="context-empty">
-                Run code that calls <code>createArtifact(...)</code> to keep a
-                downloadable record in this workspace.
-              </div>
-            )}
-          </div>
-
-          <div className="context-panel-section">
-            <div className="context-panel-header">
-              <div>
-                <div className="side-section-label">Task timeline</div>
-                <p className="side-section-copy">
-                  Background task state persists, recovers after interruption, and can be resumed.
-                </p>
-              </div>
+              ) : (
+                <div className="context-empty">
+                  Task status will appear here for long-running or resumable work.
+                </div>
+              )}
             </div>
 
-            {tasks.length ? (
-              <div className="document-list">
-                {tasks.map((task) => (
-                  <div key={task.id} className="document-card">
-                    <div className="document-card-header">
-                      <span>{task.title}</span>
-                      <span className="document-kind-pill">
-                        {getTaskStatusLabel(task.status)}
-                      </span>
-                    </div>
-                    <div className="document-meta">
-                      {task.progress}% · {formatTimestamp(task.updatedAt)}
-                    </div>
-                    {task.steps.length > 0 && (
-                      <p className="document-summary">
-                        {task.steps
-                          .map((step) =>
-                            step.status === "completed" ? `✓ ${step.label}` : `• ${step.label}`
-                          )
-                          .join(" · ")}
-                      </p>
-                    )}
-                    {task.errorMessage && (
-                      <p className="document-summary">{task.errorMessage}</p>
-                    )}
-                    {task.status === "failed" && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => handleResumeTask(task)}
-                      >
-                        Resume
-                      </button>
-                    )}
-                  </div>
-                ))}
+            <div className="context-panel-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Project files</div>
+                  <p className="side-section-copy">
+                    Uploaded files and generated artifacts are mapped into one workspace file model.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="context-empty">
-                Task status will appear here for long-running or resumable work.
-              </div>
-            )}
-          </div>
 
-          <div className="context-panel-section">
-            <div className="context-panel-header">
-              <div>
-                <div className="side-section-label">Project files</div>
-                <p className="side-section-copy">
-                  Uploaded files and generated artifacts are mapped into one workspace file model.
-                </p>
-              </div>
+              {projectFiles.length ? (
+                <div className="document-list">
+                  {projectFiles.map((file) => (
+                    <div key={file.id} className="document-card">
+                      <div className="document-card-header">
+                        <span>{file.displayName}</span>
+                        <span className="document-kind-pill">
+                          {getDocumentKindLabel(file.sourceKind)}
+                        </span>
+                      </div>
+                      <div className="document-meta">
+                        {file.path} · {file.mimeType} · {file.bytes} bytes
+                      </div>
+                      {file.summary && (
+                        <p className="document-summary">{file.summary}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="context-empty">
+                  Upload documents or generate artifacts to populate the project file map.
+                </div>
+              )}
             </div>
 
-            {projectFiles.length ? (
-              <div className="document-list">
-                {projectFiles.map((file) => (
-                  <div key={file.id} className="document-card">
-                    <div className="document-card-header">
-                      <span>{file.displayName}</span>
-                      <span className="document-kind-pill">
-                        {getDocumentKindLabel(file.sourceKind)}
-                      </span>
-                    </div>
-                    <div className="document-meta">
-                      {file.path} · {file.mimeType} · {file.bytes} bytes
-                    </div>
-                    {file.summary && (
-                      <p className="document-summary">{file.summary}</p>
-                    )}
-                  </div>
-                ))}
+            <div className="context-panel-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Indexed files</div>
+                  <p className="side-section-copy">
+                    Uploaded text, code, markdown, CSV, and generated artifacts
+                    feed workspace retrieval.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="context-empty">
-                Upload documents or generate artifacts to populate the project file map.
-              </div>
-            )}
-          </div>
 
-          <div className="context-panel-section">
-            <div className="context-panel-header">
-              <div>
-                <div className="side-section-label">Indexed files</div>
-                <p className="side-section-copy">
-                  Uploaded text, code, markdown, CSV, and generated artifacts
-                  feed workspace retrieval.
-                </p>
-              </div>
+              {documents.length ? (
+                <div className="document-list">
+                  {documents.map((document) => (
+                    <div key={document.id} className="document-card">
+                      <div className="document-card-header">
+                        <span>{document.name}</span>
+                        <span className="document-kind-pill">
+                          {getDocumentKindLabel(document.sourceKind)}
+                        </span>
+                      </div>
+                      <div className="document-meta">
+                        {document.contentType} · {formatTimestamp(document.createdAt)}
+                      </div>
+                      {document.summary && (
+                        <p className="document-summary">{document.summary}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="context-empty">
+                  Upload a text/code document or generate an artifact to strengthen
+                  future workspace retrieval.
+                </div>
+              )}
             </div>
-
-            {documents.length ? (
-              <div className="document-list">
-                {documents.map((document) => (
-                  <div key={document.id} className="document-card">
-                    <div className="document-card-header">
-                      <span>{document.name}</span>
-                      <span className="document-kind-pill">
-                        {getDocumentKindLabel(document.sourceKind)}
-                      </span>
-                    </div>
-                    <div className="document-meta">
-                      {document.contentType} · {formatTimestamp(document.createdAt)}
-                    </div>
-                    {document.summary && (
-                      <p className="document-summary">{document.summary}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="context-empty">
-                Upload a text/code document or generate an artifact to strengthen
-                future workspace retrieval.
-              </div>
-            )}
           </div>
-        </div>
-      </aside>
+        </aside>
+      )}
     </div>
   );
 }
