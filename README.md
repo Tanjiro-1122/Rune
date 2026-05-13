@@ -12,6 +12,7 @@ Jarvis is a Vercel-ready AI super-agent built with Next.js and the Vercel AI SDK
 - **Date & time tool** — always-accurate current datetime, not hallucinated
 - **Web search** — real-time search via Tavily (requires `TAVILY_API_KEY`); surfaces direct answers and source links in the chat UI
 - **GitHub repository analysis** — analyze any public repo by URL or `owner/repo`; shows metadata, README, and file tree in a visual card (optionally authenticated with `GITHUB_TOKEN`)
+- **Sandboxed code execution** — run small JavaScript/TypeScript snippets with strict limits and render results, logs, errors, and text artifacts in the chat UI
 - **Markdown rendering** — assistant responses render headings, lists, code blocks, bold, etc.
 - **File & image uploads** — attach JPEG, PNG, GIF, WEBP images or plain-text/CSV/Markdown files
 - **Persistent chat history** — messages saved per session to Supabase
@@ -69,6 +70,17 @@ TAVILY_API_KEY=
 # GitHub — optional, increases GitHub API rate limit from 60 to 5000 req/hr
 # Create a personal access token at https://github.com/settings/tokens (no scopes needed for public repos)
 GITHUB_TOKEN=
+
+# Sandboxed code execution — enabled by default on the Node.js runtime
+JARVIS_CODE_EXECUTION_ENABLED=true
+
+# Optional sandbox tuning
+JARVIS_CODE_TIMEOUT_MS=2000
+JARVIS_CODE_MAX_SOURCE_LENGTH=6000
+JARVIS_CODE_MAX_OUTPUT_CHARS=8000
+JARVIS_CODE_MAX_ARTIFACTS=3
+JARVIS_CODE_MAX_ARTIFACT_BYTES=12000
+JARVIS_CODE_MEMORY_LIMIT_MB=64
 ```
 
 > `APP_PASSWORD` and `SESSION_SECRET` are required. `AUTH_SECRET` is supported as a legacy alias for `SESSION_SECRET`.
@@ -122,6 +134,7 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to the
 | `create_task_plan` | Generates a step-by-step plan shown as a visual card before execution |
 | `web_search` | Searches the web via Tavily and returns direct answers + source links |
 | `analyze_github_repo` | Fetches public repo metadata, README, and file tree from GitHub |
+| `execute_code` | Runs a short JavaScript/TypeScript snippet inside a constrained sandbox |
 
 ### Multi-step execution
 
@@ -145,13 +158,34 @@ Provide any public GitHub URL (e.g. `https://github.com/vercel/next.js`) or an `
 
 **Rate limits** — unauthenticated GitHub API requests are limited to 60/hour per IP. Set `GITHUB_TOKEN` (a personal access token with no extra scopes needed for public repos) to raise the limit to 5 000/hour. Private repositories are not accessible unless the token has the appropriate permissions.
 
+### Sandboxed code execution
+
+Jarvis can run short self-contained JavaScript or TypeScript snippets inside a constrained sandbox and render a tool card in chat with:
+
+- The final returned value (`return` it explicitly from the snippet)
+- `console.log` / `console.info` output
+- Warnings and errors
+- Text artifacts created with `createArtifact(name, content, mimeType?)`
+
+Execution is intentionally narrow and safety-focused:
+
+- **Small snippets only** — default source cap is `6000` characters
+- **Timeout enforced** — default execution timeout is `2000 ms`
+- **Resource constrained** — each run executes in an isolated worker with a configurable memory ceiling
+- **No unrestricted host access** — imports, external modules, network access, filesystem access, and process access are blocked
+- **Text artifacts only** — `text/*` and `application/json` artifacts are supported
+
+Set `JARVIS_CODE_EXECUTION_ENABLED=false` if you need to turn sandboxed execution off for a deployment.
+
 ### Capability-aware responses
 
 Jarvis gives precise, actionable responses instead of broad generic disclaimers:
 
 - If `web_search` is unconfigured it says exactly what environment variable to add.
 - If a GitHub repo is private or not found it explains why and asks for pasted content instead.
-- If a capability is genuinely absent (code execution, writing files, sending email) it names the specific limitation and suggests the best available alternative.
+- If sandboxed execution is enabled it explains the exact sandbox limits instead of implying full project execution.
+- If sandboxed execution is disabled it says exactly that the deployment has execution turned off and names `JARVIS_CODE_EXECUTION_ENABLED`.
+- If a capability is genuinely absent (for example writing files outside the sandbox or sending email) it names the specific limitation and suggests the best available alternative.
 
 ### Uploading files & images
 
@@ -203,6 +237,7 @@ jarvis/
 │  └─ chat.tsx                  # Chat UI — tool cards, markdown, status badge
 ├─ lib/
 │  ├─ auth.ts                   # Auth helpers
+│  ├─ code-execution.ts         # Sandboxed JS/TS execution helpers
 │  └─ supabase.ts               # Server-side Supabase client
 ├─ middleware.ts                 # Route protection
 ├─ .env.example                 # Environment variable template
@@ -222,16 +257,26 @@ jarvis/
    - `SUPABASE_ANON_KEY` — Supabase anon/public key *(optional)*
    - `TAVILY_API_KEY` — Tavily search key *(optional, enables web search)*
    - `GITHUB_TOKEN` — GitHub personal access token *(optional, higher rate limits)*
+   - `JARVIS_CODE_EXECUTION_ENABLED` — optional override; set to `false` to disable sandboxed execution
+   - `JARVIS_CODE_TIMEOUT_MS` — optional max runtime per snippet
+   - `JARVIS_CODE_MAX_SOURCE_LENGTH` — optional source size cap
+   - `JARVIS_CODE_MAX_OUTPUT_CHARS` — optional combined log/error cap
+   - `JARVIS_CODE_MAX_ARTIFACTS` — optional artifact count cap
+   - `JARVIS_CODE_MAX_ARTIFACT_BYTES` — optional per-artifact size cap
+   - `JARVIS_CODE_MEMORY_LIMIT_MB` — optional worker memory ceiling
 4. Deploy.
 
+> **Runtime requirement:** Sandboxed code execution uses the Next.js **Node.js runtime** and Node worker threads. It is not available on the Edge runtime.
+>
 > **Note:** The default Vercel Hobby plan has a 10-second function timeout. `maxDuration` is set to **60 seconds** to allow multi-step agent execution. This requires a **Vercel Pro** plan or higher. On Hobby, single-step responses will still work normally; only long multi-step tasks may time out.
 
 ## Limitations
 
 - **Web search requires TAVILY_API_KEY** — without it, Jarvis will tell you the key is missing and suggest adding it. Get a free key at [tavily.com](https://tavily.com).
 - **GitHub analysis is public-only by default** — private repos require a `GITHUB_TOKEN` with appropriate permissions.
-- **No code execution** — Jarvis can write and explain code but cannot run it server-side.
+- **Sandbox scope is intentionally narrow** — execution is limited to short JavaScript/TypeScript snippets, not arbitrary repos, package installs, or full builds.
+- **No external I/O in the sandbox** — network access, filesystem access, package installs, and child processes are blocked.
 - **Binary files (PDF, DOCX)** — not supported; only images and plain-text variants are processed end-to-end.
+- **Artifacts are text-only and ephemeral** — they render in the current response and are not persisted to Supabase.
 - **Attachments not persisted** — only text content is saved to Supabase; tool call metadata and files are ephemeral.
 - **GitHub API rate limit** — without `GITHUB_TOKEN`, unauthenticated requests are limited to 60/hour per IP.
-

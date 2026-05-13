@@ -1,6 +1,10 @@
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
+import {
+  executeSandboxedCode,
+  getCodeExecutionAvailability,
+} from "@/lib/code-execution";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
@@ -166,7 +170,7 @@ function parseOwnerRepo(input: string): string {
   return input.trim().replace(/\.git$/, "");
 }
 
-const agentTools = {
+const baseAgentTools = {
   get_current_datetime: tool({
     description:
       "Get the current date and time. Use whenever the user asks about the date, time, day of the week, or needs time-aware information.",
@@ -473,12 +477,51 @@ const agentTools = {
   }),
 };
 
+function getAgentTools() {
+  const codeExecution = getCodeExecutionAvailability();
+
+  if (!codeExecution.available) {
+    return baseAgentTools;
+  }
+
+  return {
+    ...baseAgentTools,
+    execute_code: tool({
+      description:
+        "Run a short, self-contained JavaScript or TypeScript snippet inside Jarvis's sandbox. Use for small coding checks, evaluating generated code, quick data transforms, and algorithm verification. The snippet must be self-contained, must not use imports or external modules, and should use `return` to surface a final value. Console output and text artifacts are returned to the chat UI.",
+      parameters: z.object({
+        language: z
+          .enum(["javascript", "typescript"])
+          .optional()
+          .default("typescript")
+          .describe("Snippet language. Use TypeScript only for lightweight type syntax."),
+        code: z
+          .string()
+          .describe(
+            "A short self-contained snippet. No imports, file access, network access, or process access. Use `return` for the final value."
+          ),
+      }),
+      execute: async ({ code, language = "typescript" }) =>
+        executeSandboxedCode({ code, language }),
+    }),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const {
       messages,
       conversationId,
     }: { messages: UIMessage[]; conversationId?: string } = await req.json();
+
+    const codeExecution = getCodeExecutionAvailability();
+    const codeExecutionSummary = codeExecution.available
+      ? `- \`execute_code\` — sandboxed JavaScript/TypeScript execution for short self-contained snippets only. Limits: ${codeExecution.limits.timeoutMs} ms timeout, ${codeExecution.limits.maxSourceLength} characters of source, ${codeExecution.limits.maxOutputChars} characters of combined logs, up to ${codeExecution.limits.maxArtifacts} text artifacts of ${codeExecution.limits.maxArtifactBytes} bytes each, and an isolated worker memory limit of about ${codeExecution.limits.memoryLimitMb} MB. No imports, filesystem, process, or network access.`
+      : `- Sandboxed code execution is unavailable in this deployment because ${codeExecution.reason}.`;
+    const codeExecutionGuidance = codeExecution.available
+      ? "- Use `execute_code` for short self-contained JavaScript/TypeScript checks when sandboxed execution is available; include an explicit `return` when you want a final value surfaced in the result card"
+      : "- Do not claim you can run code in this deployment; explain precisely that sandboxed execution is disabled here and offer static analysis or code review instead";
+    const agentTools = getAgentTools();
 
     const result = streamText({
       model: openai("gpt-4o-mini"),
@@ -490,6 +533,7 @@ export async function POST(req: Request) {
 - \`create_task_plan\` — numbered step-by-step plan shown as a visual card
 - \`web_search\` — live web search via Tavily (requires TAVILY_API_KEY to be set in the deployment)
 - \`analyze_github_repo\` — fetch metadata, README, and file tree for any public GitHub repo
+${codeExecutionSummary}
 
 ## Additional Context from Uploads
 - Users may attach images (JPEG, PNG, GIF, WEBP) — you can see and describe them
@@ -503,6 +547,7 @@ export async function POST(req: Request) {
 - Always use \`get_current_datetime\` for time-sensitive questions
 - Use \`web_search\` for current events, recent releases, real-time facts, or anything that may have changed since your training cutoff
 - Use \`analyze_github_repo\` whenever the user provides a GitHub URL or owner/repo string and wants to understand or discuss that repository
+${codeExecutionGuidance}
 
 ### Document and code context
 - When a user uploads a code file or text document, read it carefully and reference specific sections in your response
@@ -514,7 +559,9 @@ export async function POST(req: Request) {
 - Be precise: if a specific tool is available and configured, say so and use it
 - If \`web_search\` is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
 - If \`analyze_github_repo\` fails because a repo is private, say so and ask the user to paste the relevant code or file contents
-- If a capability is genuinely absent (e.g., running code server-side, writing files, sending emails), state the specific limitation and suggest the best available alternative
+- If sandboxed code execution is available, describe the limits precisely: small JavaScript/TypeScript only, no imports, no network/filesystem/process access, and strict timeout/output limits
+- If sandboxed code execution is unavailable, say exactly why based on the deployment configuration instead of using a generic disclaimer
+- If a capability is genuinely absent (e.g., writing files outside the sandbox or sending emails), state the specific limitation and suggest the best available alternative
 
 ### Formatting
 - Format responses in Markdown: **bold**, \`code\`, lists, headers, fenced code blocks

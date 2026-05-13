@@ -755,10 +755,124 @@ body {
   background: rgba(139, 92, 246, 0.04);
 }
 
+.tool-card--execution {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.05);
+}
+
 .tool-card--github .tool-card-body {
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+}
+
+.tool-card-body--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.tool-code-block,
+.execution-output {
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tool-code-block code,
+.execution-output code {
+  color: var(--text);
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.execution-output--error {
+  border-color: rgba(248, 113, 113, 0.25);
+  background: rgba(127, 29, 29, 0.18);
+}
+
+.execution-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.execution-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--text);
+}
+
+.execution-badge--success {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.execution-badge--error {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.execution-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.execution-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.artifact-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.artifact-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.artifact-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.artifact-link {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.artifact-link:hover {
+  text-decoration: underline;
 }
 
 .github-description {
