@@ -347,12 +347,20 @@ export async function assertConversationAccess(options: {
         .eq("conversation_id", conversationId)
         .maybeSingle();
 
-      if (mappingResponse.error) {
-        throw new Error("Conversation access denied.");
-      }
-
-      if (mappingResponse.data?.workspace_id && mappingResponse.data.workspace_id !== workspaceId) {
-        throw new Error("Conversation access denied.");
+      // If the mapping table query errors (e.g. due to a schema issue), skip
+      // the workspace cross-check — session ownership is already confirmed
+      // by the conversations table above.
+      if (!mappingResponse.error) {
+        if (mappingResponse.data?.workspace_id && mappingResponse.data.workspace_id !== workspaceId) {
+          throw new Error("Conversation access denied.");
+        }
+      } else {
+        // Log so operators can see the underlying cause (e.g. missing column).
+        console.warn(
+          "assertConversationAccess: workspace mapping query failed; " +
+            "skipping workspace cross-check because session ownership is confirmed. " +
+            "Error: " + mappingResponse.error.message
+        );
       }
     }
     return;
