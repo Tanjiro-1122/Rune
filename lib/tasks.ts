@@ -3,6 +3,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 const MAX_TASKS_PER_QUERY = 25;
 const STALE_TASK_WINDOW_MS = 15 * 60 * 1000;
 const STALE_TASK_WINDOW_MINUTES = Math.round(STALE_TASK_WINDOW_MS / 60_000);
+const WORKSPACE_TASK_SELECT = "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at, runner_id, runner_status, runner_heartbeat_at, runner_attempts, runner_logs, runner_metadata";
 
 export type WorkspaceTaskStatus =
   | "queued"
@@ -39,6 +40,12 @@ export interface WorkspaceTaskSummary {
   updatedAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  runnerId?: string | null;
+  runnerStatus?: string | null;
+  runnerHeartbeatAt?: string | null;
+  runnerAttempts?: number;
+  runnerLogs?: Array<{ timestamp: string; level: string; message: string }>;
+  runnerMetadata?: Record<string, unknown> | null;
   steps: WorkspaceTaskStepSummary[];
 }
 
@@ -70,6 +77,12 @@ interface WorkspaceTaskRow {
   updated_at: string;
   started_at: string | null;
   completed_at: string | null;
+  runner_id?: string | null;
+  runner_status?: string | null;
+  runner_heartbeat_at?: string | null;
+  runner_attempts?: number | null;
+  runner_logs?: Array<{ timestamp: string; level: string; message: string }> | null;
+  runner_metadata?: Record<string, unknown> | null;
 }
 
 interface WorkspaceTaskStepRow {
@@ -109,6 +122,12 @@ function mapTask(
     updatedAt: task.updated_at,
     startedAt: task.started_at,
     completedAt: task.completed_at,
+    runnerId: task.runner_id ?? null,
+    runnerStatus: task.runner_status ?? null,
+    runnerHeartbeatAt: task.runner_heartbeat_at ?? null,
+    runnerAttempts: task.runner_attempts ?? 0,
+    runnerLogs: Array.isArray(task.runner_logs) ? task.runner_logs : [],
+    runnerMetadata: task.runner_metadata ?? null,
     steps: stepsByTaskId.get(task.id) ?? [],
   };
 }
@@ -171,9 +190,7 @@ export async function createWorkspaceTask(options: {
       progress: 0,
       resume_count: 0,
     })
-    .select(
-      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
-    )
+    .select(WORKSPACE_TASK_SELECT)
     .single();
 
   if (taskResponse.error || !taskResponse.data) {
@@ -219,9 +236,7 @@ export async function resumeWorkspaceTask(taskId: string) {
 
   const taskResponse = await supabase
     .from("workspace_tasks")
-    .select(
-      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
-    )
+    .select(WORKSPACE_TASK_SELECT)
     .eq("id", taskId)
     .maybeSingle();
 
@@ -395,9 +410,7 @@ export async function getWorkspaceTasks(options: {
   const maxRows = Math.max(1, Math.min(limit ?? 12, MAX_TASKS_PER_QUERY));
   let query = supabase
     .from("workspace_tasks")
-    .select(
-      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
-    )
+    .select(WORKSPACE_TASK_SELECT)
     .eq("workspace_id", workspaceId)
     .order("updated_at", { ascending: false })
     .limit(maxRows);
@@ -469,9 +482,7 @@ export async function createQueuedWorkspaceJob(options: {
       progress: 0,
       resume_count: 0,
     })
-    .select(
-      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
-    )
+    .select(WORKSPACE_TASK_SELECT)
     .single();
 
   if (taskResponse.error || !taskResponse.data) return null;
@@ -497,9 +508,7 @@ export async function getWorkspaceTask(taskId: string) {
 
   const taskResponse = await supabase
     .from("workspace_tasks")
-    .select(
-      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
-    )
+    .select(WORKSPACE_TASK_SELECT)
     .eq("id", taskId)
     .maybeSingle();
 
@@ -537,4 +546,101 @@ export async function claimQueuedWorkspaceTask(taskId: string) {
 
   if (error || !data) return null;
   return getWorkspaceTask(taskId);
+}
+
+
+export async function claimNextRunnerTask(options: { runnerId: string; limit?: number }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const now = new Date().toISOString();
+  const { data: queued, error: queuedError } = await supabase
+    .from("workspace_tasks")
+    .select(WORKSPACE_TASK_SELECT)
+    .eq("status", "queued")
+    .is("runner_id", null)
+    .order("created_at", { ascending: true })
+    .limit(options.limit ?? 1);
+
+  if (queuedError || !queued?.length) return null;
+  const task = queued[0] as WorkspaceTaskRow;
+
+  const { data: claimed, error: claimError } = await supabase
+    .from("workspace_tasks")
+    .update({
+      status: "running",
+      progress: 5,
+      runner_id: options.runnerId,
+      runner_status: "claimed",
+      runner_heartbeat_at: now,
+      runner_attempts: (task.runner_attempts ?? 0) + 1,
+      runner_logs: [
+        ...(Array.isArray(task.runner_logs) ? task.runner_logs.slice(-25) : []),
+        { timestamp: now, level: "info", message: `Claimed by runner ${options.runnerId}` },
+      ],
+      started_at: task.started_at ?? now,
+      completed_at: null,
+      updated_at: now,
+    })
+    .eq("id", task.id)
+    .eq("status", "queued")
+    .is("runner_id", null)
+    .select(WORKSPACE_TASK_SELECT)
+    .maybeSingle();
+
+  if (claimError || !claimed) return null;
+  return getWorkspaceTask(task.id);
+}
+
+export async function heartbeatRunnerTask(options: { taskId: string; runnerId: string; message?: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const task = await getWorkspaceTask(options.taskId);
+  if (!task || task.runnerId !== options.runnerId) return null;
+  const now = new Date().toISOString();
+  const logs = [
+    ...(task.runnerLogs ?? []).slice(-25),
+    { timestamp: now, level: "info", message: options.message ?? "Runner heartbeat" },
+  ];
+
+  await supabase
+    .from("workspace_tasks")
+    .update({ runner_status: "heartbeat", runner_heartbeat_at: now, runner_logs: logs, updated_at: now })
+    .eq("id", options.taskId)
+    .eq("runner_id", options.runnerId);
+
+  return getWorkspaceTask(options.taskId);
+}
+
+export async function releaseRunnerTask(options: { taskId: string; runnerId: string; status: "completed" | "failed"; message: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const task = await getWorkspaceTask(options.taskId);
+  if (!task || task.runnerId !== options.runnerId) return null;
+
+  const now = new Date().toISOString();
+  const logs = [
+    ...(task.runnerLogs ?? []).slice(-25),
+    { timestamp: now, level: options.status === "completed" ? "info" : "error", message: options.message },
+  ];
+
+  await supabase
+    .from("workspace_tasks")
+    .update({
+      status: options.status,
+      progress: 100,
+      runner_status: options.status,
+      runner_heartbeat_at: now,
+      runner_logs: logs,
+      result_summary: options.status === "completed" ? options.message : task.resultSummary,
+      error_message: options.status === "failed" ? options.message : null,
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("id", options.taskId)
+    .eq("runner_id", options.runnerId);
+
+  return getWorkspaceTask(options.taskId);
 }

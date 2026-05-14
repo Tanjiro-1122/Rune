@@ -171,6 +171,17 @@ create index if not exists workspace_project_files_storage_path_idx
 
 create index if not exists workspace_project_files_workspace_id_updated_at_idx
   on workspace_project_files(workspace_id, updated_at desc);
+alter table workspace_tasks
+  add column if not exists runner_id text,
+  add column if not exists runner_status text,
+  add column if not exists runner_heartbeat_at timestamptz,
+  add column if not exists runner_attempts integer not null default 0,
+  add column if not exists runner_logs jsonb not null default '[]'::jsonb,
+  add column if not exists runner_metadata jsonb not null default '{}'::jsonb;
+
+create index if not exists workspace_tasks_runner_status_updated_at_idx
+  on workspace_tasks(runner_status, updated_at desc);
+
 create index if not exists workspace_tasks_workspace_id_updated_at_idx
   on workspace_tasks(workspace_id, updated_at desc);
 create index if not exists workspace_task_steps_task_id_order_idx

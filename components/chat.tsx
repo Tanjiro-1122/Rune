@@ -326,6 +326,11 @@ interface WorkspaceTaskSummary {
   resultSummary: string | null;
   errorMessage: string | null;
   updatedAt: string;
+  runnerId?: string | null;
+  runnerStatus?: string | null;
+  runnerHeartbeatAt?: string | null;
+  runnerAttempts?: number;
+  runnerLogs?: Array<{ timestamp: string; level: string; message: string }>;
   steps: WorkspaceTaskStepSummary[];
 }
 
@@ -3080,6 +3085,17 @@ export function Chat() {
                       <div className="document-meta">
                         {task.progress}% · {formatTimestamp(task.updatedAt)}
                       </div>
+                      {(task.runnerId || task.runnerStatus || task.runnerHeartbeatAt) && (
+                        <div className="document-meta">
+                          Runner: {task.runnerId ?? "unclaimed"} · {task.runnerStatus ?? task.status}
+                          {task.runnerHeartbeatAt ? ` · heartbeat ${formatTimestamp(task.runnerHeartbeatAt)}` : ""}
+                        </div>
+                      )}
+                      {task.runnerLogs?.length ? (
+                        <p className="document-summary">
+                          Latest runner log: {task.runnerLogs[task.runnerLogs.length - 1]?.message}
+                        </p>
+                      ) : null}
                       {task.steps.length > 0 && (
                         <p className="document-summary">
                           {task.steps

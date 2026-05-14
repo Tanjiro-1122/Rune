@@ -36,6 +36,17 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Allow an external isolated runner to poll the runner API with a dedicated
+  // bearer token. This route still remains closed unless JARVIS_RUNNER_TOKEN is set.
+  if (pathname.startsWith("/api/runner")) {
+    const runnerToken = process.env.JARVIS_RUNNER_TOKEN;
+    const authHeader = request.headers.get("authorization") ?? "";
+    const provided = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    if (runnerToken && provided === runnerToken) {
+      return withSecurityHeaders(NextResponse.next());
+    }
+  }
+
   // Local development can run open for quick setup. Production must never run
   // without a signed session secret, otherwise the workspace would be exposed.
   const secret = getSessionSecret();

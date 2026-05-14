@@ -814,3 +814,61 @@ Safe by design:
 - only built-in low-risk queue checkpoints
 
 Next logical patch: external/durable worker trigger or isolated runner foundation.
+
+
+## Isolated Runner Foundation
+
+Patch 18 adds the secure contract for a future external worker.
+
+What it enables:
+
+- `/api/runner` endpoint for external runner calls
+- runner bearer-token authentication via `JARVIS_RUNNER_TOKEN`
+- claim next queued job
+- heartbeat an owned job
+- complete an owned job
+- fail an owned job
+- runner metadata on `workspace_tasks`
+- runner status/heartbeat/log visibility in the Tasks drawer
+- audit events for runner claim/completion/failure
+
+Required Vercel env before using an external runner:
+
+```txt
+JARVIS_RUNNER_TOKEN=your-long-random-runner-token
+```
+
+Runner API contract:
+
+```bash
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"claim","runnerId":"local-runner-1"}'
+```
+
+Heartbeat:
+
+```bash
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"heartbeat","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Still working"}'
+```
+
+Complete:
+
+```bash
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"complete","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Job completed"}'
+```
+
+Schema update required:
+
+Run the latest `supabase/schema.sql` so `workspace_tasks` has:
+
+```txt
+runner_id
+runner_status
+runner_heartbeat_at
+runner_attempts
+runner_logs
+runner_metadata
+```
+
+Important limitation:
+
+Patch 18 creates the secure runner foundation, not a full autonomous remote machine. The next patch should add a concrete local/hosted runner script that polls this endpoint and performs only allowlisted actions.
