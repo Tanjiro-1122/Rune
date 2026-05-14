@@ -829,8 +829,19 @@ export async function POST(req: Request) {
     // ── Runtime validation ────────────────────────────────────────────────────
     // Validate the request body before touching any state (rate-limiter map,
     // workspace events, etc.) so malformed input is rejected early.
+    //
+    // Each message must have a valid role and a non-empty content field.
+    // passthrough() preserves all extra UIMessage fields (id, parts,
+    // experimental_attachments, etc.) that the AI SDK needs downstream.
+    const MessageSchema = z
+      .object({
+        role: z.enum(["user", "assistant", "system", "tool"]),
+        content: z.union([z.string(), z.array(z.any())]),
+      })
+      .passthrough();
+
     const ChatBodySchema = z.object({
-      messages: z.array(z.any()).min(1),
+      messages: z.array(MessageSchema).min(1),
       sessionId: z.string().min(1).max(MAX_SESSION_ID_LENGTH).optional(),
       conversationId: z.string().uuid().optional(),
       workspaceId: z.string().uuid().optional(),
@@ -855,8 +866,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // UIMessage carries extra SDK fields (id, parts, experimental_attachments,
+    // etc.) that passthrough() preserved but Zod's inferred type doesn't
+    // reflect. The cast is safe because the schema validates the required
+    // structural fields and passes through everything else untouched.
     const { messages: rawMessages, sessionId, conversationId, workspaceId, resumeTaskId } = parsed.data;
-    const messages = rawMessages as UIMessage[];
+    const messages = rawMessages as unknown as UIMessage[];
 
     // sessionId is required for rate-limiting and workspace access
     if (!sessionId) {
@@ -1160,6 +1175,10 @@ ${plannerOutput.steps
 ### Formatting
 - Format responses in Markdown: **bold**, \`code\`, lists, headers, fenced code blocks
 - Be thorough yet concise. Prioritize accuracy and practical value.`,
+      // formattedMessages may contain elements whose `content` is an array
+      // (for multimodal image blocks). The AI SDK's UIMessage type declares
+      // `content: string` in TypeScript but handles array content correctly at
+      // runtime via convertToCoreMessages. The double assertion is intentional.
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
       tools: agentTools,
       toolChoice: forcedToolChoice ?? "auto",
