@@ -63,6 +63,12 @@ interface ToolInvocation {
   result?: unknown;
 }
 
+type LightweightAttachment = {
+  name: string;
+  contentType: string;
+  url: string;
+};
+
 function TaskPlanCard({
   result,
 }: {
@@ -965,6 +971,7 @@ export function Chat() {
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [fileError, setFileError] = useState("");
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1782,7 +1789,7 @@ export function Chat() {
     router.refresh();
   }
 
-  const isLoading = status === "submitted" || status === "streaming";
+  const isLoading = status === "submitted" || status === "streaming" || isUploadingAttachment;
 
   // Determine the active tool name while streaming
   const activeToolName = isLoading
@@ -1910,6 +1917,50 @@ export function Chat() {
     }
   };
 
+  async function uploadImageAttachment(file: File): Promise<LightweightAttachment> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (workspaceId) formData.append("workspaceId", workspaceId);
+    if (conversationId) formData.append("conversationId", conversationId);
+    if (sessionId) formData.append("sessionId", sessionId);
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const payload = await response.json().catch(() => ({})) as {
+      url?: string;
+      name?: string;
+      mimeType?: string;
+      error?: string;
+    };
+
+    if (!response.ok || !payload.url) {
+      throw new Error(payload.error ?? `Upload failed with status ${response.status}`);
+    }
+
+    return {
+      name: payload.name ?? file.name,
+      contentType: payload.mimeType ?? file.type,
+      url: payload.url,
+    };
+  }
+
+  async function prepareChatAttachments(fileList: FileList): Promise<LightweightAttachment[] | FileList> {
+    const selectedFiles = Array.from(fileList);
+    const imageFiles = selectedFiles.filter((file) => file.type.startsWith("image/"));
+    const passthroughFiles = selectedFiles.filter((file) => !file.type.startsWith("image/"));
+
+    if (imageFiles.length === 0) return fileList;
+    if (passthroughFiles.length > 0) {
+      throw new Error("Please send images and text files separately so Jarvis can process them safely.");
+    }
+
+    setFileError("Uploading image safely before sending…");
+    return Promise.all(imageFiles.map(uploadImageAttachment));
+  }
+
   function clearAttachments() {
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setFiles(undefined);
@@ -1918,23 +1969,32 @@ export function Chat() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
-    if (isLoading) {
-      e.preventDefault();
-      return;
-    }
+  async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (isLoading) return;
+
     const hasFiles = files != null && files.length > 0;
-    if (!input.trim() && !hasFiles) {
-      e.preventDefault();
-      return;
-    }
+    if (!input.trim() && !hasFiles) return;
+
     setChatErrorMessage("");
-    handleSubmit(e, {
-      experimental_attachments: files,
-      allowEmptySubmit: hasFiles && !input.trim(),
-    });
-    if (!hasFiles || input.trim()) setResumeTaskId(null);
-    clearAttachments();
+    try {
+      setIsUploadingAttachment(hasFiles);
+      const safeAttachments = hasFiles && files ? await prepareChatAttachments(files) : undefined;
+      handleSubmit(e, {
+        experimental_attachments: safeAttachments,
+        allowEmptySubmit: hasFiles && !input.trim(),
+      });
+      if (!hasFiles || input.trim()) setResumeTaskId(null);
+      clearAttachments();
+    } catch (error) {
+      setFileError(
+        error instanceof Error
+          ? error.message
+          : "Jarvis could not prepare that attachment. Try a smaller image or send it separately."
+      );
+    } finally {
+      setIsUploadingAttachment(false);
+    }
   }
 
   const showTypingIndicator =
@@ -2534,7 +2594,7 @@ export function Chat() {
             {jobBusy ? "Queuing…" : "Queue"}
           </button>
           <button type="submit" className="send-button" disabled={isLoading}>
-            {isLoading ? "Working…" : "Send"}
+            {isUploadingAttachment ? "Uploading…" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
           </button>
         </form>
       </section>
