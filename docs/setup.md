@@ -787,3 +787,30 @@ What it enables:
 - the app no longer depends on old signed URLs staying valid forever
 
 The endpoint is protected by Jarvis session middleware and uses the server-side Supabase service role key. It does not expose the storage service key to the browser.
+
+
+## Background Job Queue
+
+Patch 17 adds the first safe job-queue layer.
+
+What it enables:
+
+- Queue the current prompt as a workspace job
+- Show queued/running/completed/failed jobs in the Tasks drawer
+- Run a queued job through `/api/jobs`
+- Persist task progress and step state in Supabase
+- Log `job.queued`, `job.completed`, and `job.failed` events
+
+Important limitation:
+
+This is not a separate external worker yet. Patch 17 creates the queue structure and safe built-in runner endpoint, but long-running autonomous work still needs the future isolated worker patch.
+
+Safe by design:
+
+- no arbitrary background code execution
+- no deploys
+- no repo writes
+- no shell commands
+- only built-in low-risk queue checkpoints
+
+Next logical patch: external/durable worker trigger or isolated runner foundation.

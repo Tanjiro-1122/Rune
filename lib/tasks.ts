@@ -436,3 +436,105 @@ export async function getWorkspaceTasks(options: {
 
   return taskRows.map((task) => mapTask(task, stepsByTaskId));
 }
+
+
+export async function createQueuedWorkspaceJob(options: {
+  workspaceId: string;
+  conversationId?: string | null;
+  title: string;
+  inputText: string;
+  intent: string;
+  steps?: WorkspaceTaskStepInput[];
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const defaultSteps = options.steps?.length
+    ? options.steps
+    : [
+        { key: "prepare", label: "Prepare job" },
+        { key: "run", label: "Run safe job" },
+        { key: "save", label: "Save result" },
+      ];
+
+  const taskResponse = await supabase
+    .from("workspace_tasks")
+    .insert({
+      workspace_id: options.workspaceId,
+      conversation_id: options.conversationId ?? null,
+      title: options.title,
+      input_text: options.inputText,
+      intent: options.intent,
+      status: "queued",
+      progress: 0,
+      resume_count: 0,
+    })
+    .select(
+      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
+    )
+    .single();
+
+  if (taskResponse.error || !taskResponse.data) return null;
+
+  await supabase.from("workspace_task_steps").insert(
+    defaultSteps.map((step, index) => ({
+      task_id: taskResponse.data.id,
+      step_key: step.key,
+      label: step.label,
+      order_index: index,
+      status: "pending",
+      detail: step.detail ?? null,
+      started_at: null,
+    }))
+  );
+
+  return taskResponse.data.id as string;
+}
+
+export async function getWorkspaceTask(taskId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const taskResponse = await supabase
+    .from("workspace_tasks")
+    .select(
+      "id, workspace_id, conversation_id, title, input_text, intent, status, progress, result_summary, error_message, resume_count, created_at, updated_at, started_at, completed_at"
+    )
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (taskResponse.error || !taskResponse.data) return null;
+
+  const stepResponse = await supabase
+    .from("workspace_task_steps")
+    .select("id, task_id, step_key, label, order_index, status, detail, started_at, completed_at")
+    .eq("task_id", taskId)
+    .order("order_index", { ascending: true });
+
+  const stepsByTaskId = new Map<string, WorkspaceTaskStepSummary[]>();
+  if (!stepResponse.error) {
+    stepsByTaskId.set(
+      taskId,
+      ((stepResponse.data ?? []) as WorkspaceTaskStepRow[]).map((step) => mapStep(step))
+    );
+  }
+
+  return mapTask(taskResponse.data as WorkspaceTaskRow, stepsByTaskId);
+}
+
+export async function claimQueuedWorkspaceTask(taskId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("workspace_tasks")
+    .update({ status: "running", progress: 5, started_at: now, completed_at: null, updated_at: now })
+    .eq("id", taskId)
+    .eq("status", "queued")
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return getWorkspaceTask(taskId);
+}

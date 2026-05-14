@@ -928,6 +928,8 @@ export function Chat() {
   const [deployHealth, setDeployHealth] = useState<DeployHealthSnapshot | null>(null);
   const [deployHealthBusy, setDeployHealthBusy] = useState(false);
   const [deployHealthStatus, setDeployHealthStatus] = useState("");
+  const [jobBusy, setJobBusy] = useState(false);
+  const [jobStatus, setJobStatus] = useState("");
   const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("memory");
 
   const {
@@ -1330,6 +1332,60 @@ export function Chat() {
     }
   }
 
+
+
+  async function queueWorkspaceJobFromPrompt() {
+    if (jobBusy || !workspaceId || !input.trim()) return;
+    const title = input.trim().replace(/\s+/g, " ").slice(0, 90);
+    setJobBusy(true);
+    setJobStatus("");
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          conversationId,
+          sessionId,
+          title: title || "Queued Jarvis job",
+          inputText: input.trim(),
+          intent: "plan",
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to queue job.");
+      setJobStatus("Job queued. Open Tasks to run or monitor it.");
+      setInput("");
+      if (sessionId) await refreshTasks(sessionId, workspaceId, conversationId);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setJobStatus(error instanceof Error ? error.message : "Failed to queue job.");
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
+  async function runQueuedWorkspaceJob(task: WorkspaceTaskSummary) {
+    if (jobBusy || !sessionId) return;
+    setJobBusy(true);
+    setJobStatus("");
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id, sessionId }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to run job.");
+      setJobStatus(payload.message ?? "Job checkpoint updated.");
+      if (workspaceId) await refreshTasks(sessionId, workspaceId, conversationId);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setJobStatus(error instanceof Error ? error.message : "Failed to run job.");
+    } finally {
+      setJobBusy(false);
+    }
+  }
 
   async function openStoredProjectFile(file: WorkspaceProjectFileSummary) {
     try {
@@ -2341,6 +2397,7 @@ export function Chat() {
         )}
 
         {fileError && <div className="file-error">{fileError}</div>}
+        {jobStatus && <div className="file-error">{jobStatus}</div>}
         {(chatErrorMessage || chatError) && (
           <div className="chat-error-banner" role="alert">
             <strong>Jarvis paused.</strong>
@@ -2386,6 +2443,15 @@ export function Chat() {
             className="chat-input"
             rows={1}
           />
+          <button
+            type="button"
+            className="send-button"
+            disabled={jobBusy || isLoading || !workspaceId || !input.trim()}
+            onClick={queueWorkspaceJobFromPrompt}
+            title="Queue this request as a safe background job"
+          >
+            {jobBusy ? "Queuing…" : "Queue"}
+          </button>
           <button type="submit" className="send-button" disabled={isLoading}>
             {isLoading ? "Working…" : "Send"}
           </button>
@@ -3026,15 +3092,30 @@ export function Chat() {
                       {task.errorMessage && (
                         <p className="document-summary">{task.errorMessage}</p>
                       )}
-                      {task.status === "failed" && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => handleResumeTask(task)}
-                        >
-                          Resume
-                        </button>
+                      {task.resultSummary && (
+                        <p className="document-summary">{task.resultSummary}</p>
                       )}
+                      <div className="memory-actions-row">
+                        {task.status === "queued" && (
+                          <button
+                            type="button"
+                            className="memory-inline-action"
+                            onClick={() => runQueuedWorkspaceJob(task)}
+                            disabled={jobBusy}
+                          >
+                            Run job
+                          </button>
+                        )}
+                        {task.status === "failed" && (
+                          <button
+                            type="button"
+                            className="memory-inline-action"
+                            onClick={() => handleResumeTask(task)}
+                          >
+                            Resume
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
