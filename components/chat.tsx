@@ -1177,6 +1177,30 @@ export function Chat() {
   }
 
 
+  async function inspectRepoProposalFiles(proposal: RepoActionProposalSummary) {
+    if (repoProposalBusy) return;
+
+    setRepoProposalBusy(true);
+    setRepoProposalStatus("");
+    try {
+      const response = await fetch("/api/repo-actions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: proposal.id, action: "inspect_repo" }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to inspect repo files.");
+      setRepoProposalStatus("Repo files inspected. Review the real file snapshot before any change.");
+      await refreshRepoProposals(selectedProjectKey);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setRepoProposalStatus(error instanceof Error ? error.message : "Failed to inspect repo files.");
+    } finally {
+      setRepoProposalBusy(false);
+    }
+  }
+
+
   async function refreshDeployHealth() {
     setDeployHealthBusy(true);
     setDeployHealthStatus("");
@@ -2520,6 +2544,14 @@ export function Chat() {
                             disabled={repoProposalBusy}
                           >
                             Draft diff
+                          </button>
+                          <button
+                            type="button"
+                            className="memory-inline-action"
+                            onClick={() => inspectRepoProposalFiles(proposal)}
+                            disabled={repoProposalBusy}
+                          >
+                            Inspect files
                           </button>
                           {(proposal.status === "proposed" || proposal.status === "draft") && (
                           <button

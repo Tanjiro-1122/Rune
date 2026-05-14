@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createRepoActionProposal,
   draftRepoActionDiff,
+  inspectRepoActionFiles,
   listRepoActionProposals,
   updateRepoActionStatus,
 } from "@/lib/repo-actions";
@@ -30,7 +31,7 @@ const CreateProposalSchema = z.object({
 
 const UpdateProposalSchema = z.object({
   id: z.string().min(1).max(120),
-  action: z.enum(["status", "draft_diff"]).default("status"),
+  action: z.enum(["status", "draft_diff", "inspect_repo"]).default("status"),
   status: z.enum(["approved", "rejected", "blocked", "cancelled"]).optional(),
   approvalNote: z.string().max(700).nullable().optional(),
 });
@@ -79,6 +80,14 @@ export async function PATCH(req: NextRequest) {
     const result = await draftRepoActionDiff({ id: parsed.data.id });
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? "Failed to draft diff." }, { status: 500 });
+    }
+    return NextResponse.json(result);
+  }
+
+  if (parsed.data.action === "inspect_repo") {
+    const result = await inspectRepoActionFiles({ id: parsed.data.id });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? "Failed to inspect repo files." }, { status: 500 });
     }
     return NextResponse.json(result);
   }

@@ -549,3 +549,27 @@ Patch 8 adds one optional metadata column. Run latest `supabase/schema.sql`, or 
 alter table jarvis_repo_action_proposals
   add column if not exists draft_metadata jsonb not null default '{}'::jsonb;
 ```
+
+
+## Real Diff Inspector
+
+Patch 9 adds a real, read-only repo file inspector to Repo Control.
+
+Use the right-side filing cabinet:
+
+```txt
+Memory button → Repo drawer → Create/select proposal → Inspect files
+```
+
+Inspection is intentionally safe:
+
+- reads current file contents from the selected GitHub repo
+- stores file status, SHA, size, and snippets in the proposal preview
+- writes a read-only inspection report into `diff_preview`
+- logs `repo_action.files_inspected` in Activity Log
+- does not edit files
+- does not commit
+- does not push
+- does not deploy
+
+This uses `GITHUB_TOKEN` or `JARVIS_GITHUB_TOKEN` server-side. No additional Supabase schema is required beyond Patch 8's `draft_metadata` column.

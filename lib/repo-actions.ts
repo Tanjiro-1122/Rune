@@ -1,3 +1,4 @@
+import { Octokit } from "@octokit/rest";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logError } from "@/lib/errors";
 import { logActionEvent } from "@/lib/action-events";
@@ -52,6 +53,32 @@ export interface RepoActionProposalRow {
 const VALID_RISKS: RepoActionRisk[] = ["low", "medium", "high"];
 const VALID_STATUSES: RepoActionStatus[] = ["draft", "proposed", "approved", "rejected", "blocked", "executed", "cancelled"];
 const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
+
+function getRepoParts(repoSlug: string) {
+  const raw = cleanText(repoSlug || DEFAULT_REPO, 180);
+  const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
+  const slug = (match?.[1] || match?.[2] || DEFAULT_REPO).replace(/\.git$/i, "");
+  const [owner, repo] = slug.split("/");
+  return { owner, repo, slug };
+}
+
+function getGitHubClient() {
+  const token = process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  return new Octokit({
+    ...(token ? { auth: token } : {}),
+    userAgent: "Jarvis-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
+  });
+}
+
+function decodeBase64Content(value: string) {
+  return Buffer.from(value.replace(/\n/g, ""), "base64").toString("utf8");
+}
+
+function snippetContent(value: string, maxChars = 1800) {
+  const cleaned = value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g, "").trim();
+  if (cleaned.length <= maxChars) return cleaned;
+  return `${cleaned.slice(0, maxChars)}\n…`;
+}
 
 function cleanText(value: unknown, maxChars = 4000) {
   const text = String(value ?? "")
@@ -305,6 +332,139 @@ export async function draftRepoActionDiff(options: { id: string }) {
     workspaceId: updated.workspace_id,
     conversationId: updated.conversation_id,
     metadata: { proposalId: updated.id, repo: updated.repo, files },
+  });
+
+  return { ok: true, proposal: updated };
+}
+
+
+export async function inspectRepoActionFiles(options: { id: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const id = cleanText(options.id, 120);
+  if (!id) return { ok: false, error: "Proposal id is required." };
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("repoActions.inspectRepoActionFiles.fetch", fetchError);
+    return { ok: false, error: fetchError?.message ?? "Proposal not found." };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  if (["rejected", "blocked", "cancelled", "executed"].includes(proposal.status)) {
+    return { ok: false, error: `Cannot inspect repo files for a ${proposal.status} proposal.` };
+  }
+
+  const inferred = inferDraftFiles(proposal).filter((file) => !file.path.includes("<"));
+  const targets = (proposal.files?.length ? proposal.files : inferred).filter((file) => !file.path.includes("<")).slice(0, 8);
+  if (!targets.length) {
+    return { ok: false, error: "No concrete file targets found yet. Add file targets with Draft diff first or make the proposal more specific." };
+  }
+
+  const { owner, repo, slug } = getRepoParts(proposal.repo);
+  const octokit = getGitHubClient();
+  const inspections: Array<{
+    path: string;
+    operation: string;
+    status: "found" | "missing" | "error" | "skipped";
+    sha?: string;
+    size?: number;
+    snippet?: string;
+    message?: string;
+  }> = [];
+
+  let defaultBranch = "main";
+  try {
+    const repository = await octokit.repos.get({ owner, repo });
+    defaultBranch = repository.data.default_branch || "main";
+  } catch (error) {
+    logError("repoActions.inspectRepoActionFiles.repo", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to read GitHub repo." };
+  }
+
+  for (const target of targets) {
+    const operation = target.operation ?? "inspect";
+    if (operation === "create") {
+      inspections.push({ path: target.path, operation, status: "skipped", message: "Create target — no existing file expected." });
+      continue;
+    }
+
+    try {
+      const response = await octokit.repos.getContent({ owner, repo, path: target.path, ref: defaultBranch });
+      const content = response.data;
+      if (Array.isArray(content) || content.type !== "file" || !("content" in content)) {
+        inspections.push({ path: target.path, operation, status: "skipped", message: "Target is not a plain file." });
+        continue;
+      }
+      const decoded = decodeBase64Content(content.content || "");
+      inspections.push({ path: target.path, operation, status: "found", sha: content.sha, size: content.size, snippet: snippetContent(decoded) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to read file.";
+      inspections.push({ path: target.path, operation, status: message.includes("Not Found") ? "missing" : "error", message });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const lines = [
+    `# Real repo inspection — ${proposal.title}`,
+    `Repo: ${slug}`,
+    `Branch: ${defaultBranch}`,
+    `Project: ${proposal.project_key}`,
+    `Inspected: ${now}`,
+    "",
+    "This is a read-only inspection. No files were changed, no commit was created, and nothing was deployed.",
+    "",
+    "## File inspection results",
+    ...inspections.flatMap((item) => [`- ${item.status.toUpperCase()} · ${item.operation}: ${item.path}${item.sha ? ` · ${item.sha.slice(0, 7)}` : ""}${item.size ? ` · ${item.size} bytes` : ""}`, item.message ? `  - ${item.message}` : ""].filter(Boolean)),
+    "",
+    "## Current file snippets",
+    ...inspections.filter((item) => item.snippet).flatMap((item) => [`### ${item.path}`, "```", item.snippet ?? "", "```", ""]),
+    "## Next checkpoint",
+    "Jarvis can now prepare a real proposed code diff from these inspected files, but Javier must approve before any file change, commit, push, or deployment.",
+  ];
+
+  const { data, error } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .update({
+      files: targets,
+      diff_preview: lines.join("\n"),
+      draft_metadata: {
+        inspected_at: now,
+        inspect_type: "github_file_contents",
+        repo: slug,
+        branch: defaultBranch,
+        files: inspections.map((item) => ({ path: item.path, operation: item.operation, status: item.status, sha: item.sha, size: item.size, message: item.message })),
+        safety: "read_only_no_files_changed_no_commit_pushed",
+      },
+      updated_at: now,
+    })
+    .eq("id", id)
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .single();
+
+  if (error) {
+    logError("repoActions.inspectRepoActionFiles.update", error);
+    return { ok: false, error: error.message };
+  }
+
+  const updated = data as RepoActionProposalRow;
+  await logActionEvent({
+    eventType: "repo_action.files_inspected",
+    summary: `Repo files inspected: ${updated.title}`,
+    status: "proposed",
+    approvalStage: "findings",
+    riskLevel: updated.risk_level,
+    projectKey: updated.project_key,
+    sessionId: updated.session_id,
+    workspaceId: updated.workspace_id,
+    conversationId: updated.conversation_id,
+    metadata: { proposalId: updated.id, repo: slug, branch: defaultBranch, files: inspections },
   });
 
   return { ok: true, proposal: updated };
