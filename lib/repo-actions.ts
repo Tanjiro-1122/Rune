@@ -148,6 +148,99 @@ function cleanFiles(files: unknown): RepoActionFileTarget[] {
   }).filter((file) => file.path);
 }
 
+
+interface ParsedDiffFile {
+  oldPath: string;
+  newPath: string;
+  path: string;
+  operation: "create" | "update" | "delete" | "unknown";
+  additions: number;
+  deletions: number;
+}
+
+function extractDiffBody(preview: string) {
+  const fenced = preview.match(/```diff\s*([\s\S]*?)```/i) || preview.match(/```patch\s*([\s\S]*?)```/i);
+  return (fenced?.[1] || preview).trim();
+}
+
+function parseUnifiedDiff(preview: string): ParsedDiffFile[] {
+  const diff = extractDiffBody(preview);
+  const lines = diff.split(/\r?\n/);
+  const files: ParsedDiffFile[] = [];
+  let current: ParsedDiffFile | null = null;
+
+  for (const line of lines) {
+    const gitMatch = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    if (gitMatch) {
+      current = {
+        oldPath: gitMatch[1],
+        newPath: gitMatch[2],
+        path: gitMatch[2],
+        operation: "update",
+        additions: 0,
+        deletions: 0,
+      };
+      files.push(current);
+      continue;
+    }
+
+    if (!current) continue;
+    if (line.startsWith("new file mode")) current.operation = "create";
+    if (line.startsWith("deleted file mode")) current.operation = "delete";
+    if (line.startsWith("--- /dev/null")) current.operation = "create";
+    if (line.startsWith("+++ /dev/null")) current.operation = "delete";
+    if (line.startsWith("+++") && !line.startsWith("+++ /dev/null")) {
+      const nextPath = line.replace(/^\+\+\+ b\//, "").replace(/^\+\+\+ /, "").trim();
+      if (nextPath) {
+        current.newPath = nextPath;
+        current.path = nextPath;
+      }
+    }
+    if (line.startsWith("+") && !line.startsWith("+++")) current.additions += 1;
+    if (line.startsWith("-") && !line.startsWith("---")) current.deletions += 1;
+  }
+
+  return files;
+}
+
+function detectSandboxRisks(files: ParsedDiffFile[], diffBody: string) {
+  const risks: string[] = [];
+  const warnings: string[] = [];
+  const riskyPathPatterns = [
+    /^\.env/i,
+    /secret/i,
+    /credential/i,
+    /private[_-]?key/i,
+    /node_modules\//i,
+    /package-lock\.json$/i,
+    /middleware\.ts$/i,
+    /auth/i,
+    /security/i,
+    /supabase\/schema\.sql$/i,
+  ];
+  const riskyContentPatterns = [
+    /OPENAI_API_KEY\s*=/i,
+    /SUPABASE_SERVICE_ROLE_KEY\s*=/i,
+    /PRIVATE KEY/i,
+    /BEGIN RSA PRIVATE KEY/i,
+    /password\s*[:=]/i,
+    /api[_-]?key\s*[:=]/i,
+  ];
+
+  for (const file of files) {
+    if (file.operation === "delete") risks.push(`Deletes ${file.path}`);
+    if (file.additions + file.deletions > 400) warnings.push(`Large change in ${file.path}: ${file.additions + file.deletions} changed lines`);
+    if (riskyPathPatterns.some((pattern) => pattern.test(file.path))) warnings.push(`Sensitive/risky path touched: ${file.path}`);
+  }
+
+  for (const pattern of riskyContentPatterns) {
+    if (pattern.test(diffBody)) risks.push(`Potential secret-like content detected by pattern ${pattern}`);
+  }
+
+  if (!files.length) risks.push("No unified diff files could be parsed from the proposal preview.");
+  return { risks, warnings };
+}
+
 function approvalStageFor(status: RepoActionStatus) {
   if (status === "proposed" || status === "draft") return "plan";
   if (status === "approved") return "approval";
@@ -691,6 +784,158 @@ export async function generateRepoActionProposedDiff(options: { id: string }) {
   });
 
   return { ok: true, proposal: updated };
+}
+
+
+export async function sandboxCheckRepoActionDiff(options: { id: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const id = cleanText(options.id, 120);
+  if (!id) return { ok: false, error: "Proposal id is required." };
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("repoActions.sandboxCheckRepoActionDiff.fetch", fetchError);
+    return { ok: false, error: fetchError?.message ?? "Proposal not found." };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  if (["rejected", "blocked", "cancelled", "executed"].includes(proposal.status)) {
+    return { ok: false, error: `Cannot sandbox check a ${proposal.status} proposal.` };
+  }
+  if (!proposal.diff_preview || !proposal.diff_preview.includes("diff")) {
+    return { ok: false, error: "No generated diff preview found. Generate a diff before running the sandbox check." };
+  }
+
+  const diffBody = extractDiffBody(proposal.diff_preview);
+  const parsedFiles = parseUnifiedDiff(proposal.diff_preview);
+  const { risks, warnings } = detectSandboxRisks(parsedFiles, diffBody);
+  const { owner, repo, slug } = getRepoParts(proposal.repo);
+  const octokit = getGitHubClient();
+
+  let defaultBranch = "main";
+  try {
+    const repository = await octokit.repos.get({ owner, repo });
+    defaultBranch = repository.data.default_branch || "main";
+  } catch (error) {
+    logError("repoActions.sandboxCheckRepoActionDiff.repo", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to read GitHub repo." };
+  }
+
+  const fileChecks: Array<{
+    path: string;
+    operation: ParsedDiffFile["operation"];
+    status: "ok" | "missing" | "warning" | "error";
+    sha?: string;
+    message?: string;
+    additions: number;
+    deletions: number;
+  }> = [];
+
+  for (const file of parsedFiles.slice(0, 12)) {
+    if (file.operation === "create") {
+      fileChecks.push({ path: file.path, operation: file.operation, status: "ok", message: "Create operation does not require an existing file.", additions: file.additions, deletions: file.deletions });
+      continue;
+    }
+
+    try {
+      const response = await octokit.repos.getContent({ owner, repo, path: file.path, ref: defaultBranch });
+      const content = response.data;
+      if (Array.isArray(content) || content.type !== "file") {
+        fileChecks.push({ path: file.path, operation: file.operation, status: "warning", message: "Target path exists but is not a plain file.", additions: file.additions, deletions: file.deletions });
+      } else {
+        fileChecks.push({ path: file.path, operation: file.operation, status: "ok", sha: content.sha, message: "Target file exists on GitHub.", additions: file.additions, deletions: file.deletions });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to read file.";
+      fileChecks.push({ path: file.path, operation: file.operation, status: message.includes("Not Found") ? "missing" : "error", message, additions: file.additions, deletions: file.deletions });
+      risks.push(`Target file missing or unreadable: ${file.path}`);
+    }
+  }
+
+  const ready = risks.length === 0 && fileChecks.length > 0 && fileChecks.every((check) => check.status === "ok" || check.operation === "create");
+  const now = new Date().toISOString();
+  const report = [
+    `# Controlled sandbox check — ${proposal.title}`,
+    `Repo: ${slug}`,
+    `Branch: ${defaultBranch}`,
+    `Checked: ${now}`,
+    `Result: ${ready ? "READY FOR APPROVAL REVIEW" : "NEEDS REVIEW / BLOCKED"}`,
+    "",
+    "This is a dry-run safety check. No files were changed, no build was run, no commit was created, and nothing was deployed.",
+    "",
+    "## Parsed diff files",
+    ...(parsedFiles.length ? parsedFiles.map((file) => `- ${file.operation}: ${file.path} (+${file.additions}/-${file.deletions})`) : ["- No diff files parsed"]),
+    "",
+    "## GitHub target checks",
+    ...(fileChecks.length ? fileChecks.map((check) => `- ${check.status.toUpperCase()} · ${check.operation}: ${check.path}${check.sha ? ` · ${check.sha.slice(0, 7)}` : ""}${check.message ? ` — ${check.message}` : ""}`) : ["- No file checks performed"]),
+    "",
+    "## Risks",
+    ...(risks.length ? risks.map((risk) => `- ${risk}`) : ["- None detected"]),
+    "",
+    "## Warnings",
+    ...(warnings.length ? warnings.map((warning) => `- ${warning}`) : ["- None detected"]),
+    "",
+    "## Next checkpoint",
+    ready
+      ? "Javier can review and approve a future execution step. Jarvis still cannot commit/push from this checkpoint."
+      : "Resolve risks before approval or execution.",
+    "",
+    "## Proposed diff under review",
+    "```diff",
+    diffBody,
+    "```",
+  ].join("\n");
+
+  const { data, error } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .update({
+      diff_preview: report,
+      draft_metadata: {
+        ...(proposal.draft_metadata || {}),
+        sandbox_checked_at: now,
+        sandbox_type: "dry_run_diff_validation",
+        sandbox_ready: ready,
+        repo: slug,
+        branch: defaultBranch,
+        parsed_files: parsedFiles,
+        file_checks: fileChecks,
+        risks,
+        warnings,
+        safety: "dry_run_no_files_changed_no_commit_pushed",
+      },
+      updated_at: now,
+    })
+    .eq("id", id)
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .single();
+
+  if (error) {
+    logError("repoActions.sandboxCheckRepoActionDiff.update", error);
+    return { ok: false, error: error.message };
+  }
+
+  const updated = data as RepoActionProposalRow;
+  await logActionEvent({
+    eventType: "repo_action.sandbox_checked",
+    summary: `Sandbox check ${ready ? "ready" : "needs review"}: ${updated.title}`,
+    status: ready ? "info" : "blocked",
+    approvalStage: "plan",
+    riskLevel: risks.length ? "high" : warnings.length ? "medium" : updated.risk_level,
+    projectKey: updated.project_key,
+    sessionId: updated.session_id,
+    workspaceId: updated.workspace_id,
+    conversationId: updated.conversation_id,
+    metadata: { proposalId: updated.id, repo: slug, branch: defaultBranch, ready, risks, warnings, fileChecks },
+  });
+
+  return { ok: true, proposal: updated, ready, risks, warnings };
 }
 
 export async function updateRepoActionStatus(options: {

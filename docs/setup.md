@@ -602,3 +602,30 @@ Recommended env:
 OPENAI_API_KEY=...
 JARVIS_PATCH_MODEL=gpt-4o-mini
 ```
+
+
+## Controlled Execution Sandbox
+
+Patch 11 adds a dry-run sandbox checkpoint to Repo Control.
+
+Use the right-side filing cabinet:
+
+```txt
+Memory button → Repo drawer → Create/select proposal → Generate diff → Sandbox check
+```
+
+The sandbox check:
+
+- parses the generated unified diff
+- verifies target files against GitHub
+- counts additions and deletions
+- flags deletes, missing files, sensitive paths, and secret-like content
+- stores a dry-run safety report in `diff_preview`
+- logs `repo_action.sandbox_checked` in Activity Log
+- does not edit files
+- does not run builds yet
+- does not commit
+- does not push
+- does not deploy
+
+This is the final safety checkpoint before a future controlled execution path.
