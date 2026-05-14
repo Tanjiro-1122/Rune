@@ -394,6 +394,58 @@ function isSafeImageUrl(url: string): boolean {
 }
 
 const baseAgentTools = {
+  get_jarvis_capability_snapshot: tool({
+    description:
+      "Return a safe, non-secret snapshot of Jarvis owner-console capabilities, configured integrations, missing setup, and approval rules. Use this for self-assessments, capability questions, and owner-console planning.",
+    parameters: z.object({}),
+    execute: async () => {
+      const env = (key: string) => Boolean(process.env[key]?.trim());
+      const hasAny = (keys: string[]) => keys.some(env);
+      return {
+        identity: {
+          mode: "private-owner-console",
+          owner: "Javier",
+          productIntent: "Not for sale. Built as Javier's private operating system for apps, projects, customer support, and eventually sensitive owner-only services.",
+        },
+        verifiedConfiguration: {
+          openai: env("OPENAI_API_KEY"),
+          authPassword: env("APP_PASSWORD"),
+          sessionSigning: hasAny(["SESSION_SECRET", "AUTH_SECRET"]),
+          supabase: env("SUPABASE_URL") && hasAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_ANON_KEY"]),
+          serviceRolePersistence: hasAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"]),
+          ownerMemorySeed: env("JARVIS_OWNER_MEMORY"),
+          memorySeedToken: env("JARVIS_MEMORY_SEED_TOKEN"),
+          githubToken: hasAny(["JARVIS_GITHUB_TOKEN", "GITHUB_TOKEN"]),
+          vercelToken: hasAny(["JARVIS_VERCEL_TOKEN", "VERCEL_TOKEN"]),
+          tavilyWebSearch: env("TAVILY_API_KEY"),
+          runnerToken: env("JARVIS_RUNNER_TOKEN"),
+          uploadStorageBucket: process.env.JARVIS_UPLOAD_BUCKET || "jarvis-uploads",
+        },
+        builtCapabilities: {
+          memory: "Supabase-backed memory tables and owner-memory injection are supported when configured.",
+          workspaces: "Project switchboard supports Jarvis, Unfiltr, SWH, and Unfiltr Family scopes.",
+          files: "Images can be stored in private Supabase Storage with signed URLs; text/code files can be indexed into workspace context.",
+          repoControl: "Repo changes are gated through proposals, review diffs, approvals, sandbox/build checks, and optional PR flow.",
+          buildIntelligence: "GitHub and Vercel deployment signals are available when tokens/project env vars are configured.",
+          tasksAndRunner: "Background task queue and isolated runner API exist; real long-running execution requires an external runner using JARVIS_RUNNER_TOKEN.",
+          auditLog: "Significant memory, repo, runner, deploy-health, and file events are logged to jarvis_action_events when Supabase is configured.",
+        },
+        notConnectedYet: {
+          email: "No Gmail/Outlook connector is wired inside this Jarvis app yet. Customer email actions should remain draft-only until connected and approved.",
+          banking: "No Bank of America or banking connector is wired. Future banking should be read-only first, with re-auth and no transfers/payments.",
+          revenueGranting: "RevenueCat/App Store customer credit tooling is not wired yet. Granting free months needs a safe customer-entitlement integration and approval.",
+          voice: "Voice interface is not wired yet.",
+        },
+        safetyPolicy: {
+          readAllowedWithPermission: ["project context", "app logs", "build status", "customer records", "email inbox", "read-only bank balances"],
+          requiresApprovalBeforeAction: ["sending email", "granting free months/credits", "changing production code", "deploying", "opening PRs", "accessing sensitive financial data", "customer-facing messages"],
+          forbiddenWithoutNewSecurityDesign: ["bank transfers", "bill payments", "moving money", "deleting production data", "sending mass customer emails"],
+          defaultRule: "Read and diagnose with permission. Draft confidently. Act externally only after Javier approves.",
+        },
+      };
+    },
+  }),
+
   get_current_datetime: tool({
     description:
       "Get the current date and time. Use whenever the user asks about the date, time, day of the week, or needs time-aware information.",
@@ -1184,6 +1236,15 @@ ${plannerOutput.steps
   .join("\n")}
 - Follow the plan in order unless the user explicitly asks to change course.
 - Report progress in your final response against the numbered plan steps.
+
+### Private owner-console safety model
+- Jarvis is not a SaaS product for sale. Jarvis is Javier's private owner console for apps, projects, customer support, and eventually sensitive owner-only services.
+- For questions like "what can you do", "assess yourself", "how far can we take you", or "what setup is missing", call get_jarvis_capability_snapshot before answering.
+- Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
+- For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it.
+- Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
+- Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 
 ### Capability-accurate responses
 - Never prove Jarvis platform capabilities by creating fake/simulated JavaScript objects that say systems are operational. That is not a real diagnostic.
