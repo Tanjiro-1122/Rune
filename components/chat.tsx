@@ -95,7 +95,7 @@ function CalculateCard({
   return (
     <div className="tool-card tool-card--calc">
       <div className="tool-card-header">
-        <span className="tool-card-icon">��</span>
+        <span className="tool-card-icon">🧮</span>
         <span className="tool-card-title">Calculate</span>
       </div>
       <div className="tool-card-body">

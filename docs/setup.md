@@ -1,179 +1,349 @@
-# Jarvis — Setup & Deployment Guide
+# Jarvis — Setup From Zero
 
-This guide covers everything you need to get Jarvis running locally and on Vercel, including the required Supabase schema, environment variables, and post-merge manual steps.
+This guide is written for a clean Jarvis install on Vercel with Supabase persistence.
 
----
-
-## 1. Prerequisites
-
-- Node.js 18 or later
-- An [OpenAI](https://platform.openai.com/) API key
-- *(Optional)* A [Supabase](https://supabase.com) project for persistent chat history and workspaces
-- *(Optional)* A [Tavily](https://tavily.com) API key for real-time web search
+If you only want to test locally, you can skip Supabase and Jarvis will run in single-session mode. For the real Jarvis workspace experience, set up Supabase.
 
 ---
 
-## 2. Environment variables
+## What Jarvis needs
 
-Copy `.env.example` to `.env.local` and fill in the values:
+Required for the app to work:
 
-```bash
-cp .env.example .env.local
+```txt
+OPENAI_API_KEY
+APP_PASSWORD
+SESSION_SECRET
 ```
 
-### Required
+Required for saved workspaces, chat history, uploads, artifacts, tasks, and retrieval:
 
-| Variable | Description |
-|---|---|
-| `OPENAI_API_KEY` | OpenAI API key — used for chat completions and workspace retrieval embeddings |
-| `APP_PASSWORD` | Password that protects the Jarvis UI |
-| `SESSION_SECRET` | Long random string used to sign session cookies (e.g. `openssl rand -hex 32`) |
-
-### Required for persistence
-
-| Variable | Description |
-|---|---|
-| `SUPABASE_URL` | Your Supabase project URL (e.g. `https://xxxx.supabase.co`) |
-| `SUPABASE_ANON_KEY` | Your Supabase anon/public key |
-
-If these are omitted Jarvis still runs in **single local workspace** mode without persistent history, files, or artifacts.
-
-### Optional
-
-| Variable | Default | Description |
-|---|---|---|
-| `TAVILY_API_KEY` | *(unset)* | Enables real-time web search via Tavily |
-| `GITHUB_TOKEN` | *(unset)* | Raises GitHub API rate limit from 60 to 5 000 req/hr for public-repo analysis |
-| `JARVIS_CHAT_MODEL` | `gpt-4o-mini` | OpenAI model used for chat. Change without a code redeploy. |
-| `JARVIS_ALLOWED_IMAGE_HOSTS` | *(unset)* | Comma-separated list of hostnames allowed as AI vision-API image sources. Leave unset in dev; set your CDN/Supabase Storage domain in production to prevent arbitrary URLs from being forwarded to the model. |
-| `JARVIS_CODE_EXECUTION_ENABLED` | `true` | Set to `false` to disable the JS/TS sandbox entirely |
-| `JARVIS_CODE_TIMEOUT_MS` | `5000` | Sandbox snippet timeout (ms) |
-| `JARVIS_CODE_MAX_SOURCE_LENGTH` | `10000` | Maximum snippet source length (chars) |
-| `JARVIS_CODE_MAX_OUTPUT_CHARS` | `12000` | Maximum sandbox output (chars) |
-| `JARVIS_CODE_MAX_ARTIFACTS` | `5` | Maximum artifacts per execution |
-| `JARVIS_CODE_MAX_ARTIFACT_BYTES` | `24000` | Maximum bytes per artifact |
-| `JARVIS_CODE_MEMORY_LIMIT_MB` | `64` | Sandbox worker memory limit (MB) |
-| `JARVIS_CODE_MAX_WORKER_RETRIES` | `1` | Retry count for sandbox worker startup failures (clamped 0–2) |
-| `JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE` | `20` | Per-session chat burst limit (clamped 5–300). See the rate-limiting note below. |
-
-> **`AUTH_SECRET`** is a legacy alias for `SESSION_SECRET` and is still accepted for backward compatibility.
-
----
-
-## 3. Supabase schema
-
-Jarvis uses Supabase for persistent workspaces, conversations, messages, documents, artifacts, and tasks. The complete schema is in [`supabase/schema.sql`](../supabase/schema.sql).
-
-### Running the migration
-
-1. Open your Supabase project dashboard.
-2. Go to **SQL Editor → New query**.
-3. Paste the entire contents of `supabase/schema.sql` and click **Run**.
-
-The SQL is safe to re-run on an existing Jarvis installation:
-
-- All `CREATE TABLE` statements use `IF NOT EXISTS`.
-- Existing `conversations` and `messages` rows are preserved.
-- Legacy conversations are backfilled into a **General workspace** if they are not already linked to one.
-- Existing workspaces are backfilled into `workspace_memberships` as `owner`.
-
-### Tables created
-
-| Table | Purpose |
-|---|---|
-| `conversations` | Core chat thread record per session |
-| `messages` | Individual messages in a conversation |
-| `workspaces` | Project containers per browser session |
-| `conversation_workspaces` | Maps each conversation into a workspace; stores `title` and activity timestamps |
-| `workspace_documents` | Indexed uploaded text/code files and artifact content summaries |
-| `workspace_chunks` | Retrieval chunks for semantic/lexical search |
-| `workspace_artifacts` | Persisted generated artifacts with download content |
-| `workspace_memberships` | Role-based workspace access (`viewer` / `editor` / `owner`) |
-| `workspace_events` | Operational lifecycle log for chat/workspace activity |
-| `workspace_project_files` | Normalized project-level file map linking uploads/artifacts/documents |
-| `workspace_tasks` | Persisted execution tasks with progress and status for resumable flows |
-| `workspace_task_steps` | Planner/executor step state for each task |
-
-### Key columns
-
-- `conversation_workspaces.title` — display title for a conversation in the workspace sidebar; populated on save and backfilled to `'Imported chat'` for legacy rows.
-
-### Row Level Security (recommended for production)
-
-The app uses the **anon key** for all Supabase operations. In a shared deployment you should enable Row Level Security (RLS) on every table so that one session cannot read another session's data. Example policy for `workspaces`:
-
-```sql
--- Enable RLS
-alter table workspaces enable row level security;
-
--- Each session can only see workspaces it owns
-create policy "workspace owner access"
-  on workspaces
-  for all
-  using (session_id = current_setting('request.jwt.claims', true)::json->>'sub');
+```txt
+SUPABASE_URL
+SUPABASE_ANON_KEY
 ```
 
-Adapt the `session_id` condition to match how you pass the session identifier (header, JWT claim, or API parameter) depending on your auth model.
+Optional but recommended:
 
----
-
-## 4. Local development
-
-```bash
-# Install dependencies
-npm install
-
-# Start the dev server
-npm run dev
+```txt
+TAVILY_API_KEY
+GITHUB_TOKEN
+JARVIS_CODE_EXECUTION_ENABLED=true
+JARVIS_CHAT_MODEL=gpt-4o-mini
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and sign in with `APP_PASSWORD`.
+Important: do **not** use `NEXT_PUBLIC_` for Supabase keys in this app. Jarvis uses Supabase from server routes only.
 
-To validate the build locally:
+---
 
-```bash
-npm run build
+## 1. Create the Supabase project
+
+1. Go to `https://supabase.com`.
+2. Sign in.
+3. Click **New project**.
+4. Use:
+
+```txt
+Project name: Jarvis
+Database password: create a strong password and save it
+Region: closest to you
+```
+
+5. Click **Create new project**.
+6. Wait for Supabase to finish provisioning.
+
+---
+
+## 2. Get your Supabase API values
+
+In Supabase, open your Jarvis project.
+
+Go to:
+
+```txt
+Project Settings → API
+```
+
+Copy these two values:
+
+```txt
+Project URL
+anon public key
+```
+
+You will put them in Vercel as:
+
+```txt
+SUPABASE_URL=your_project_url
+SUPABASE_ANON_KEY=your_anon_public_key
+```
+
+The anon key is okay here because it stays server-side in Vercel. Do not expose it in browser/client variables.
+
+---
+
+## 3. Run the Jarvis database schema
+
+In Supabase, go to:
+
+```txt
+SQL Editor → New query
+```
+
+Open this repo file:
+
+```txt
+supabase/schema.sql
+```
+
+Copy the entire file.
+
+Paste it into Supabase SQL Editor.
+
+Click **Run**.
+
+The SQL is safe to run again later because it uses `create table if not exists` and safe backfill logic.
+
+---
+
+## 4. Confirm the tables exist
+
+After the SQL runs, go to:
+
+```txt
+Table Editor
+```
+
+You should see these tables:
+
+```txt
+conversations
+messages
+workspaces
+conversation_workspaces
+workspace_memberships
+workspace_documents
+workspace_chunks
+workspace_artifacts
+workspace_events
+workspace_project_files
+workspace_tasks
+workspace_task_steps
+```
+
+If you do not see these tables, the SQL did not run correctly.
+
+---
+
+## 5. Add Vercel environment variables
+
+In Vercel, open the Jarvis project.
+
+Go to:
+
+```txt
+Settings → Environment Variables
+```
+
+Add these required values:
+
+```txt
+OPENAI_API_KEY=your_openai_api_key
+APP_PASSWORD=the_private_password_you_want_to_use_to_login_to_jarvis
+SESSION_SECRET=a_long_random_secret_at_least_40_characters
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_public_key
+```
+
+For `SESSION_SECRET`, use a long random string. Example format:
+
+```txt
+jarvis_2026_super_long_random_secret_change_this_9f3a7b2c
+```
+
+Do not use that exact example in production. Make your own.
+
+Recommended optional values:
+
+```txt
+TAVILY_API_KEY=your_tavily_key
+GITHUB_TOKEN=your_github_token
+JARVIS_CODE_EXECUTION_ENABLED=true
+JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE=20
+JARVIS_CHAT_MODEL=gpt-4o-mini
+```
+
+Optional image security setting for production:
+
+```txt
+JARVIS_ALLOWED_IMAGE_HOSTS=your-cdn.com,your-project.supabase.co
+```
+
+Leave it blank during early testing if needed.
+
+---
+
+## 6. Deploy again
+
+After adding environment variables, redeploy Jarvis in Vercel.
+
+Use:
+
+```txt
+Vercel → Deployments → Redeploy
+```
+
+or push a new commit to GitHub.
+
+---
+
+## 7. First login test
+
+Open your deployed Jarvis URL.
+
+You should land at:
+
+```txt
+/login
+```
+
+Enter the password you set in:
+
+```txt
+APP_PASSWORD
+```
+
+If login fails, check:
+
+```txt
+APP_PASSWORD
+SESSION_SECRET
+```
+
+If the app opens without login in production, something is wrong. Production Jarvis requires `SESSION_SECRET` now.
+
+---
+
+## 8. Persistence test
+
+After logging in:
+
+1. Create a workspace.
+2. Send a message.
+3. Upload a small text file.
+4. Refresh the page.
+5. Confirm the workspace and chat are still there.
+
+If the workspace disappears after refresh, check:
+
+```txt
+SUPABASE_URL
+SUPABASE_ANON_KEY
+supabase/schema.sql was fully run
 ```
 
 ---
 
-## 5. Deploying to Vercel
+## 9. Web search test
 
-1. **Import** the repository into Vercel.
-2. In **Settings → Environment Variables**, add all variables from the table above. At minimum:
-   - `OPENAI_API_KEY`
-   - `APP_PASSWORD`
-   - `SESSION_SECRET` (`openssl rand -hex 32` gives a good value)
-   - `SUPABASE_URL` and `SUPABASE_ANON_KEY`
-3. Set **Framework Preset** to `Next.js` (auto-detected).
-4. Ensure the **Node.js runtime** is selected (not Edge).
-5. **Run the Supabase SQL** (step 3 above) before your first production deploy so the workspace tables exist.
-6. Deploy.
+Ask Jarvis:
 
-> **`maxDuration`** in `app/api/chat/route.ts` is set to `60` seconds for multi-step agent work. This requires **Vercel Pro** or higher. The Hobby plan has a lower serverless function timeout; complex multi-step requests may time out on Hobby. Check the [Vercel pricing page](https://vercel.com/pricing) for the current limit for your plan.
+```txt
+Search the web for today's AI news and summarize it.
+```
+
+If `TAVILY_API_KEY` is missing, Jarvis should explain that web search is not configured.
 
 ---
 
-## 6. Rate limiting — important production note
+## 10. GitHub analysis test
 
-The built-in per-session rate limiter (`JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE`) stores counters in **in-process memory**. On Vercel, each serverless cold start or new instance resets the counter independently, so the limit can be bypassed by routing requests to different instances.
+Ask:
 
-**Recommended production mitigations:**
+```txt
+Analyze this repo: Tanjiro-1122/Jarvis
+```
 
-- Enable Vercel's built-in **Edge Rate Limiting** or a WAF rule at the CDN layer.
-- Replace the in-process `chatRateWindow` Map in `app/api/chat/route.ts` with an external atomic store such as [Upstash Redis](https://upstash.com) or Vercel KV. The rate-limiter block is intentionally isolated in the source file to make this upgrade straightforward.
+Without `GITHUB_TOKEN`, public repo analysis still works but is rate-limited by GitHub.
+
+With `GITHUB_TOKEN`, the limit is much higher.
 
 ---
 
-## 7. Post-merge manual actions
+## 11. Code execution test
 
-After merging this PR the following steps still require **manual action** in your external services — they cannot be applied by a code change alone:
+Ask:
 
-| # | Action | Where |
-|---|---|---|
-| 1 | Run `supabase/schema.sql` in the SQL Editor | Supabase project |
-| 2 | Set `OPENAI_API_KEY`, `APP_PASSWORD`, `SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Vercel → Settings → Environment Variables |
-| 3 | *(Optional)* Set `JARVIS_CHAT_MODEL` to override the chat model | Vercel env vars |
-| 4 | *(Optional)* Set `JARVIS_ALLOWED_IMAGE_HOSTS` to a comma-separated list of trusted image domains | Vercel env vars |
-| 5 | *(Recommended for production)* Enable Row Level Security on Supabase tables | Supabase project |
-| 6 | *(Recommended for production)* Add a CDN/WAF-level rate-limiting rule or migrate the in-process limiter to Upstash Redis / Vercel KV | Vercel / Upstash |
+```txt
+Run JavaScript to calculate the compound growth of $100 at 7% for 10 years.
+```
+
+If code execution is disabled, check:
+
+```txt
+JARVIS_CODE_EXECUTION_ENABLED=true
+```
+
+Jarvis only runs sandboxed JavaScript/TypeScript snippets. It is not a full Linux terminal yet.
+
+---
+
+## 12. Troubleshooting
+
+Problem: app says Supabase persistence is not configured.
+
+Check:
+
+```txt
+SUPABASE_URL
+SUPABASE_ANON_KEY
+```
+
+Problem: app says workspace tables are missing.
+
+Fix:
+
+```txt
+Run supabase/schema.sql in Supabase SQL Editor
+```
+
+Problem: login page works locally but not Vercel.
+
+Check:
+
+```txt
+APP_PASSWORD
+SESSION_SECRET
+```
+
+Problem: OpenAI calls fail.
+
+Check:
+
+```txt
+OPENAI_API_KEY
+OpenAI billing/usage limits
+```
+
+Problem: long tasks timeout.
+
+Jarvis currently sets the chat route max duration to 60 seconds. Some Vercel plans/runtime settings may limit this. If long tasks fail, shorten the request or upgrade the hosting/runtime setup.
+
+---
+
+## Production notes
+
+Jarvis is now safer for production than local prototypes:
+
+- Production requires `SESSION_SECRET`.
+- The app is password-gated.
+- Supabase is accessed server-side.
+- Chat has per-session rate limiting.
+- Sandbox execution has size/time/output limits.
+
+Future hardening to consider:
+
+- Supabase service-role server key instead of anon key for server-only DB access.
+- Real user accounts instead of a single shared password.
+- pgvector embeddings instead of JSONB embeddings.
+- A true background worker queue for long autonomous tasks.

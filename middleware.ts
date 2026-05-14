@@ -19,13 +19,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If SESSION_SECRET is not configured the app runs in open/local mode —
-  // authentication is not enforced, so all routes are passed through.
-  // This lets the local single-session workspace flow work without requiring
-  // APP_PASSWORD + SESSION_SECRET to be set.
+  // Local development can run open for quick setup. Production must never run
+  // without a signed session secret, otherwise the workspace would be exposed.
   const secret = getSessionSecret();
   if (!secret) {
-    return NextResponse.next();
+    if (process.env.NODE_ENV !== "production") {
+      return NextResponse.next();
+    }
+
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Jarvis authentication is not configured. Set SESSION_SECRET." },
+        { status: 503 }
+      );
+    }
+
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("setup", "missing-session-secret");
+    return NextResponse.redirect(loginUrl);
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
