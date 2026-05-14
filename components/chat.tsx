@@ -1303,6 +1303,30 @@ export function Chat() {
   }
 
 
+  async function trackRepoProposalPr(proposal: RepoActionProposalSummary) {
+    if (repoProposalBusy) return;
+
+    setRepoProposalBusy(true);
+    setRepoProposalStatus("");
+    try {
+      const response = await fetch("/api/repo-actions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: proposal.id, action: "track_pr" }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; overallReady?: boolean; prUrl?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to track pull request.");
+      setRepoProposalStatus(payload.overallReady ? "PR tracked: ready for human review." : "PR tracked: waiting or needs review.");
+      await refreshRepoProposals(selectedProjectKey);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setRepoProposalStatus(error instanceof Error ? error.message : "Failed to track pull request.");
+    } finally {
+      setRepoProposalBusy(false);
+    }
+  }
+
+
   async function refreshDeployHealth() {
     setDeployHealthBusy(true);
     setDeployHealthStatus("");
@@ -2686,6 +2710,14 @@ export function Chat() {
                             disabled={repoProposalBusy || proposal.status !== "approved"}
                           >
                             Open PR
+                          </button>
+                          <button
+                            type="button"
+                            className="memory-inline-action"
+                            onClick={() => trackRepoProposalPr(proposal)}
+                            disabled={repoProposalBusy || !proposal.draft_metadata?.pr_url}
+                          >
+                            Track PR
                           </button>
                           {(proposal.status === "proposed" || proposal.status === "draft") && (
                           <button

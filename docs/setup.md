@@ -698,3 +698,34 @@ Required env:
 GITHUB_TOKEN=... # or JARVIS_GITHUB_TOKEN
 JARVIS_ALLOWED_REPOS=Tanjiro-1122/Jarvis
 ```
+
+
+## PR Status and Vercel Preview Tracking
+
+Patch 14 adds a tracking-only follow-up after Jarvis opens a pull request.
+
+Use the right-side filing cabinet:
+
+```txt
+Memory button → Repo drawer → Proposal with PR → Track PR
+```
+
+The tracker:
+
+- reads PR metadata from `draft_metadata`
+- fetches PR state, mergeability, branch, and head SHA from GitHub
+- fetches GitHub check runs and commit statuses
+- optionally fetches the latest Vercel deployment for the PR branch
+- stores the status report in `diff_preview`
+- logs `repo_action.pr_tracked` in Activity Log
+- does not change branches
+- does not merge
+- does not deploy
+
+Optional Vercel env:
+
+```txt
+JARVIS_VERCEL_TOKEN=...
+JARVIS_VERCEL_PROJECT_ID=...
+JARVIS_VERCEL_TEAM_ID=... # only if needed
+```

@@ -244,6 +244,75 @@ function makeRepoActionBranchName(proposal: RepoActionProposalRow) {
   return `jarvis/${proposal.project_key}/${date}-${slugifyBranchPart(proposal.title)}-${shortId}`;
 }
 
+
+function isoFromUnknownTimestamp(value: unknown) {
+  if (typeof value === "number") return new Date(value < 10_000_000_000 ? value * 1000 : value).toISOString();
+  if (typeof value === "string" && value) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return null;
+}
+
+async function getVercelDeploymentForBranch(branch?: string | null) {
+  const token = process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN;
+  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
+  const teamId = process.env.VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
+  if (!token) return { configured: false, error: "Vercel token not configured." };
+
+  try {
+    const params = new URLSearchParams({ limit: "10" });
+    if (project) params.set("projectId", project);
+    if (teamId) params.set("teamId", teamId);
+    if (branch) params.set("gitBranch", branch);
+
+    const response = await fetch(`https://api.vercel.com/v6/deployments?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Vercel API ${response.status}: ${text.slice(0, 180)}`);
+    }
+    const payload = (await response.json()) as {
+      deployments?: Array<{
+        uid?: string;
+        name?: string | null;
+        state?: string | null;
+        url?: string | null;
+        createdAt?: number;
+        ready?: number;
+        readyAt?: number;
+        target?: string | null;
+        meta?: Record<string, unknown>;
+      }>;
+    };
+    const deployment = payload.deployments?.[0] ?? null;
+    return {
+      configured: true,
+      project: project || null,
+      deployment: deployment ? {
+        uid: deployment.uid,
+        name: deployment.name,
+        state: deployment.state,
+        url: deployment.url ? `https://${deployment.url}` : null,
+        createdAt: isoFromUnknownTimestamp(deployment.createdAt),
+        readyAt: isoFromUnknownTimestamp(deployment.readyAt ?? deployment.ready),
+        target: deployment.target,
+        gitBranch: deployment.meta?.githubCommitRef || branch || null,
+      } : null,
+    };
+  } catch (error) {
+    logError("repoActions.getVercelDeploymentForBranch", error);
+    return { configured: true, project: project || null, error: error instanceof Error ? error.message : "Unable to inspect Vercel deployment." };
+  }
+}
+
+function summarizeCheckConclusion(value?: string | null) {
+  if (!value) return "pending";
+  return value;
+}
+
 function buildPrBody(proposal: RepoActionProposalRow, metadata: Record<string, unknown>, diffBody: string) {
   const sandboxReady = metadata.sandbox_ready === true;
   const tempReady = metadata.temp_workspace_ready === true;
@@ -1398,6 +1467,174 @@ export async function openRepoActionPullRequest(options: { id: string }) {
     });
     return { ok: false, error: error instanceof Error ? error.message : "Failed to open pull request." };
   }
+}
+
+
+export async function trackRepoActionPullRequest(options: { id: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const id = cleanText(options.id, 120);
+  if (!id) return { ok: false, error: "Proposal id is required." };
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("repoActions.trackRepoActionPullRequest.fetch", fetchError);
+    return { ok: false, error: fetchError?.message ?? "Proposal not found." };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  const metadata = proposal.draft_metadata || {};
+  const prNumber = Number(metadata.pr_number || 0);
+  const prBranch = metadata.pr_branch ? String(metadata.pr_branch) : "";
+  const prUrl = metadata.pr_url ? String(metadata.pr_url) : "";
+  if (!prNumber || !prBranch || !prUrl) {
+    return { ok: false, error: "No PR metadata found. Open a PR before tracking it." };
+  }
+
+  const { owner, repo, slug } = getRepoParts(proposal.repo);
+  const octokit = getGitHubClient();
+  let prData: Awaited<ReturnType<typeof octokit.pulls.get>>["data"];
+  let checks: Awaited<ReturnType<typeof octokit.checks.listForRef>>["data"]["check_runs"] = [];
+  let statuses: Awaited<ReturnType<typeof octokit.repos.listCommitStatusesForRef>>["data"] = [];
+
+  try {
+    const prResponse = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+    prData = prResponse.data;
+    const sha = prData.head.sha;
+    try {
+      const checkResponse = await octokit.checks.listForRef({ owner, repo, ref: sha, per_page: 20 });
+      checks = checkResponse.data.check_runs ?? [];
+    } catch (error) {
+      logError("repoActions.trackRepoActionPullRequest.checks", error);
+      checks = [];
+    }
+
+    try {
+      const statusResponse = await octokit.repos.listCommitStatusesForRef({ owner, repo, ref: sha, per_page: 20 });
+      statuses = statusResponse.data ?? [];
+    } catch (error) {
+      logError("repoActions.trackRepoActionPullRequest.statuses", error);
+      statuses = [];
+    }
+  } catch (error) {
+    logError("repoActions.trackRepoActionPullRequest.github", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to inspect pull request." };
+  }
+
+  const vercel = await getVercelDeploymentForBranch(prBranch);
+  const checkSummary = checks.map((check) => ({
+    name: check.name,
+    status: check.status,
+    conclusion: summarizeCheckConclusion(check.conclusion),
+    url: check.html_url,
+    startedAt: check.started_at,
+    completedAt: check.completed_at,
+  }));
+  const statusSummary = statuses.map((status) => ({
+    context: status.context,
+    state: status.state,
+    description: status.description,
+    url: status.target_url,
+    updatedAt: status.updated_at,
+  }));
+  const checksComplete = checks.length ? checks.every((check) => check.status === "completed") : false;
+  const checksPassed = checks.length ? checks.every((check) => ["success", "neutral", "skipped"].includes(String(check.conclusion))) : false;
+  const statusesPassed = statuses.length ? statuses.every((status) => status.state === "success") : true;
+  const vercelDeployment = "deployment" in vercel ? vercel.deployment : null;
+  const vercelReady = vercelDeployment?.state ? ["READY", "ready"].includes(vercelDeployment.state) : false;
+  const overallReady = prData.state === "open" && prData.mergeable !== false && checksPassed && statusesPassed && (!vercel.configured || vercelReady || !vercelDeployment);
+  const now = new Date().toISOString();
+
+  const report = [
+    `# PR status tracked — ${proposal.title}`,
+    `Repo: ${slug}`,
+    `PR: ${prUrl}`,
+    `Branch: ${prBranch}`,
+    `Tracked: ${now}`,
+    `Overall: ${overallReady ? "READY FOR HUMAN REVIEW" : "NEEDS REVIEW / WAITING"}`,
+    "",
+    "Jarvis inspected the pull request, GitHub checks/statuses, and optional Vercel preview deployment. No branch, merge, deployment, or repo change was made.",
+    "",
+    "## Pull request",
+    `- State: ${prData.state}`,
+    `- Draft: ${prData.draft ? "yes" : "no"}`,
+    `- Mergeable: ${String(prData.mergeable)}`,
+    `- Mergeable state: ${prData.mergeable_state ?? "unknown"}`,
+    `- Head SHA: ${prData.head.sha}`,
+    `- Updated: ${prData.updated_at}`,
+    "",
+    "## GitHub check runs",
+    ...(checkSummary.length ? checkSummary.map((check) => `- ${check.name}: ${check.status}/${check.conclusion}${check.url ? ` — ${check.url}` : ""}`) : ["- No check runs found yet."]),
+    "",
+    "## GitHub commit statuses",
+    ...(statusSummary.length ? statusSummary.map((status) => `- ${status.context}: ${status.state}${status.description ? ` — ${status.description}` : ""}${status.url ? ` — ${status.url}` : ""}`) : ["- No commit statuses found."]),
+    "",
+    "## Vercel preview",
+    vercel.configured
+      ? vercelDeployment
+        ? `- ${vercelDeployment.state ?? "unknown"}: ${vercelDeployment.url ?? "no URL yet"}`
+        : `- Configured, but no deployment found for ${prBranch} yet.`
+      : `- Optional: ${vercel.error ?? "Vercel token not configured."}`,
+    "",
+    "## Next checkpoint",
+    overallReady
+      ? "Review the PR and preview manually. Jarvis still will not merge or deploy automatically."
+      : "Wait for checks/preview or inspect failures before merging.",
+  ].join("\n");
+
+  const { data, error } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .update({
+      diff_preview: report,
+      draft_metadata: {
+        ...metadata,
+        pr_tracked_at: now,
+        pr_state: prData.state,
+        pr_draft: prData.draft,
+        pr_mergeable: prData.mergeable,
+        pr_mergeable_state: prData.mergeable_state,
+        pr_head_sha: prData.head.sha,
+        pr_checks_complete: checksComplete,
+        pr_checks_passed: checksPassed,
+        pr_statuses_passed: statusesPassed,
+        pr_overall_ready: overallReady,
+        github_checks: checkSummary,
+        github_statuses: statusSummary,
+        vercel_preview: vercel,
+        safety: "tracking_only_no_merge_no_deploy_no_repo_change",
+      },
+      updated_at: now,
+    })
+    .eq("id", id)
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .single();
+
+  if (error) {
+    logError("repoActions.trackRepoActionPullRequest.update", error);
+    return { ok: false, error: error.message };
+  }
+
+  const updated = data as RepoActionProposalRow;
+  await logActionEvent({
+    eventType: "repo_action.pr_tracked",
+    summary: `PR tracked: ${updated.title}`,
+    status: overallReady ? "info" : "proposed",
+    approvalStage: "action",
+    riskLevel: overallReady ? updated.risk_level : "medium",
+    projectKey: updated.project_key,
+    sessionId: updated.session_id,
+    workspaceId: updated.workspace_id,
+    conversationId: updated.conversation_id,
+    metadata: { proposalId: updated.id, repo: slug, prUrl, prBranch, overallReady, checksPassed, statusesPassed, vercel },
+  });
+
+  return { ok: true, proposal: updated, overallReady, prUrl, vercel };
 }
 
 export async function updateRepoActionStatus(options: {
