@@ -1406,3 +1406,369 @@ body::before {
   line-height: 1.2;
   padding: 5px 7px;
 }
+
+/* Patch 19: Jarvis Command Center UI reset
+   Final authority layer: make the workspace feel like a premium personal assistant,
+   keep tool output contained, and prevent debug cards from stretching the app. */
+html,
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.workspace-home {
+  min-height: 100vh;
+  padding: clamp(12px, 2vw, 24px);
+  overflow: hidden;
+}
+
+.workspace-app {
+  width: min(100%, 1500px) !important;
+  height: calc(100vh - clamp(24px, 4vw, 48px)) !important;
+  min-height: 680px !important;
+  margin: 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(280px, 340px) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+}
+
+.workspace-app:not(:has(.context-sidebar)) {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 980px) !important;
+  justify-content: center !important;
+}
+
+.workspace-sidebar,
+.chat-panel,
+.context-sidebar,
+.context-panel,
+.messages,
+.message,
+.message-content,
+.markdown-body,
+.tool-card,
+.tool-card-body,
+.artifact-preview-card,
+.document-card {
+  min-width: 0 !important;
+}
+
+.workspace-sidebar {
+  padding: 14px !important;
+  gap: 13px !important;
+  background: linear-gradient(180deg, rgba(8, 13, 28, 0.8), rgba(4, 8, 18, 0.78)) !important;
+}
+
+.workspace-brand-mark {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 15px !important;
+}
+
+.workspace-brand-title {
+  font-size: 15px !important;
+  letter-spacing: -0.03em !important;
+}
+
+.workspace-brand-subtitle,
+.side-section-copy,
+.workspace-list-item-description,
+.conversation-list-meta,
+.document-meta,
+.artifact-meta {
+  font-size: 11px !important;
+}
+
+.workspace-create-form {
+  gap: 8px !important;
+}
+
+.workspace-field {
+  min-height: 0 !important;
+  padding: 10px 12px !important;
+  border-radius: 13px !important;
+  font-size: 12px !important;
+}
+
+.workspace-create-button,
+.secondary-button,
+.logout-button,
+.attach-button,
+.send-button {
+  min-height: 34px !important;
+  border-radius: 12px !important;
+  padding: 8px 11px !important;
+  font-size: 11px !important;
+}
+
+.workspace-list-item,
+.conversation-list-item,
+.document-card,
+.saved-artifact-item,
+.artifact-preview-card,
+.context-panel-section {
+  border-radius: 16px !important;
+  padding: 12px !important;
+}
+
+.chat-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background:
+    radial-gradient(circle at 50% -12%, rgba(125, 211, 252, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(8, 13, 28, 0.86), rgba(3, 7, 17, 0.84)) !important;
+}
+
+.chat-header {
+  padding: 14px 18px 10px !important;
+  flex-wrap: wrap !important;
+}
+
+.chat-header-title {
+  font-size: clamp(18px, 2vw, 24px) !important;
+  letter-spacing: -0.045em !important;
+}
+
+.workspace-summary-bar {
+  padding: 0 18px 12px !important;
+  gap: 6px !important;
+  overflow-x: auto !important;
+  flex-wrap: nowrap !important;
+}
+
+.summary-chip,
+.status-badge {
+  white-space: nowrap !important;
+  font-size: 10px !important;
+  padding: 6px 9px !important;
+}
+
+.messages {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: clamp(18px, 3vw, 34px) !important;
+  gap: 18px !important;
+  align-items: stretch !important;
+  scrollbar-gutter: stable both-edges;
+}
+
+.empty-state {
+  max-width: 760px !important;
+  margin: auto !important;
+  text-align: center !important;
+}
+
+.message {
+  width: fit-content !important;
+  max-width: min(760px, 88%) !important;
+  overflow: hidden !important;
+  border-radius: 24px !important;
+}
+
+.message.assistant {
+  align-self: flex-start !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(8, 13, 28, 0.92)) !important;
+}
+
+.message.user {
+  align-self: flex-end !important;
+}
+
+.message-content,
+.markdown-body {
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+.markdown-body pre,
+.tool-code-block,
+.execution-output {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 360px !important;
+  overflow: auto !important;
+  white-space: pre !important;
+  scrollbar-width: thin !important;
+}
+
+.tool-card {
+  width: min(100%, 720px) !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  margin: 10px 0 !important;
+  padding: 12px !important;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(168, 85, 247, 0.07)) !important;
+}
+
+.tool-card-body {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  flex-wrap: wrap !important;
+}
+
+.tool-card-title,
+.tool-expr,
+.github-tree,
+.search-result-snippet,
+.document-summary,
+.artifact-card-header span:first-child,
+.document-card-header span:first-child {
+  overflow-wrap: anywhere !important;
+}
+
+.execution-result-grid,
+.artifact-list,
+.github-meta,
+.github-topics {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.input-form {
+  margin: 0 16px 16px !important;
+  border: 1px solid rgba(177, 196, 255, 0.14) !important;
+  border-radius: 22px !important;
+  padding: 8px !important;
+  grid-template-columns: auto minmax(0, 1fr) auto auto !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+
+.chat-input {
+  min-height: 38px !important;
+  max-height: 140px !important;
+  resize: none !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 10px 8px !important;
+}
+
+.context-sidebar {
+  width: 100% !important;
+  max-width: 340px !important;
+  overflow: hidden auto !important;
+  background: linear-gradient(180deg, rgba(8, 13, 28, 0.82), rgba(4, 8, 18, 0.76)) !important;
+}
+
+.context-panel {
+  gap: 12px !important;
+  padding: 12px !important;
+}
+
+.filing-cabinet-drawers {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 8px !important;
+}
+
+.filing-cabinet-tab {
+  padding: 8px !important;
+}
+
+.filing-cabinet-tab small {
+  display: none !important;
+}
+
+@media (max-width: 1240px) {
+  .workspace-app,
+  .workspace-app:not(:has(.context-sidebar)) {
+    height: auto !important;
+    min-height: calc(100vh - 24px) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow: visible !important;
+  }
+
+  .workspace-sidebar {
+    max-height: 260px !important;
+    overflow: auto !important;
+  }
+
+  .context-sidebar {
+    max-width: none !important;
+    max-height: 520px !important;
+  }
+
+  body {
+    overflow-y: auto !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-home { padding: 0 !important; }
+  .workspace-app { gap: 0 !important; }
+  .workspace-sidebar,
+  .chat-panel,
+  .context-sidebar {
+    border-radius: 0 !important;
+  }
+  .message { max-width: 94% !important; }
+  .input-form {
+    margin: 0 10px 10px !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+  .input-form .send-button:first-of-type {
+    display: none !important;
+  }
+}
+
+/* Patch 19 hero polish */
+.empty-state--workspace {
+  width: min(100%, 860px) !important;
+  min-height: auto !important;
+  padding: clamp(34px, 6vw, 72px) clamp(18px, 4vw, 48px) !important;
+  margin: auto !important;
+  border: 1px solid rgba(177, 196, 255, 0.12) !important;
+  border-radius: 34px !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.42), rgba(2, 6, 23, 0.18)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.055), 0 28px 80px rgba(0,0,0,0.22) !important;
+}
+
+.empty-state--workspace h2::before {
+  content: "Saving Grace is online";
+  display: block;
+  width: fit-content;
+  margin: 0 auto 14px;
+  padding: 7px 11px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.07);
+  color: rgba(186, 230, 253, 0.9);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.capability-pills {
+  gap: 7px !important;
+  max-width: 680px !important;
+}
+
+.pill {
+  border: 1px solid rgba(177, 196, 255, 0.12) !important;
+  background: rgba(255,255,255,0.045) !important;
+  color: rgba(226, 234, 255, 0.75) !important;
+}
+
+.starter-actions {
+  width: min(640px, 100%) !important;
+  margin-top: 12px !important;
+}
+
+.starter-button {
+  min-height: 72px !important;
+  border-radius: 22px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,0.074), rgba(125,211,252,0.035)) !important;
+}
