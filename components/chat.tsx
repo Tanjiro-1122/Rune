@@ -915,6 +915,22 @@ export function Chat() {
     }
   }
 
+  function stageAssistantMessageAsMemory(content: string) {
+    const cleaned = content.replace(/\s+/g, " ").trim();
+    if (!cleaned) return;
+    const firstSentence = cleaned.match(/^(.{24,110}?[.!?])\s/)?.[1] ?? cleaned.slice(0, 90);
+    const title = firstSentence.length > 110 ? `${firstSentence.slice(0, 107)}…` : firstSentence;
+
+    setMemoryKind("note");
+    setMemoryTitle(title || "Saved Jarvis insight");
+    setMemoryContent(cleaned.slice(0, 4000));
+    setMemoryStatus("Review, edit, then save this memory.");
+    setShowInfoSidebar(true);
+    window.setTimeout(() => {
+      document.querySelector(".memory-save-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }
+
   async function loadConversation(
     activeSessionId: string,
     nextWorkspaceId: string | null,
@@ -1619,13 +1635,30 @@ export function Chat() {
               </div>
             </div>
           ) : (
-            messages.map((message) => (
+            messages.map((message) => {
+              const messageText = (message.parts ?? [])
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map((part) => part.text)
+                .join("\n\n") || message.content || "";
+
+              return (
               <div
                 key={message.id}
                 className={`message ${message.role === "user" ? "user" : "assistant"}`}
               >
-                <div className="message-role">
-                  {message.role === "user" ? "You" : "Jarvis"}
+                <div className="message-role-row">
+                  <div className="message-role">
+                    {message.role === "user" ? "You" : "Jarvis"}
+                  </div>
+                  {message.role === "assistant" && messageText.trim() && (
+                    <button
+                      type="button"
+                      className="remember-message-button"
+                      onClick={() => stageAssistantMessageAsMemory(messageText)}
+                    >
+                      Remember
+                    </button>
+                  )}
                 </div>
                 <div className="message-content">
                   {message.parts.map((part, index) => {
@@ -1688,7 +1721,8 @@ export function Chat() {
                     </div>
                   )}
               </div>
-            ))
+              );
+            })
           )}
 
           {showTypingIndicator && (

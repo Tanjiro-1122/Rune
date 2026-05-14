@@ -828,3 +828,47 @@ body::before {
   color: #ffffff !important;
   background: #2563eb !important;
 }
+
+/* Subtle assistant-message memory action */
+.message-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.message-role-row .message-role {
+  margin-bottom: 0;
+}
+
+.remember-message-button {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.52);
+  color: rgba(226, 234, 255, 0.68);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition: opacity 160ms ease, border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.message.assistant:hover .remember-message-button,
+.remember-message-button:focus-visible {
+  opacity: 1;
+}
+
+.remember-message-button:hover {
+  color: #ffffff;
+  border-color: rgba(125, 211, 252, 0.42);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+@media (max-width: 760px) {
+  .remember-message-button {
+    opacity: 1;
+  }
+}
