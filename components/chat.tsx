@@ -325,6 +325,37 @@ interface WorkspaceTaskSummary {
   steps: WorkspaceTaskStepSummary[];
 }
 
+interface AgentMemorySummary {
+  id: string;
+  kind: "identity" | "owner" | "project" | "rule" | "workflow" | "decision" | "safety" | "note";
+  title: string;
+  content: string;
+  project_key: string | null;
+  tags: string[] | null;
+  priority: number;
+  source: string | null;
+  updated_at: string;
+}
+
+const PROJECT_MEMORY_OPTIONS = [
+  { key: "global", label: "General" },
+  { key: "unfiltr", label: "Unfiltr" },
+  { key: "swh", label: "SWH" },
+  { key: "jarvis", label: "Jarvis" },
+];
+
+function dedupeMessages<T extends { id?: string; role?: string; content?: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    const key = item.id || `${item.role ?? "unknown"}:${(item.content ?? "").trim()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
 function formatTimestamp(value: string) {
   try {
     return new Date(value).toLocaleString([], {
@@ -742,6 +773,14 @@ export function Chat() {
   const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
   const [showInfoSidebar, setShowInfoSidebar] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
+  const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
+  const [memoryProjectKey, setMemoryProjectKey] = useState("global");
+  const [memorySearch, setMemorySearch] = useState("");
+  const [memoryTitle, setMemoryTitle] = useState("");
+  const [memoryContent, setMemoryContent] = useState("");
+  const [memoryKind, setMemoryKind] = useState<AgentMemorySummary["kind"]>("note");
+  const [memoryStatus, setMemoryStatus] = useState("");
+  const [memoryBusy, setMemoryBusy] = useState(false);
 
   const {
     messages,
@@ -832,6 +871,50 @@ export function Chat() {
     setTasks(payload.tasks ?? []);
   }
 
+  async function refreshMemories(nextProjectKey = memoryProjectKey, nextQuery = memorySearch) {
+    const search = new URLSearchParams();
+    if (nextProjectKey && nextProjectKey !== "global") search.set("projectKey", nextProjectKey);
+    if (nextQuery.trim()) search.set("query", nextQuery.trim());
+
+    const response = await fetch(`/api/memory?${search.toString()}`);
+    if (!response.ok) return;
+    const payload = (await response.json()) as { memories?: AgentMemorySummary[] };
+    setMemories(payload.memories ?? []);
+  }
+
+  async function handleSaveMemory(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!memoryTitle.trim() || !memoryContent.trim() || memoryBusy) return;
+
+    setMemoryBusy(true);
+    setMemoryStatus("");
+    try {
+      const response = await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: memoryKind,
+          title: memoryTitle.trim(),
+          content: memoryContent.trim(),
+          project_key: memoryProjectKey,
+          tags: [memoryProjectKey, "manual"].filter(Boolean),
+          priority: memoryKind === "rule" || memoryKind === "safety" ? 9 : 6,
+          source: "jarvis_ui",
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to save memory.");
+      setMemoryTitle("");
+      setMemoryContent("");
+      setMemoryStatus("Memory saved.");
+      await refreshMemories(memoryProjectKey, memorySearch);
+    } catch (error) {
+      setMemoryStatus(error instanceof Error ? error.message : "Failed to save memory.");
+    } finally {
+      setMemoryBusy(false);
+    }
+  }
+
   async function loadConversation(
     activeSessionId: string,
     nextWorkspaceId: string | null,
@@ -859,7 +942,7 @@ export function Chat() {
 
       setConversationId(payload.conversationId ?? nextConversationId);
       setMessages(
-        (payload.messages ?? []).map((message) => ({
+        dedupeMessages(payload.messages ?? []).map((message) => ({
           id: message.id,
           role: message.role as "user" | "assistant",
           content: message.content,
@@ -1029,6 +1112,15 @@ export function Chat() {
 
     return () => window.clearInterval(interval);
   }, [sessionId, workspaceId, conversationId, tasks, status]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void refreshMemories(memoryProjectKey, memorySearch);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memoryProjectKey, memorySearch]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -1440,7 +1532,7 @@ export function Chat() {
               aria-expanded={showInfoSidebar}
               onClick={() => setShowInfoSidebar((prev) => !prev)}
             >
-              {showInfoSidebar ? "Hide Help Panels ➔" : "📊 Show Info Panels"}
+              {showInfoSidebar ? "Hide Panel" : "Memory"}
             </button>
             <button className="logout-button" onClick={handleLogout}>
               Sign out
@@ -1692,6 +1784,97 @@ export function Chat() {
       {showInfoSidebar && (
         <aside className="context-sidebar">
           <div className="context-panel">
+            <div className="context-panel-section memory-panel-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Memory core</div>
+                  <p className="side-section-copy">
+                    View and save enduring project facts, rules, and decisions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="memory-project-tabs" aria-label="Memory project filter">
+                {PROJECT_MEMORY_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={`memory-tab ${memoryProjectKey === option.key ? "memory-tab--active" : ""}`}
+                    onClick={() => setMemoryProjectKey(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                className="workspace-field memory-search"
+                value={memorySearch}
+                onChange={(e) => setMemorySearch(e.target.value)}
+                placeholder="Search memories…"
+              />
+
+              <form className="memory-save-form" onSubmit={handleSaveMemory}>
+                <div className="memory-form-row">
+                  <select
+                    className="workspace-field memory-kind-select"
+                    value={memoryKind}
+                    onChange={(e) => setMemoryKind(e.target.value as AgentMemorySummary["kind"])}
+                    aria-label="Memory type"
+                  >
+                    <option value="note">Note</option>
+                    <option value="project">Project</option>
+                    <option value="rule">Rule</option>
+                    <option value="workflow">Workflow</option>
+                    <option value="decision">Decision</option>
+                    <option value="safety">Safety</option>
+                  </select>
+                  <input
+                    className="workspace-field"
+                    value={memoryTitle}
+                    onChange={(e) => setMemoryTitle(e.target.value)}
+                    placeholder="Memory title"
+                  />
+                </div>
+                <textarea
+                  className="workspace-field workspace-field--multiline"
+                  value={memoryContent}
+                  onChange={(e) => setMemoryContent(e.target.value)}
+                  placeholder="What should Jarvis remember?"
+                  rows={3}
+                />
+                <button
+                  type="submit"
+                  className="workspace-create-button"
+                  disabled={memoryBusy || !memoryTitle.trim() || !memoryContent.trim()}
+                >
+                  {memoryBusy ? "Saving…" : "Save memory"}
+                </button>
+                {memoryStatus && <p className="memory-status">{memoryStatus}</p>}
+              </form>
+
+              {memories.length ? (
+                <div className="memory-list">
+                  {memories.slice(0, 8).map((memory) => (
+                    <article key={memory.id} className="memory-card">
+                      <div className="memory-card-header">
+                        <span>{memory.title}</span>
+                        <span className="document-kind-pill">{memory.kind}</span>
+                      </div>
+                      <p>{memory.content}</p>
+                      <div className="document-meta">
+                        {memory.project_key ?? "global"} · priority {memory.priority} · {formatTimestamp(memory.updated_at)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="context-empty">
+                  No matching memories yet. Save one here, or ask Jarvis to remember an important decision.
+                </div>
+              )}
+            </div>
+
             <div className="context-panel-section">
               <div className="context-panel-header">
                 <div>

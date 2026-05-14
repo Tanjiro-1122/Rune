@@ -721,3 +721,93 @@ body::before {
   .input-form { grid-template-columns: 44px minmax(0, 1fr) !important; }
   .send-button { grid-column: 1 / -1; width: 100%; }
 }
+
+/* Jarvis memory cockpit */
+.memory-panel-section {
+  gap: 12px !important;
+}
+
+.memory-project-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.memory-tab {
+  border: 1px solid rgba(180, 200, 255, 0.12);
+  background: rgba(15, 23, 42, 0.48);
+  color: rgba(226, 234, 255, 0.72);
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.memory-tab--active {
+  color: white;
+  border-color: rgba(125, 211, 252, 0.45);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(139, 92, 246, 0.18));
+}
+
+.memory-search {
+  min-height: 38px !important;
+}
+
+.memory-save-form {
+  display: grid;
+  gap: 8px;
+}
+
+.memory-form-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.memory-kind-select {
+  appearance: none;
+}
+
+.memory-status {
+  margin: 0;
+  color: rgba(186, 230, 253, 0.9);
+  font-size: 12px;
+}
+
+.memory-list {
+  display: grid;
+  gap: 9px;
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.memory-card {
+  border: 1px solid rgba(180, 200, 255, 0.12);
+  background: rgba(8, 14, 28, 0.52);
+  border-radius: 16px;
+  padding: 11px;
+}
+
+.memory-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  color: #f8fbff;
+  font-weight: 750;
+  font-size: 13px;
+}
+
+.memory-card p {
+  margin: 7px 0 8px;
+  color: rgba(226, 234, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .memory-form-row {
+    grid-template-columns: 1fr;
+  }
+}
