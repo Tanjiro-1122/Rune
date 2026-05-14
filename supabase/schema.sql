@@ -215,3 +215,27 @@ create index if not exists jarvis_security_events_event_type_created_at_idx
   on jarvis_security_events(event_type, created_at desc);
 create index if not exists jarvis_security_events_outcome_created_at_idx
   on jarvis_security_events(outcome, created_at desc);
+
+create table if not exists jarvis_action_events (
+  id             uuid primary key default gen_random_uuid(),
+  event_type     text not null,
+  summary        text not null,
+  status         text not null default 'info' check (status in ('proposed', 'approved', 'executed', 'blocked', 'failed', 'info')),
+  approval_stage text not null default 'none' check (approval_stage in ('none', 'findings', 'plan', 'approval', 'action', 'complete')),
+  risk_level     text not null default 'low' check (risk_level in ('low', 'medium', 'high')),
+  project_key    text not null default 'global',
+  session_id     text,
+  workspace_id   uuid,
+  conversation_id uuid,
+  metadata       jsonb not null default '{}'::jsonb,
+  created_at     timestamptz default now()
+);
+
+create index if not exists jarvis_action_events_created_at_idx
+  on jarvis_action_events(created_at desc);
+create index if not exists jarvis_action_events_project_created_at_idx
+  on jarvis_action_events(project_key, created_at desc);
+create index if not exists jarvis_action_events_type_created_at_idx
+  on jarvis_action_events(event_type, created_at desc);
+create index if not exists jarvis_action_events_status_created_at_idx
+  on jarvis_action_events(status, created_at desc);

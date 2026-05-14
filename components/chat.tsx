@@ -337,6 +337,17 @@ interface AgentMemorySummary {
   updated_at: string;
 }
 
+interface ActionEventSummary {
+  id: string;
+  event_type: string;
+  summary: string;
+  status: "proposed" | "approved" | "executed" | "blocked" | "failed" | "info";
+  approval_stage: "none" | "findings" | "plan" | "approval" | "action" | "complete";
+  risk_level: "low" | "medium" | "high";
+  project_key: string;
+  created_at: string;
+}
+
 const PROJECT_MEMORY_OPTIONS = [
   { key: "global", label: "General" },
   { key: "unfiltr", label: "Unfiltr" },
@@ -782,6 +793,8 @@ export function Chat() {
   const [memoryStatus, setMemoryStatus] = useState("");
   const [memoryBusy, setMemoryBusy] = useState(false);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [actionEvents, setActionEvents] = useState<ActionEventSummary[]>([]);
+  const [actionLogStatus, setActionLogStatus] = useState("");
 
   const {
     messages,
@@ -883,6 +896,20 @@ export function Chat() {
     setMemories(payload.memories ?? []);
   }
 
+
+  async function refreshActionEvents(nextProjectKey = memoryProjectKey) {
+    const search = new URLSearchParams();
+    if (nextProjectKey && nextProjectKey !== "global") search.set("projectKey", nextProjectKey);
+    const response = await fetch(`/api/actions?${search.toString()}`);
+    if (!response.ok) {
+      setActionLogStatus("Activity log unavailable. Run the latest Supabase schema if this persists.");
+      return;
+    }
+    const payload = (await response.json()) as { events?: ActionEventSummary[] };
+    setActionEvents(payload.events ?? []);
+    setActionLogStatus("");
+  }
+
   async function handleSaveMemory(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!memoryTitle.trim() || !memoryContent.trim() || memoryBusy) return;
@@ -919,6 +946,7 @@ export function Chat() {
       setEditingMemoryId(null);
       setMemoryStatus(editingMemoryId ? "Memory updated." : "Memory saved.");
       await refreshMemories(memoryProjectKey, memorySearch);
+      await refreshActionEvents(memoryProjectKey);
     } catch (error) {
       setMemoryStatus(error instanceof Error ? error.message : "Failed to save memory.");
     } finally {
@@ -964,6 +992,7 @@ export function Chat() {
       if (editingMemoryId === memory.id) cancelMemoryEdit();
       setMemoryStatus("Memory archived.");
       await refreshMemories(memoryProjectKey, memorySearch);
+      await refreshActionEvents(memoryProjectKey);
     } catch (error) {
       setMemoryStatus(error instanceof Error ? error.message : "Failed to archive memory.");
     } finally {
@@ -1194,6 +1223,12 @@ export function Chat() {
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoryProjectKey, memorySearch]);
+
+
+  useEffect(() => {
+    void refreshActionEvents(memoryProjectKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memoryProjectKey]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -1993,6 +2028,57 @@ export function Chat() {
               ) : (
                 <div className="context-empty">
                   No matching memories yet. Save one here, or ask Jarvis to remember an important decision.
+                </div>
+              )}
+            </div>
+
+            <div className="context-panel-section action-log-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Activity log</div>
+                  <p className="side-section-copy">
+                    A lightweight audit trail for meaningful Jarvis actions.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="memory-inline-action"
+                  onClick={() => refreshActionEvents(memoryProjectKey)}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="approval-flow-card">
+                <span>Findings</span>
+                <span>Plan</span>
+                <span>Approval</span>
+                <span>Action</span>
+              </div>
+              {actionLogStatus && <p className="memory-status">{actionLogStatus}</p>}
+              {actionEvents.length ? (
+                <div className="action-event-list">
+                  {actionEvents.slice(0, 12).map((event) => (
+                    <article key={event.id} className="action-event-card">
+                      <div className="action-event-header">
+                        <span>{event.summary}</span>
+                        <span className={`action-status-pill action-status-pill--${event.status}`}>
+                          {event.status}
+                        </span>
+                      </div>
+                      <div className="memory-meta-row">
+                        <span>{event.project_key}</span>
+                        <span>{event.event_type}</span>
+                        <span>{event.approval_stage}</span>
+                        <span>{event.risk_level} risk</span>
+                        <span>{formatTimestamp(event.created_at)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="context-empty">
+                  Activity appears here after Jarvis saves, edits, archives, proposes, or executes important actions.
                 </div>
               )}
             </div>

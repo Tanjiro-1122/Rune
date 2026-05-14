@@ -7,6 +7,7 @@ import {
   updateMemory,
   upsertMemory,
 } from "@/lib/memory";
+import { logActionEvent } from "@/lib/action-events";
 
 export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get("query") ?? undefined;
@@ -54,13 +55,41 @@ export async function POST(req: NextRequest) {
   const memories = await listActiveMemories({ projectKey, limit: 120 });
   const duplicate = findMemoryDuplicate(parsed.data, memories);
   if (duplicate) {
+    await logActionEvent({
+      eventType: "memory.duplicate_blocked",
+      summary: `Duplicate memory blocked: ${parsed.data.title}`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "low",
+      projectKey,
+      metadata: { duplicateId: duplicate.id, duplicateTitle: duplicate.title, kind: parsed.data.kind ?? "note" },
+    });
     return NextResponse.json({ error: "A similar active memory already exists.", duplicate }, { status: 409 });
   }
 
   const result = await upsertMemory(parsed.data);
   if (!result.ok) {
+    await logActionEvent({
+      eventType: "memory.save_failed",
+      summary: `Memory save failed: ${parsed.data.title}`,
+      status: "failed",
+      approvalStage: "action",
+      riskLevel: "low",
+      projectKey,
+      metadata: { error: result.error, kind: parsed.data.kind ?? "note" },
+    });
     return NextResponse.json({ error: result.error ?? "Failed to save memory." }, { status: 500 });
   }
+
+  await logActionEvent({
+    eventType: "memory.saved",
+    summary: `Memory saved: ${parsed.data.title}`,
+    status: "executed",
+    approvalStage: "complete",
+    riskLevel: parsed.data.kind === "safety" || parsed.data.kind === "rule" ? "medium" : "low",
+    projectKey,
+    metadata: { memoryId: result.memory?.id, kind: parsed.data.kind ?? "note", source: parsed.data.source ?? "manual" },
+  });
 
   return NextResponse.json(result, { status: 201 });
 }
@@ -73,8 +102,24 @@ export async function PATCH(req: NextRequest) {
   if (archiveParsed.success) {
     const result = await archiveMemory(archiveParsed.data.id);
     if (!result.ok) {
+      await logActionEvent({
+        eventType: "memory.archive_failed",
+        summary: `Memory archive failed: ${archiveParsed.data.id}`,
+        status: "failed",
+        approvalStage: "action",
+        riskLevel: "low",
+        metadata: { memoryId: archiveParsed.data.id, error: result.error },
+      });
       return NextResponse.json({ error: result.error ?? "Failed to archive memory." }, { status: 500 });
     }
+    await logActionEvent({
+      eventType: "memory.archived",
+      summary: `Memory archived: ${result.memory?.title ?? archiveParsed.data.id}`,
+      status: "executed",
+      approvalStage: "complete",
+      riskLevel: "low",
+      metadata: { memoryId: archiveParsed.data.id },
+    });
     return NextResponse.json(result);
   }
 
@@ -87,13 +132,41 @@ export async function PATCH(req: NextRequest) {
   const memories = await listActiveMemories({ projectKey, limit: 120 });
   const duplicate = findMemoryDuplicate(parsed.data, memories, parsed.data.id);
   if (duplicate) {
+    await logActionEvent({
+      eventType: "memory.update_duplicate_blocked",
+      summary: `Duplicate memory update blocked: ${parsed.data.title}`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "low",
+      projectKey,
+      metadata: { memoryId: parsed.data.id, duplicateId: duplicate.id, duplicateTitle: duplicate.title, kind: parsed.data.kind ?? "note" },
+    });
     return NextResponse.json({ error: "A similar active memory already exists.", duplicate }, { status: 409 });
   }
 
   const result = await updateMemory(parsed.data);
   if (!result.ok) {
+    await logActionEvent({
+      eventType: "memory.update_failed",
+      summary: `Memory update failed: ${parsed.data.title}`,
+      status: "failed",
+      approvalStage: "action",
+      riskLevel: "low",
+      projectKey,
+      metadata: { memoryId: parsed.data.id, error: result.error, kind: parsed.data.kind ?? "note" },
+    });
     return NextResponse.json({ error: result.error ?? "Failed to update memory." }, { status: 500 });
   }
+
+  await logActionEvent({
+    eventType: "memory.updated",
+    summary: `Memory updated: ${parsed.data.title}`,
+    status: "executed",
+    approvalStage: "complete",
+    riskLevel: parsed.data.kind === "safety" || parsed.data.kind === "rule" ? "medium" : "low",
+    projectKey,
+    metadata: { memoryId: parsed.data.id, kind: parsed.data.kind ?? "note", source: parsed.data.source ?? "manual" },
+  });
 
   return NextResponse.json(result);
 }
