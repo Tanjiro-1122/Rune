@@ -842,12 +842,20 @@ export async function POST(req: Request) {
       })
       .passthrough();
 
+    const OptionalUuidSchema = z
+      .union([z.string().uuid(), z.null()])
+      .optional()
+      .transform((value) => value ?? undefined);
+
     const ChatBodySchema = z.object({
       messages: z.array(MessageSchema).min(1),
-      sessionId: z.string().min(1).max(MAX_SESSION_ID_LENGTH).optional(),
-      conversationId: z.string().uuid().optional(),
-      workspaceId: z.string().uuid().optional(),
-      resumeTaskId: z.string().uuid().optional(),
+      sessionId: z
+        .union([z.string().min(1).max(MAX_SESSION_ID_LENGTH), z.null()])
+        .optional()
+        .transform((value) => value ?? undefined),
+      conversationId: OptionalUuidSchema,
+      workspaceId: OptionalUuidSchema,
+      resumeTaskId: OptionalUuidSchema,
     });
 
     let rawBody: unknown;
@@ -863,7 +871,10 @@ export async function POST(req: Request) {
     const parsed = ChatBodySchema.safeParse(rawBody);
     if (!parsed.success) {
       return new Response(
-        JSON.stringify({ error: "Invalid request body." }),
+        JSON.stringify({
+          error: "Invalid request body.",
+          details: parsed.error.flatten().fieldErrors,
+        }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }

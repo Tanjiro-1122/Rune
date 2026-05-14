@@ -753,7 +753,12 @@ export function Chat() {
     setInput,
     error: chatError,
   } = useChat({
-    body: { sessionId, conversationId, workspaceId, resumeTaskId },
+    body: {
+      sessionId: sessionId ?? undefined,
+      conversationId: conversationId ?? undefined,
+      workspaceId: workspaceId ?? undefined,
+      resumeTaskId: resumeTaskId ?? undefined,
+    },
     onError: (error) => {
       setChatErrorMessage(
         error instanceof Error
