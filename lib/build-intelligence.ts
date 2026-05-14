@@ -53,8 +53,8 @@ export interface BuildIntelligenceSnapshot {
   vercel: VercelIntelligence;
 }
 
-function getRepoSlug() {
-  const raw = process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO;
+function getRepoSlug(repoOverride?: string | null) {
+  const raw = repoOverride || process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO;
   const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
   const slug = (match?.[1] || match?.[2] || DEFAULT_REPO).replace(/\.git$/i, "");
   const [owner, repo] = slug.split("/");
@@ -74,8 +74,8 @@ function isoFromVercelTimestamp(value: unknown) {
   return new Date(value).toISOString();
 }
 
-export async function getGitHubIntelligence(): Promise<GitHubIntelligence> {
-  const { owner, repo, slug } = getRepoSlug();
+export async function getGitHubIntelligence(repoOverride?: string | null): Promise<GitHubIntelligence> {
+  const { owner, repo, slug } = getRepoSlug(repoOverride);
   const tokenConfigured = Boolean(process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN);
   const octokit = getOctokitClient();
 
@@ -202,8 +202,8 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
   }
 }
 
-export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null } = {}): Promise<BuildIntelligenceSnapshot> {
-  const [github, vercel] = await Promise.all([getGitHubIntelligence(), getVercelIntelligence()]);
+export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null } = {}): Promise<BuildIntelligenceSnapshot> {
+  const [github, vercel] = await Promise.all([getGitHubIntelligence(options.repo), getVercelIntelligence()]);
   const snapshot = {
     generatedAt: new Date().toISOString(),
     github,

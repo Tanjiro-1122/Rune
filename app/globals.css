@@ -1219,3 +1219,81 @@ body::before {
 .deploy-health-check--error {
   border-color: rgba(251, 113, 133, 0.22);
 }
+
+/* Patch 7: project switchboard */
+.project-switchboard-section {
+  gap: 12px !important;
+}
+
+.project-switchboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.project-switchboard-card {
+  text-align: left;
+  border: 1px solid rgba(180, 200, 255, 0.11);
+  background: rgba(8, 14, 28, 0.48);
+  border-radius: 16px;
+  padding: 11px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.project-switchboard-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--project-accent) 40%, rgba(180, 200, 255, 0.18));
+}
+
+.project-switchboard-card--active {
+  border-color: color-mix(in srgb, var(--project-accent) 62%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--project-accent) 18%, rgba(8, 14, 28, 0.68)), rgba(8, 14, 28, 0.48));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--project-accent) 14%, transparent) inset;
+}
+
+.project-switchboard-card span,
+.project-switchboard-card small {
+  display: block;
+}
+
+.project-switchboard-card span {
+  color: rgba(248, 251, 255, 0.94);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.project-switchboard-card small {
+  margin-top: 4px;
+  color: rgba(226, 234, 255, 0.58);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.project-switchboard-current {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  background: rgba(56, 189, 248, 0.05);
+  border-radius: 15px;
+  padding: 10px 12px;
+}
+
+.project-switchboard-current span {
+  color: rgba(226, 234, 255, 0.48);
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-switchboard-current strong {
+  color: rgba(248, 251, 255, 0.96);
+  font-size: 13px;
+}
+
+.project-switchboard-current small {
+  color: rgba(226, 234, 255, 0.62);
+  font-size: 11px;
+  word-break: break-word;
+}

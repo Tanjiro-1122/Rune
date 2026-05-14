@@ -508,3 +508,18 @@ GET /api/deploy-health
 A health refresh also logs a low-risk `deploy_health.snapshot` event into the Activity Log.
 
 If Deploy Health says a table is missing, run the latest `supabase/schema.sql` in Supabase SQL Editor, then redeploy or refresh Jarvis.
+
+## Project switchboard
+
+Patch 7 adds a Project Switchboard to the right-side Jarvis control panel. Use the **Memory** button in the top-right of Jarvis to open the panel.
+
+The switchboard scopes controls to:
+
+- Jarvis — `Tanjiro-1122/Jarvis`
+- Unfiltr — `Tanjiro-1122/UniltrbyJavierbackup`
+- SWH — `Tanjiro-1122/swhmobile`
+- Unfiltr Family — `Tanjiro-1122/UnfiltrFamily`
+
+When you switch projects, Jarvis updates the memory project filter, repo proposals, activity-log project context, and build-intelligence repo target.
+
+This does not add a new Supabase table. It uses existing memory/action/repo proposal tables.

@@ -422,11 +422,40 @@ interface DeployHealthSnapshot {
   }>;
 }
 
+const PROJECT_SWITCHBOARD_OPTIONS = [
+  {
+    key: "jarvis",
+    label: "Jarvis",
+    subtitle: "Private AI workspace",
+    repo: "Tanjiro-1122/Jarvis",
+    accent: "#7dd3fc",
+  },
+  {
+    key: "unfiltr",
+    label: "Unfiltr",
+    subtitle: "AI companion app",
+    repo: "Tanjiro-1122/UniltrbyJavierbackup",
+    accent: "#c084fc",
+  },
+  {
+    key: "swh",
+    label: "SWH",
+    subtitle: "SportsWager Helper",
+    repo: "Tanjiro-1122/swhmobile",
+    accent: "#34d399",
+  },
+  {
+    key: "unfiltr-family",
+    label: "Unfiltr Family",
+    subtitle: "Elderly-care companion",
+    repo: "Tanjiro-1122/UnfiltrFamily",
+    accent: "#fbbf24",
+  },
+] as const;
+
 const PROJECT_MEMORY_OPTIONS = [
   { key: "global", label: "General" },
-  { key: "unfiltr", label: "Unfiltr" },
-  { key: "swh", label: "SWH" },
-  { key: "jarvis", label: "Jarvis" },
+  ...PROJECT_SWITCHBOARD_OPTIONS.map((project) => ({ key: project.key, label: project.label })),
 ];
 
 function dedupeMessages<T extends { id?: string; role?: string; content?: string }>(items: T[]): T[] {
@@ -859,7 +888,8 @@ export function Chat() {
   const [showInfoSidebar, setShowInfoSidebar] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
   const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
-  const [memoryProjectKey, setMemoryProjectKey] = useState("global");
+  const [selectedProjectKey, setSelectedProjectKey] = useState<(typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]>("jarvis");
+  const [memoryProjectKey, setMemoryProjectKey] = useState("jarvis");
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryTitle, setMemoryTitle] = useState("");
   const [memoryContent, setMemoryContent] = useState("");
@@ -917,7 +947,18 @@ export function Chat() {
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
   const selectedArtifact =
     artifacts.find((artifact) => artifact.id === artifactPreviewId) ?? artifacts[0] ?? null;
+  const selectedProject =
+    PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === selectedProjectKey) ?? PROJECT_SWITCHBOARD_OPTIONS[0];
   const canManageWorkspaces = persistenceEnabled && schemaReady;
+
+  function selectProject(projectKey: (typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]) {
+    setSelectedProjectKey(projectKey);
+    setMemoryProjectKey(projectKey);
+    setRepoProposalStatus("");
+    setActionLogStatus("");
+    setBuildIntelStatus("");
+    setDeployHealthStatus("");
+  }
 
   async function fetchWorkspaceData(
     activeSessionId: string,
@@ -996,11 +1037,12 @@ export function Chat() {
   }
 
 
-  async function refreshBuildIntelligence(nextProjectKey = "jarvis") {
+  async function refreshBuildIntelligence(nextProjectKey = selectedProjectKey) {
     setBuildIntelBusy(true);
     setBuildIntelStatus("");
     try {
-      const search = new URLSearchParams({ projectKey: nextProjectKey });
+      const projectForRequest = PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === nextProjectKey) ?? selectedProject;
+      const search = new URLSearchParams({ projectKey: nextProjectKey, repo: projectForRequest.repo });
       const response = await fetch(`/api/intelligence?${search.toString()}`);
       const payload = (await response.json().catch(() => ({}))) as BuildIntelligenceSnapshot & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Build intelligence unavailable.");
@@ -1017,7 +1059,7 @@ export function Chat() {
   }
 
 
-  async function refreshRepoProposals(nextProjectKey = "jarvis") {
+  async function refreshRepoProposals(nextProjectKey = selectedProjectKey) {
     const search = new URLSearchParams({ projectKey: nextProjectKey });
     const response = await fetch(`/api/repo-actions?${search.toString()}`);
     if (!response.ok) {
@@ -1044,8 +1086,8 @@ export function Chat() {
           summary: repoProposalSummary.trim(),
           findings: "Proposal created from Jarvis Repo Control. Full findings should be added by Jarvis before execution.",
           plan: "Review the proposal, confirm scope and risk, then approve only if Javier explicitly agrees.",
-          projectKey: "jarvis",
-          repo: buildIntel?.github?.repo ?? "Tanjiro-1122/Jarvis",
+          projectKey: selectedProject.key,
+          repo: selectedProject.repo,
           riskLevel: "medium",
           files: [],
           diffPreview: "No diff generated yet. This proposal is an approval checkpoint, not an executed change.",
@@ -1059,7 +1101,7 @@ export function Chat() {
       setRepoProposalTitle("");
       setRepoProposalSummary("");
       setRepoProposalStatus("Proposal created. It still requires explicit approval before any future repo execution.");
-      await refreshRepoProposals("jarvis");
+      await refreshRepoProposals(selectedProjectKey);
       await refreshActionEvents(memoryProjectKey);
     } catch (error) {
       setRepoProposalStatus(error instanceof Error ? error.message : "Failed to create repo proposal.");
@@ -1086,7 +1128,7 @@ export function Chat() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Failed to update proposal.");
       setRepoProposalStatus(`Proposal ${status}.`);
-      await refreshRepoProposals("jarvis");
+      await refreshRepoProposals(selectedProjectKey);
       await refreshActionEvents(memoryProjectKey);
     } catch (error) {
       setRepoProposalStatus(error instanceof Error ? error.message : "Failed to update proposal.");
@@ -2130,6 +2172,38 @@ export function Chat() {
       {showInfoSidebar && (
         <aside className="context-sidebar">
           <div className="context-panel">
+            <div className="context-panel-section project-switchboard-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Project switchboard</div>
+                  <p className="side-section-copy">
+                    Scope Jarvis controls to the project you are working on.
+                  </p>
+                </div>
+              </div>
+
+              <div className="project-switchboard-grid">
+                {PROJECT_SWITCHBOARD_OPTIONS.map((project) => (
+                  <button
+                    key={project.key}
+                    type="button"
+                    className={`project-switchboard-card ${selectedProjectKey === project.key ? "project-switchboard-card--active" : ""}`}
+                    onClick={() => selectProject(project.key)}
+                    style={{ "--project-accent": project.accent } as React.CSSProperties}
+                  >
+                    <span>{project.label}</span>
+                    <small>{project.subtitle}</small>
+                  </button>
+                ))}
+              </div>
+
+              <div className="project-switchboard-current">
+                <span>Active</span>
+                <strong>{selectedProject.label}</strong>
+                <small>{selectedProject.repo}</small>
+              </div>
+            </div>
+
             <div className="context-panel-section memory-panel-section">
               <div className="context-panel-header">
                 <div>
@@ -2301,13 +2375,13 @@ export function Chat() {
                 <div>
                   <div className="side-section-label">Repo control</div>
                   <p className="side-section-copy">
-                    Proposed repo actions must be reviewed and approved before execution.
+                    Proposed repo actions for {selectedProject.label} must be reviewed and approved before execution.
                   </p>
                 </div>
                 <button
                   type="button"
                   className="memory-inline-action"
-                  onClick={() => refreshRepoProposals("jarvis")}
+                  onClick={() => refreshRepoProposals(selectedProjectKey)}
                   disabled={repoProposalBusy}
                 >
                   Refresh
@@ -2402,13 +2476,13 @@ export function Chat() {
                 <div>
                   <div className="side-section-label">Build intelligence</div>
                   <p className="side-section-copy">
-                    Repo, workflow, and deployment signals for Jarvis.
+                    Repo, workflow, and deployment signals for {selectedProject.label}.
                   </p>
                 </div>
                 <button
                   type="button"
                   className="memory-inline-action"
-                  onClick={() => refreshBuildIntelligence("jarvis")}
+                  onClick={() => refreshBuildIntelligence(selectedProjectKey)}
                   disabled={buildIntelBusy}
                 >
                   {buildIntelBusy ? "Checking…" : "Refresh"}
