@@ -2341,3 +2341,118 @@ body {
     font-size: 26px !important;
   }
 }
+
+/* Patch 22: chat-first cleanup */
+.workspace-create-form {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .workspace-sidebar {
+    padding: 8px 12px !important;
+  }
+
+  .workspace-brand {
+    min-height: 42px !important;
+  }
+
+  .messages {
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom)) !important;
+    gap: 10px !important;
+  }
+
+  .message {
+    padding: 12px 14px !important;
+    min-height: 0 !important;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.18) !important;
+  }
+
+  .message.user {
+    max-width: 88% !important;
+    border-radius: 22px 22px 8px 22px !important;
+  }
+
+  .message.assistant {
+    max-width: 92% !important;
+    border-radius: 22px 22px 22px 8px !important;
+  }
+
+  .message-role-row {
+    margin-bottom: 5px !important;
+  }
+
+  .message-role {
+    font-size: 10px !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .message.user .message-role-row {
+    display: none !important;
+  }
+
+  .message.user .message-content p {
+    margin: 0 !important;
+  }
+
+  .message.assistant .remember-message-button {
+    display: none !important;
+  }
+
+  .message.assistant:hover .remember-message-button,
+  .message.assistant:focus-within .remember-message-button {
+    display: inline-flex !important;
+  }
+
+  .message-content:empty {
+    display: none !important;
+  }
+
+  .markdown-body p:first-child,
+  .markdown-body ul:first-child,
+  .markdown-body ol:first-child {
+    margin-top: 0 !important;
+  }
+
+  .markdown-body p:last-child,
+  .markdown-body ul:last-child,
+  .markdown-body ol:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .input-form {
+    grid-template-columns: 40px minmax(0, 1fr) 54px !important;
+    gap: 7px !important;
+    align-items: end !important;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .chat-input {
+    min-height: 42px !important;
+    max-height: 118px !important;
+    border-radius: 18px !important;
+    padding: 10px 4px !important;
+  }
+
+  .attach-button,
+  .send-button {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    border-radius: 18px !important;
+    grid-column: auto !important;
+  }
+
+  .input-form .send-button[type="submit"] {
+    width: 54px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+  }
+
+  .input-form .send-button[type="submit"]::after {
+    content: "↑";
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+  }
+}

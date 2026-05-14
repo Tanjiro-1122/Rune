@@ -2045,31 +2045,6 @@ export function Chat() {
             </div>
           </div>
 
-          <form className="workspace-create-form" onSubmit={handleCreateWorkspace}>
-            <input
-              value={newWorkspaceName}
-              onChange={(e) => setNewWorkspaceName(e.target.value)}
-              className="workspace-field"
-              placeholder="New workspace name"
-              disabled={!canManageWorkspaces || workspaceBusy}
-            />
-            <textarea
-              value={newWorkspaceDescription}
-              onChange={(e) => setNewWorkspaceDescription(e.target.value)}
-              className="workspace-field workspace-field--multiline"
-              placeholder="What is this project for?"
-              rows={2}
-              disabled={!canManageWorkspaces || workspaceBusy}
-            />
-            <button
-              type="submit"
-              className="workspace-create-button"
-              disabled={!canManageWorkspaces || workspaceBusy}
-            >
-              {workspaceBusy ? "Working…" : "Create workspace"}
-            </button>
-          </form>
-
           {workspaceNotice && (
             <div className="workspace-notice">
               <strong>Workspace status</strong>
@@ -2369,6 +2344,9 @@ export function Chat() {
                 .filter((part): part is { type: "text"; text: string } => part.type === "text")
                 .map((part) => part.text)
                 .join("\n\n") || message.content || "";
+              const hasToolParts = (message.parts ?? []).some((part) => part.type === "tool-invocation");
+              const hasAttachments = Boolean(message.experimental_attachments?.length);
+              if (!messageText.trim() && !hasToolParts && !hasAttachments) return null;
 
               return (
               <div
@@ -2394,6 +2372,7 @@ export function Chat() {
                     const seenToolCards = new Set<string>();
                     return message.parts.map((part, index) => {
                     if (part.type === "text") {
+                      if (!part.text.trim()) return null;
                       if (message.role === "assistant") {
                         return (
                           <div
