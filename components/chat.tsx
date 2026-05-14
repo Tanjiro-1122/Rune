@@ -781,6 +781,7 @@ export function Chat() {
   const [memoryKind, setMemoryKind] = useState<AgentMemorySummary["kind"]>("note");
   const [memoryStatus, setMemoryStatus] = useState("");
   const [memoryBusy, setMemoryBusy] = useState(false);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
 
   const {
     messages,
@@ -890,26 +891,81 @@ export function Chat() {
     setMemoryStatus("");
     try {
       const response = await fetch("/api/memory", {
-        method: "POST",
+        method: editingMemoryId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(editingMemoryId ? { id: editingMemoryId } : {}),
           kind: memoryKind,
           title: memoryTitle.trim(),
           content: memoryContent.trim(),
           project_key: memoryProjectKey,
-          tags: [memoryProjectKey, "manual"].filter(Boolean),
+          tags: [memoryProjectKey, editingMemoryId ? "edited" : "manual"].filter(Boolean),
           priority: memoryKind === "rule" || memoryKind === "safety" ? 9 : 6,
-          source: "jarvis_ui",
+          source: editingMemoryId ? "jarvis_ui_edit" : "jarvis_ui",
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Failed to save memory.");
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        duplicate?: AgentMemorySummary;
+      };
+      if (!response.ok) {
+        if (response.status === 409 && payload.duplicate) {
+          throw new Error(`Duplicate memory found: ${payload.duplicate.title}`);
+        }
+        throw new Error(payload.error ?? "Failed to save memory.");
+      }
       setMemoryTitle("");
       setMemoryContent("");
-      setMemoryStatus("Memory saved.");
+      setEditingMemoryId(null);
+      setMemoryStatus(editingMemoryId ? "Memory updated." : "Memory saved.");
       await refreshMemories(memoryProjectKey, memorySearch);
     } catch (error) {
       setMemoryStatus(error instanceof Error ? error.message : "Failed to save memory.");
+    } finally {
+      setMemoryBusy(false);
+    }
+  }
+
+  function beginEditMemory(memory: AgentMemorySummary) {
+    setEditingMemoryId(memory.id);
+    setMemoryKind(memory.kind);
+    setMemoryProjectKey(memory.project_key || "global");
+    setMemoryTitle(memory.title);
+    setMemoryContent(memory.content);
+    setMemoryStatus("Editing memory. Save to update, or cancel to discard changes.");
+    setShowInfoSidebar(true);
+    window.setTimeout(() => {
+      document.querySelector(".memory-save-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }
+
+  function cancelMemoryEdit() {
+    setEditingMemoryId(null);
+    setMemoryTitle("");
+    setMemoryContent("");
+    setMemoryKind("note");
+    setMemoryStatus("");
+  }
+
+  async function archiveExistingMemory(memory: AgentMemorySummary) {
+    const confirmed = window.confirm(`Archive this memory?\n\n${memory.title}`);
+    if (!confirmed || memoryBusy) return;
+
+    setMemoryBusy(true);
+    setMemoryStatus("");
+    try {
+      const response = await fetch("/api/memory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: memory.id, action: "archive" }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to archive memory.");
+      if (editingMemoryId === memory.id) cancelMemoryEdit();
+      setMemoryStatus("Memory archived.");
+      await refreshMemories(memoryProjectKey, memorySearch);
+    } catch (error) {
+      setMemoryStatus(error instanceof Error ? error.message : "Failed to archive memory.");
     } finally {
       setMemoryBusy(false);
     }
@@ -921,6 +977,7 @@ export function Chat() {
     const firstSentence = cleaned.match(/^(.{24,110}?[.!?])\s/)?.[1] ?? cleaned.slice(0, 90);
     const title = firstSentence.length > 110 ? `${firstSentence.slice(0, 107)}…` : firstSentence;
 
+    setEditingMemoryId(null);
     setMemoryKind("note");
     setMemoryTitle(title || "Saved Jarvis insight");
     setMemoryContent(cleaned.slice(0, 4000));
@@ -1877,13 +1934,25 @@ export function Chat() {
                   placeholder="What should Jarvis remember?"
                   rows={3}
                 />
-                <button
-                  type="submit"
-                  className="workspace-create-button"
-                  disabled={memoryBusy || !memoryTitle.trim() || !memoryContent.trim()}
-                >
-                  {memoryBusy ? "Saving…" : "Save memory"}
-                </button>
+                <div className="memory-form-actions">
+                  <button
+                    type="submit"
+                    className="workspace-create-button"
+                    disabled={memoryBusy || !memoryTitle.trim() || !memoryContent.trim()}
+                  >
+                    {memoryBusy ? "Saving…" : editingMemoryId ? "Update memory" : "Save memory"}
+                  </button>
+                  {editingMemoryId && (
+                    <button
+                      type="button"
+                      className="secondary-button memory-cancel-button"
+                      onClick={cancelMemoryEdit}
+                      disabled={memoryBusy}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
                 {memoryStatus && <p className="memory-status">{memoryStatus}</p>}
               </form>
 
@@ -1896,8 +1965,27 @@ export function Chat() {
                         <span className="document-kind-pill">{memory.kind}</span>
                       </div>
                       <p>{memory.content}</p>
-                      <div className="document-meta">
-                        {memory.project_key ?? "global"} · priority {memory.priority} · {formatTimestamp(memory.updated_at)}
+                      <div className="memory-meta-row">
+                        <span>{memory.project_key ?? "global"}</span>
+                        <span>priority {memory.priority}</span>
+                        <span>{memory.source ?? "manual"}</span>
+                        <span>{formatTimestamp(memory.updated_at)}</span>
+                      </div>
+                      <div className="memory-card-actions">
+                        <button
+                          type="button"
+                          className="memory-inline-action"
+                          onClick={() => beginEditMemory(memory)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="memory-inline-action memory-inline-action--danger"
+                          onClick={() => archiveExistingMemory(memory)}
+                        >
+                          Archive
+                        </button>
                       </div>
                     </article>
                   ))}

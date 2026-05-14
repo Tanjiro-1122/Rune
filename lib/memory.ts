@@ -21,7 +21,7 @@ export interface AgentMemoryRow {
   updated_at: string;
 }
 
-interface SeedMemoryInput {
+export interface SeedMemoryInput {
   kind?: AgentMemoryKind;
   title: string;
   content: string;
@@ -31,12 +31,25 @@ interface SeedMemoryInput {
   source?: string;
 }
 
+export interface UpdateMemoryInput extends SeedMemoryInput {
+  id: string;
+  is_active?: boolean;
+}
+
 function cleanText(value: unknown, maxChars = MAX_SEED_ITEM_CHARS) {
   const text = String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
+}
+
+function normalizeComparableText(value: unknown) {
+  return cleanText(value, MAX_SEED_ITEM_CHARS)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeKind(value: unknown): AgentMemoryKind {
@@ -163,6 +176,81 @@ export async function upsertMemory(input: SeedMemoryInput) {
   }
 
   return { ok: true, memory: data };
+}
+
+
+
+export async function updateMemory(input: UpdateMemoryInput) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const id = cleanText(input.id, 80);
+  const title = cleanText(input.title, 180);
+  const content = cleanText(input.content, MAX_SEED_ITEM_CHARS);
+  if (!id || !title || !content) return { ok: false, error: "Memory id, title, and content are required." };
+
+  const payload = {
+    kind: normalizeKind(input.kind),
+    title,
+    content,
+    project_key: input.project_key ? cleanText(input.project_key, 80) : "global",
+    tags: Array.isArray(input.tags) ? input.tags.map((tag) => cleanText(tag, 40)).filter(Boolean).slice(0, 12) : [],
+    priority: Math.min(Math.max(Math.round(Number(input.priority ?? 5)), 1), 10),
+    source: input.source ? cleanText(input.source, 80) : "manual",
+    is_active: input.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("agent_memories")
+    .update(payload)
+    .eq("id", id)
+    .select("id, title")
+    .single();
+
+  if (error) {
+    logError("memory.updateMemory", error);
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, memory: data };
+}
+
+export async function archiveMemory(id: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const cleanedId = cleanText(id, 80);
+  if (!cleanedId) return { ok: false, error: "Memory id is required." };
+
+  const { data, error } = await supabase
+    .from("agent_memories")
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq("id", cleanedId)
+    .select("id, title")
+    .single();
+
+  if (error) {
+    logError("memory.archiveMemory", error);
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, memory: data };
+}
+
+export function findMemoryDuplicate(input: SeedMemoryInput, memories: AgentMemoryRow[], excludeId?: string) {
+  const title = normalizeComparableText(input.title);
+  const content = normalizeComparableText(input.content);
+  const projectKey = input.project_key ? cleanText(input.project_key, 80) : "global";
+  if (!title || !content) return null;
+
+  return memories.find((memory) => {
+    if (excludeId && memory.id === excludeId) return false;
+    if ((memory.project_key ?? "global") !== projectKey) return false;
+    const memoryTitle = normalizeComparableText(memory.title);
+    const memoryContent = normalizeComparableText(memory.content);
+    return memoryTitle === title || memoryContent === content;
+  }) ?? null;
 }
 
 export function getSafeSavingGraceSeed(): SeedMemoryInput[] {
