@@ -481,3 +481,30 @@ This table stores:
 - approval notes and timestamps
 
 Patch 5 does **not** silently modify repositories. It creates the control and audit layer first. Future repo execution should only operate against an approved proposal and should still show Javier the exact files/diff before pushing.
+
+## Deploy health checklist
+
+Patch 6 adds a Deploy Health panel inside Jarvis. It checks setup readiness without exposing secret values.
+
+The panel verifies:
+
+- `OPENAI_API_KEY`
+- `APP_PASSWORD`
+- `SESSION_SECRET`
+- Supabase URL/key presence
+- core Supabase tables
+- memory/action/repo-control tables
+- optional owner memory seed
+- optional GitHub token
+- optional Vercel token
+- GitHub/Vercel intelligence signals
+
+Deploy Health uses:
+
+```txt
+GET /api/deploy-health
+```
+
+A health refresh also logs a low-risk `deploy_health.snapshot` event into the Activity Log.
+
+If Deploy Health says a table is missing, run the latest `supabase/schema.sql` in Supabase SQL Editor, then redeploy or refresh Jarvis.

@@ -1118,3 +1118,104 @@ body::before {
   font-size: 11px;
   line-height: 1.45;
 }
+
+/* Patch 6: deploy health */
+.deploy-health-section {
+  gap: 12px !important;
+}
+
+.deploy-health-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.48);
+  padding: 10px 12px;
+}
+
+.deploy-health-summary span {
+  color: #f8fbff;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.deploy-health-summary small {
+  color: rgba(226, 234, 255, 0.58);
+  font-size: 10px;
+}
+
+.deploy-health-summary--ok {
+  border-color: rgba(74, 222, 128, 0.22);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.deploy-health-summary--warning {
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.deploy-health-summary--error,
+.deploy-health-summary--missing {
+  border-color: rgba(251, 113, 133, 0.24);
+  background: rgba(244, 63, 94, 0.08);
+}
+
+.deploy-health-list {
+  display: grid;
+  gap: 8px;
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.deploy-health-check {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid rgba(180, 200, 255, 0.1);
+  background: rgba(8, 14, 28, 0.44);
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.deploy-health-check strong,
+.deploy-health-check span,
+.deploy-health-check em {
+  display: block;
+}
+
+.deploy-health-check strong {
+  color: rgba(248, 251, 255, 0.94);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.deploy-health-check span {
+  margin-top: 3px;
+  color: rgba(226, 234, 255, 0.62);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.deploy-health-check em {
+  color: rgba(226, 234, 255, 0.5);
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.deploy-health-check--ok {
+  border-color: rgba(74, 222, 128, 0.16);
+}
+
+.deploy-health-check--warning {
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.deploy-health-check--missing,
+.deploy-health-check--error {
+  border-color: rgba(251, 113, 133, 0.22);
+}

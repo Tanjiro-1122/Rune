@@ -410,6 +410,18 @@ interface RepoActionProposalSummary {
   executed_at: string | null;
 }
 
+interface DeployHealthSnapshot {
+  generatedAt: string;
+  overall: "ok" | "warning" | "missing" | "error";
+  checks: Array<{
+    key: string;
+    label: string;
+    status: "ok" | "warning" | "missing" | "error";
+    detail: string;
+    required: boolean;
+  }>;
+}
+
 const PROJECT_MEMORY_OPTIONS = [
   { key: "global", label: "General" },
   { key: "unfiltr", label: "Unfiltr" },
@@ -865,6 +877,9 @@ export function Chat() {
   const [repoProposalBusy, setRepoProposalBusy] = useState(false);
   const [repoProposalTitle, setRepoProposalTitle] = useState("");
   const [repoProposalSummary, setRepoProposalSummary] = useState("");
+  const [deployHealth, setDeployHealth] = useState<DeployHealthSnapshot | null>(null);
+  const [deployHealthBusy, setDeployHealthBusy] = useState(false);
+  const [deployHealthStatus, setDeployHealthStatus] = useState("");
 
   const {
     messages,
@@ -1077,6 +1092,23 @@ export function Chat() {
       setRepoProposalStatus(error instanceof Error ? error.message : "Failed to update proposal.");
     } finally {
       setRepoProposalBusy(false);
+    }
+  }
+
+
+  async function refreshDeployHealth() {
+    setDeployHealthBusy(true);
+    setDeployHealthStatus("");
+    try {
+      const response = await fetch("/api/deploy-health");
+      const payload = (await response.json().catch(() => ({}))) as DeployHealthSnapshot & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Deploy health unavailable.");
+      setDeployHealth(payload);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setDeployHealthStatus(error instanceof Error ? error.message : "Deploy health unavailable.");
+    } finally {
+      setDeployHealthBusy(false);
     }
   }
 
@@ -1409,6 +1441,12 @@ export function Chat() {
 
   useEffect(() => {
     void refreshRepoProposals("jarvis");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  useEffect(() => {
+    void refreshDeployHealth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2212,6 +2250,50 @@ export function Chat() {
                   No matching memories yet. Save one here, or ask Jarvis to remember an important decision.
                 </div>
               )}
+            </div>
+
+            <div className="context-panel-section deploy-health-section">
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">Deploy health</div>
+                  <p className="side-section-copy">
+                    Checks env, Supabase tables, and deployment readiness without exposing secrets.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="memory-inline-action"
+                  onClick={refreshDeployHealth}
+                  disabled={deployHealthBusy}
+                >
+                  {deployHealthBusy ? "Checking…" : "Refresh"}
+                </button>
+              </div>
+
+              {deployHealth ? (
+                <>
+                  <div className={`deploy-health-summary deploy-health-summary--${deployHealth.overall}`}>
+                    <span>{deployHealth.overall === "ok" ? "Ready" : deployHealth.overall === "warning" ? "Needs attention" : "Setup incomplete"}</span>
+                    <small>{formatTimestamp(deployHealth.generatedAt)}</small>
+                  </div>
+                  <div className="deploy-health-list">
+                    {deployHealth.checks.map((check) => (
+                      <article key={check.key} className={`deploy-health-check deploy-health-check--${check.status}`}>
+                        <div>
+                          <strong>{check.label}</strong>
+                          <span>{check.detail}</span>
+                        </div>
+                        <em>{check.required ? "Required" : "Optional"}</em>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="context-empty">
+                  Refresh to check Jarvis setup health.
+                </div>
+              )}
+              {deployHealthStatus && <p className="memory-status">{deployHealthStatus}</p>}
             </div>
 
             <div className="context-panel-section repo-control-section">
