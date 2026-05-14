@@ -27,3 +27,13 @@ export function getSupabaseClient(): SupabaseClient | null {
     },
   });
 }
+
+/**
+ * No-op kept for backward compatibility.
+ * Because `getSupabaseClient()` now creates a fresh client on every call there
+ * is no module-level singleton to reset. Callers that previously called this
+ * function (e.g. in tests) can continue to do so without error.
+ */
+export function resetSupabaseClient(): void {
+  // intentional no-op
+}
