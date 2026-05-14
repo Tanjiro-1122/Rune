@@ -665,3 +665,36 @@ JARVIS_ALLOWED_REPOS=Tanjiro-1122/Jarvis
 JARVIS_SANDBOX_INSTALL_TIMEOUT_MS=180000
 JARVIS_SANDBOX_BUILD_TIMEOUT_MS=180000
 ```
+
+
+## Branch and Pull Request Approval Flow
+
+Patch 13 adds an approved-only pull request path to Repo Control.
+
+Use the right-side filing cabinet:
+
+```txt
+Memory button → Repo drawer → Proposal → Temp build passed → Approve → Open PR
+```
+
+The PR flow:
+
+- requires proposal status `approved`
+- requires a passing temp workspace build
+- requires the repo to be allowlisted via `JARVIS_ALLOWED_REPOS`
+- creates a `jarvis/<project>/<date>-<title>-<id>` branch
+- applies the proposed diff to that branch
+- pushes only the new branch
+- opens a GitHub pull request against the default branch
+- stores the PR URL/branch in `draft_metadata`
+- logs `repo_action.pr_opened` in Activity Log
+- does not push to `main`
+- does not merge
+- does not deploy
+
+Required env:
+
+```txt
+GITHUB_TOKEN=... # or JARVIS_GITHUB_TOKEN
+JARVIS_ALLOWED_REPOS=Tanjiro-1122/Jarvis
+```

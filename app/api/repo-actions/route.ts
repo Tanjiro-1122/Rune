@@ -6,6 +6,7 @@ import {
   generateRepoActionProposedDiff,
   inspectRepoActionFiles,
   listRepoActionProposals,
+  openRepoActionPullRequest,
   runTemporaryWorkspaceBuildCheck,
   sandboxCheckRepoActionDiff,
   updateRepoActionStatus,
@@ -34,7 +35,7 @@ const CreateProposalSchema = z.object({
 
 const UpdateProposalSchema = z.object({
   id: z.string().min(1).max(120),
-  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check"]).default("status"),
+  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check", "open_pr"]).default("status"),
   status: z.enum(["approved", "rejected", "blocked", "cancelled"]).optional(),
   approvalNote: z.string().max(700).nullable().optional(),
 });
@@ -115,6 +116,14 @@ export async function PATCH(req: NextRequest) {
     const result = await runTemporaryWorkspaceBuildCheck({ id: parsed.data.id });
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? "Failed to run temporary workspace check." }, { status: 500 });
+    }
+    return NextResponse.json(result);
+  }
+
+  if (parsed.data.action === "open_pr") {
+    const result = await openRepoActionPullRequest({ id: parsed.data.id });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? "Failed to open pull request." }, { status: 500 });
     }
     return NextResponse.json(result);
   }

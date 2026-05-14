@@ -1277,6 +1277,32 @@ export function Chat() {
   }
 
 
+  async function openRepoProposalPr(proposal: RepoActionProposalSummary) {
+    if (repoProposalBusy) return;
+    const confirmed = window.confirm(`Open a GitHub pull request?\n\n${proposal.title}\n\nRequired: proposal approved + passing temp build. Jarvis will create a branch and PR only. It will not merge, deploy, or push to main.`);
+    if (!confirmed) return;
+
+    setRepoProposalBusy(true);
+    setRepoProposalStatus("");
+    try {
+      const response = await fetch("/api/repo-actions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: proposal.id, action: "open_pr" }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; prUrl?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to open pull request.");
+      setRepoProposalStatus(payload.prUrl ? `Pull request opened: ${payload.prUrl}` : "Pull request opened.");
+      await refreshRepoProposals(selectedProjectKey);
+      await refreshActionEvents(memoryProjectKey);
+    } catch (error) {
+      setRepoProposalStatus(error instanceof Error ? error.message : "Failed to open pull request.");
+    } finally {
+      setRepoProposalBusy(false);
+    }
+  }
+
+
   async function refreshDeployHealth() {
     setDeployHealthBusy(true);
     setDeployHealthStatus("");
@@ -2652,6 +2678,14 @@ export function Chat() {
                             disabled={repoProposalBusy}
                           >
                             Temp build
+                          </button>
+                          <button
+                            type="button"
+                            className="memory-inline-action"
+                            onClick={() => openRepoProposalPr(proposal)}
+                            disabled={repoProposalBusy || proposal.status !== "approved"}
+                          >
+                            Open PR
                           </button>
                           {(proposal.status === "proposed" || proposal.status === "draft") && (
                           <button

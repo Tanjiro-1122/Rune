@@ -227,6 +227,60 @@ function getAuthenticatedCloneUrl(slug: string) {
   return `https://github.com/${slug}.git`;
 }
 
+
+function slugifyBranchPart(value: string, maxChars = 60) {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxChars)
+    .replace(/-+$/g, "");
+  return cleaned || "repo-action";
+}
+
+function makeRepoActionBranchName(proposal: RepoActionProposalRow) {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const shortId = proposal.id.replace(/[^a-z0-9]/gi, "").slice(0, 8).toLowerCase() || "patch";
+  return `jarvis/${proposal.project_key}/${date}-${slugifyBranchPart(proposal.title)}-${shortId}`;
+}
+
+function buildPrBody(proposal: RepoActionProposalRow, metadata: Record<string, unknown>, diffBody: string) {
+  const sandboxReady = metadata.sandbox_ready === true;
+  const tempReady = metadata.temp_workspace_ready === true;
+  return [
+    "## Jarvis controlled repo action",
+    "",
+    proposal.summary,
+    "",
+    "## Safety ladder",
+    "",
+    `- Draft diff: ${metadata.draft_type ? "completed" : "not recorded"}`,
+    `- File inspection: ${metadata.inspected_at ? "completed" : "not recorded"}`,
+    `- Sandbox check: ${sandboxReady ? "passed" : "not passed"}`,
+    `- Temporary workspace build: ${tempReady ? "passed" : "not passed"}`,
+    "- Direct push to main: not used",
+    "- Auto-merge: not used",
+    "",
+    "## Findings",
+    "",
+    proposal.findings || "No findings recorded.",
+    "",
+    "## Plan",
+    "",
+    proposal.plan || "No plan recorded.",
+    "",
+    "## Approval note",
+    "",
+    proposal.approval_note || "Approved in Jarvis Repo Control.",
+    "",
+    "## Diff preview",
+    "",
+    "```diff",
+    cleanMultiline(diffBody, 10000),
+    "```",
+  ].join("\n");
+}
+
 function redactedCommandOutput(value: string, maxChars = 9000) {
   const secrets = [process.env.GITHUB_TOKEN, process.env.JARVIS_GITHUB_TOKEN, process.env.OPENAI_API_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY]
     .filter((item): item is string => Boolean(item));
@@ -1155,6 +1209,195 @@ export async function runTemporaryWorkspaceBuildCheck(options: { id: string }) {
   });
 
   return { ok: true, proposal: updated, ready, cleanupOk };
+}
+
+
+export async function openRepoActionPullRequest(options: { id: string }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const id = cleanText(options.id, 120);
+  if (!id) return { ok: false, error: "Proposal id is required." };
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("repoActions.openRepoActionPullRequest.fetch", fetchError);
+    return { ok: false, error: fetchError?.message ?? "Proposal not found." };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  const metadata = proposal.draft_metadata || {};
+  if (proposal.status !== "approved") {
+    return { ok: false, error: "Proposal must be approved before Jarvis can open a PR." };
+  }
+  if (metadata.temp_workspace_ready !== true) {
+    return { ok: false, error: "Temporary workspace build must pass before opening a PR." };
+  }
+  if (metadata.pr_url) {
+    return { ok: true, proposal, prUrl: String(metadata.pr_url), branch: String(metadata.pr_branch || "") };
+  }
+
+  const { owner, repo, slug } = getRepoParts(proposal.repo);
+  if (!isRepoAllowed(slug)) {
+    return { ok: false, error: `Repo ${slug} is not allowlisted. Set JARVIS_ALLOWED_REPOS before opening PRs.` };
+  }
+
+  const diffBody = extractDiffBody(proposal.diff_preview);
+  const parsedFiles = parseUnifiedDiff(proposal.diff_preview);
+  if (!parsedFiles.length) return { ok: false, error: "No parseable diff found for PR creation." };
+
+  const octokit = getGitHubClient();
+  let defaultBranch = "main";
+  try {
+    const repository = await octokit.repos.get({ owner, repo });
+    defaultBranch = repository.data.default_branch || "main";
+    await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+  } catch (error) {
+    logError("repoActions.openRepoActionPullRequest.baseRef", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to read GitHub base branch." };
+  }
+
+  const branch = makeRepoActionBranchName(proposal);
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "jarvis-pr-"));
+  const repoDir = path.join(tempRoot, "repo");
+  const diffPath = path.join(tempRoot, "proposal.patch");
+  const steps: Array<{ step: string; ok: boolean; code: number | null; durationMs: number; output: string }> = [];
+  let cleanupOk = false;
+
+  try {
+    await writeFile(diffPath, diffBody, "utf8");
+    const clone = await runCommand("git", ["clone", "--depth", "1", "--branch", defaultBranch, getAuthenticatedCloneUrl(slug), repoDir], tempRoot, 120000);
+    steps.push({ step: "git clone", ...clone });
+    if (!clone.ok) throw new Error("Temporary clone failed.");
+
+    const checkout = await runCommand("git", ["checkout", "-b", branch], repoDir, 30000);
+    steps.push({ step: "git checkout -b", ...checkout });
+    if (!checkout.ok) throw new Error("Branch creation failed locally.");
+
+    const applyCheck = await runCommand("git", ["apply", "--check", diffPath], repoDir, 60000);
+    steps.push({ step: "git apply --check", ...applyCheck });
+    if (!applyCheck.ok) throw new Error("Patch did not apply cleanly.");
+
+    const apply = await runCommand("git", ["apply", diffPath], repoDir, 60000);
+    steps.push({ step: "git apply", ...apply });
+    if (!apply.ok) throw new Error("Patch apply failed.");
+
+    const status = await runCommand("git", ["status", "--short"], repoDir, 30000);
+    steps.push({ step: "git status --short", ...status });
+    if (!status.output.trim()) throw new Error("Patch produced no local changes.");
+
+    const push = await runCommand("git", ["push", "origin", `HEAD:${branch}`], repoDir, 120000);
+    steps.push({ step: "git push branch", ...push });
+    if (!push.ok) throw new Error("Branch push failed.");
+
+    const pr = await octokit.pulls.create({
+      owner,
+      repo,
+      title: `Jarvis: ${proposal.title}`.slice(0, 240),
+      head: branch,
+      base: defaultBranch,
+      body: buildPrBody(proposal, metadata, diffBody),
+      maintainer_can_modify: true,
+    });
+
+    const now = new Date().toISOString();
+    const report = [
+      `# Pull request opened — ${proposal.title}`,
+      `Repo: ${slug}`,
+      `Base: ${defaultBranch}`,
+      `Branch: ${branch}`,
+      `PR: ${pr.data.html_url}`,
+      `Opened: ${now}`,
+      `Cleanup: pending`,
+      "",
+      "Jarvis created a branch and opened a pull request after approval and a passing temporary workspace build.",
+      "No merge was performed. Nothing was deployed by Jarvis.",
+      "",
+      "## PR steps",
+      ...steps.map((step) => [`### ${step.ok ? "PASS" : "FAIL"} · ${step.step}`, `Duration: ${step.durationMs}ms`, "```", step.output || "No output.", "```", ""].join("\n")),
+      "## Proposed diff",
+      "```diff",
+      diffBody,
+      "```",
+    ].join("\n");
+
+    let finalCleanupOk = false;
+    try {
+      await rm(tempRoot, { recursive: true, force: true });
+      cleanupOk = true;
+      finalCleanupOk = true;
+    } catch (error) {
+      logError("repoActions.openRepoActionPullRequest.cleanup", error);
+    }
+
+    const { data, error } = await supabase
+      .from("jarvis_repo_action_proposals")
+      .update({
+        diff_preview: report.replace("Cleanup: pending", `Cleanup: ${finalCleanupOk ? "temporary workspace removed" : "cleanup warning logged"}`),
+        draft_metadata: {
+          ...metadata,
+          pr_opened_at: now,
+          pr_url: pr.data.html_url,
+          pr_number: pr.data.number,
+          pr_branch: branch,
+          pr_base: defaultBranch,
+          pr_cleanup_ok: finalCleanupOk,
+          pr_steps: steps.map((step) => ({ step: step.step, ok: step.ok, code: step.code, durationMs: step.durationMs, output: redactedCommandOutput(step.output, 2500) })),
+          safety: "branch_and_pr_only_no_merge_no_deploy",
+        },
+        updated_at: now,
+      })
+      .eq("id", id)
+      .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+      .single();
+
+    if (error) {
+      logError("repoActions.openRepoActionPullRequest.update", error);
+      return { ok: false, error: error.message };
+    }
+
+    const updated = data as RepoActionProposalRow;
+    await logActionEvent({
+      eventType: "repo_action.pr_opened",
+      summary: `PR opened: ${updated.title}`,
+      status: "executed",
+      approvalStage: "action",
+      riskLevel: updated.risk_level,
+      projectKey: updated.project_key,
+      sessionId: updated.session_id,
+      workspaceId: updated.workspace_id,
+      conversationId: updated.conversation_id,
+      metadata: { proposalId: updated.id, repo: slug, branch, prUrl: pr.data.html_url, prNumber: pr.data.number, cleanupOk: finalCleanupOk },
+    });
+
+    return { ok: true, proposal: updated, prUrl: pr.data.html_url, branch };
+  } catch (error) {
+    try {
+      await rm(tempRoot, { recursive: true, force: true });
+      cleanupOk = true;
+    } catch (cleanupError) {
+      logError("repoActions.openRepoActionPullRequest.cleanupAfterFail", cleanupError);
+    }
+    logError("repoActions.openRepoActionPullRequest", error);
+    await logActionEvent({
+      eventType: "repo_action.pr_open_failed",
+      summary: `PR open failed: ${proposal.title}`,
+      status: "failed",
+      approvalStage: "action",
+      riskLevel: "high",
+      projectKey: proposal.project_key,
+      sessionId: proposal.session_id,
+      workspaceId: proposal.workspace_id,
+      conversationId: proposal.conversation_id,
+      metadata: { proposalId: proposal.id, repo: slug, branch, cleanupOk, steps: steps.map((step) => ({ step: step.step, ok: step.ok, code: step.code, durationMs: step.durationMs, output: redactedCommandOutput(step.output, 2500) })) },
+    });
+    return { ok: false, error: error instanceof Error ? error.message : "Failed to open pull request." };
+  }
 }
 
 export async function updateRepoActionStatus(options: {
