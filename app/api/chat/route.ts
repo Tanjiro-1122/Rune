@@ -18,6 +18,7 @@ import {
 } from "@/lib/workspaces";
 import { logError } from "@/lib/errors";
 import { getOwnerMemorySection } from "@/lib/owner-memory";
+import { buildSupabaseMemorySection } from "@/lib/memory";
 import {
   buildPlannerOutput,
   formatCodeExecutionSummary,
@@ -1112,6 +1113,10 @@ ${retrievalHits
     // deployment can switch to a newer or cheaper model without a code change.
     const CHAT_MODEL = process.env.JARVIS_CHAT_MODEL ?? "gpt-4o-mini";
     const ownerMemorySection = getOwnerMemorySection();
+    const supabaseMemorySection = await buildSupabaseMemorySection({
+      query: latestUserText,
+      projectKey: workspaceId ? "jarvis" : null,
+    });
 
     const result = streamText({
       model: openai(CHAT_MODEL),
@@ -1157,6 +1162,8 @@ ${routingHint}
 ${workspaceContextSection}
 ${ownerMemorySection ? `
 ${ownerMemorySection}` : ""}
+${supabaseMemorySection ? `
+${supabaseMemorySection}` : ""}
 
 ## Planner / Executor
 - Intent: ${plannerOutput.intent}

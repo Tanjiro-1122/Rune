@@ -357,3 +357,84 @@ Future hardening to consider:
 - Real user accounts instead of a single shared password.
 - pgvector embeddings instead of JSONB embeddings.
 - A true background worker queue for long autonomous tasks.
+
+
+---
+
+## Jarvis Memory Core
+
+Jarvis can now store long-term memory in Supabase instead of only using the static `JARVIS_OWNER_MEMORY` environment variable.
+
+### 1. Install the memory tables
+
+In Supabase, open:
+
+```txt
+SQL Editor → New query
+```
+
+Copy and run the full contents of:
+
+```txt
+supabase/memory-core.sql
+```
+
+You should see:
+
+```txt
+Jarvis Memory Core schema installed
+```
+
+Then Table Editor should show:
+
+```txt
+agent_memories
+agent_memory_events
+```
+
+### 2. Optional seed endpoint token
+
+Add this Vercel environment variable so you can safely seed memory from curl without a login cookie:
+
+```txt
+JARVIS_MEMORY_SEED_TOKEN=make_a_private_random_token
+```
+
+Seeding should include this token. Keep it private.
+
+### 3. Seed safe Saving Grace memory
+
+After deploying this code and running the SQL, seed the safe starting memory with a POST request:
+
+```bash
+curl -X POST "https://your-jarvis-domain.vercel.app/api/memory/seed?token=YOUR_TOKEN"
+```
+
+You can also send the token as a header:
+
+```bash
+curl -X POST "https://your-jarvis-domain.vercel.app/api/memory/seed" \
+  -H "x-jarvis-seed-token: YOUR_TOKEN"
+```
+
+This seeds safe memory only: Javier preferences, Unfiltr direction, repo-change approval rule, build preferences, Jarvis goal, and secret-safety rules.
+
+### 4. Inspect memory
+
+You can inspect active memories with:
+
+```txt
+https://your-jarvis-domain.vercel.app/api/memory
+```
+
+Search memory with:
+
+```txt
+https://your-jarvis-domain.vercel.app/api/memory?query=unfiltr
+```
+
+### 5. How chat uses memory
+
+Every Jarvis chat request now loads relevant active memories from Supabase and injects them server-side into the system prompt.
+
+This is the first step toward moving long-term assistant memory from Base44 into your own Supabase database.

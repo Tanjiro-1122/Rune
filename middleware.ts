@@ -19,6 +19,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow the private memory seed endpoint when a seed token is configured and
+  // supplied. This keeps curl-based setup possible without exposing the route.
+  if (pathname.startsWith("/api/memory/seed")) {
+    const seedToken = process.env.JARVIS_MEMORY_SEED_TOKEN;
+    const provided =
+      request.headers.get("x-jarvis-seed-token") ??
+      request.nextUrl.searchParams.get("token");
+    if (seedToken && provided === seedToken) {
+      return NextResponse.next();
+    }
+  }
+
   // Local development can run open for quick setup. Production must never run
   // without a signed session secret, otherwise the workspace would be exposed.
   const secret = getSessionSecret();
