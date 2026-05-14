@@ -2456,3 +2456,114 @@ body {
     line-height: 1;
   }
 }
+
+/* Patch 24: keep the chat composer pinned while only messages scroll */
+html,
+body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.workspace-home,
+.workspace-app,
+.workspace-app:not(:has(.context-sidebar)) {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+.workspace-app {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.chat-panel {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.chat-header {
+  flex: 0 0 auto !important;
+}
+
+.messages {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+}
+
+.input-form {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: 20 !important;
+}
+
+@media (max-width: 1180px) {
+  html,
+  body {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .workspace-home,
+  .workspace-app,
+  .workspace-app:not(:has(.context-sidebar)) {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .workspace-app {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .workspace-sidebar {
+    order: 2 !important;
+    flex: 0 0 auto !important;
+    max-height: 96px !important;
+    overflow: hidden !important;
+  }
+
+  .chat-panel {
+    order: 1 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .chat-header {
+    flex: 0 0 auto !important;
+  }
+
+  .messages {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding-bottom: 12px !important;
+  }
+
+  .input-form {
+    flex: 0 0 auto !important;
+    position: relative !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+}
