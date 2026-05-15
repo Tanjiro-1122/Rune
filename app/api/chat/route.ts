@@ -35,6 +35,7 @@ import {
 import {
   JARVIS_DEFAULT_REPO,
   buildProjectRegistryPromptSection,
+  inferProjectFromText,
   resolveCanonicalRepo,
   splitRepoSlug,
 } from "@/lib/project-registry";
@@ -1164,10 +1165,16 @@ ${retrievalHits
     // deployment can switch to a newer or cheaper model without a code change.
     const CHAT_MODEL = process.env.JARVIS_CHAT_MODEL ?? "gpt-4o-mini";
     const ownerMemorySection = getOwnerMemorySection();
+    const inferredMemoryProject = inferProjectFromText(latestUserText);
+    const memoryProjectKey = inferredMemoryProject?.key ?? (workspaceId ? "jarvis" : null);
     const supabaseMemorySection = await buildSupabaseMemorySection({
       query: latestUserText,
-      projectKey: workspaceId ? "jarvis" : null,
+      projectKey: memoryProjectKey,
     });
+    const memoryRoutingSection = `## Memory Routing
+- Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
+- If the request mentions a known project, prefer memories for that project plus global rules.
+- Do not use Jarvis-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
 
     const projectRegistrySection = buildProjectRegistryPromptSection();
 
@@ -1215,6 +1222,7 @@ ${routingHint}
 - For large documents the model receives the full text; use it directly without hedging about "not being able to access files"
 - Summarize, critique, explain, refactor, or answer questions about uploaded content with precision
 ${workspaceContextSection}
+${memoryRoutingSection}
 ${ownerMemorySection ? `
 ${ownerMemorySection}` : ""}
 ${supabaseMemorySection ? `
