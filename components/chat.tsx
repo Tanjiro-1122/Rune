@@ -915,6 +915,7 @@ export function Chat() {
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
   const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
   const [showInfoSidebar, setShowInfoSidebar] = useState(false);
+  const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
   const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
   const [selectedProjectKey, setSelectedProjectKey] = useState<(typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]>("jarvis");
@@ -2095,7 +2096,16 @@ export function Chat() {
 
   return (
     <div className="workspace-app">
-      <aside className="workspace-sidebar">
+      {showWorkspaceDrawer && (
+        <button
+          type="button"
+          className="drawer-backdrop workspace-drawer-backdrop"
+          aria-label="Close workspace drawer"
+          onClick={() => setShowWorkspaceDrawer(false)}
+        />
+      )}
+
+      <aside className={`workspace-sidebar ${showWorkspaceDrawer ? "workspace-sidebar--open" : ""}`}>
         <div className="workspace-sidebar-top">
           <div className="workspace-brand">
             <span className="workspace-brand-mark">J</span>
@@ -2195,13 +2205,20 @@ export function Chat() {
 
       <section className="chat-panel">
         <div className="chat-header chat-header--workspace">
+          <button
+            type="button"
+            className="native-icon-button"
+            aria-label="Open workspaces"
+            aria-expanded={showWorkspaceDrawer}
+            onClick={() => setShowWorkspaceDrawer(true)}
+          >
+            ☰
+          </button>
           <div className="chat-header-copy">
-            <span className="chat-header-title">
-              {selectedWorkspace?.name ?? "Jarvis workspace"}
-            </span>
+            <span className="chat-header-title">Jarvis</span>
             <p className="chat-header-subtitle">
-              {selectedWorkspace?.description ??
-                "Organize chats, uploaded files, and artifacts by project."}
+              {selectedWorkspace?.name ?? "Private workspace"}
+              {isLoading ? " · thinking" : ""}
             </p>
           </div>
           <div className="chat-header-right">
@@ -2216,30 +2233,25 @@ export function Chat() {
             )}
             <button
               type="button"
-              className="secondary-button"
-              aria-label={showInfoSidebar ? "Hide info panels" : "Show info panels"}
+              className="native-tool-button"
+              aria-label={showInfoSidebar ? "Hide tools" : "Open tools"}
               aria-expanded={showInfoSidebar}
               onClick={() => setShowInfoSidebar((prev) => !prev)}
             >
-              {showInfoSidebar ? "Hide Panel" : "Memory"}
+              Tools
             </button>
-            <button className="logout-button" onClick={handleLogout}>
+            <button className="logout-button native-logout-button" onClick={handleLogout}>
               Sign out
             </button>
           </div>
         </div>
 
-        <div className="workspace-summary-bar">
-          <span className="summary-chip">
-            {selectedWorkspace?.conversations.length ?? 0} chats
-          </span>
-          <span className="summary-chip">{documents.length} indexed files</span>
-          <span className="summary-chip">{projectFiles.length} project files</span>
-          <span className="summary-chip">{artifacts.length} saved artifacts</span>
-          <span className="summary-chip">{tasks.length} tasks</span>
-          <span className="summary-chip">
-            {persistenceEnabled && schemaReady ? "Persistent" : "Single-session"}
-          </span>
+        <div className="workspace-summary-bar native-status-strip" aria-label="Current workspace status">
+          <span className="summary-chip">{selectedWorkspace?.name ?? "General"}</span>
+          <span className="summary-chip">{persistenceEnabled && schemaReady ? "Synced" : "Local"}</span>
+          {tasks.some((task) => task.status === "queued" || task.status === "running") && (
+            <span className="summary-chip">Task running</span>
+          )}
         </div>
 
         <div className="messages">
@@ -2415,7 +2427,7 @@ export function Chat() {
               >
                 <div className="message-role-row">
                   <div className="message-role">
-                    {message.role === "user" ? "You" : "Jarvis"}
+                    {message.role === "user" ? "" : "Jarvis"}
                   </div>
                   {message.role === "assistant" && messageText.trim() && (
                     <button

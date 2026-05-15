@@ -2567,3 +2567,279 @@ body {
     transform: none !important;
   }
 }
+
+/* Patch 31: Native Chat Shell — chat-first framing with drawers instead of dashboard columns */
+.workspace-app {
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: 980px !important;
+  margin: 0 auto !important;
+  min-height: 100dvh !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: radial-gradient(circle at top, rgba(88, 56, 255, 0.16), transparent 38%), rgba(3, 7, 18, 0.92) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+.workspace-sidebar,
+.context-sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  z-index: 80 !important;
+  width: min(390px, 88vw) !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  background: rgba(4, 9, 23, 0.96) !important;
+  border: 1px solid rgba(148, 163, 184, 0.14) !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(28px) !important;
+  overflow-y: auto !important;
+}
+
+.workspace-sidebar {
+  left: 0 !important;
+  transform: translateX(-105%) !important;
+  transition: transform 180ms ease !important;
+}
+
+.workspace-sidebar--open {
+  transform: translateX(0) !important;
+}
+
+.context-sidebar {
+  right: 0 !important;
+  transform: translateX(105%) !important;
+  transition: transform 180ms ease !important;
+}
+
+.context-sidebar--open {
+  transform: translateX(0) !important;
+}
+
+.drawer-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 70 !important;
+  border: 0 !important;
+  padding: 0 !important;
+  background: rgba(2, 6, 23, 0.58) !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+.chat-panel {
+  min-height: 100dvh !important;
+  height: 100dvh !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+  overflow: hidden !important;
+}
+
+.chat-header--workspace {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  align-items: center !important;
+  padding: max(14px, env(safe-area-inset-top)) 16px 12px !important;
+  background: linear-gradient(180deg, rgba(4, 9, 23, 0.96), rgba(4, 9, 23, 0.72)) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
+  backdrop-filter: blur(24px) !important;
+}
+
+.native-icon-button,
+.native-tool-button {
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  color: rgba(226, 232, 240, 0.94) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22) !important;
+}
+
+.native-icon-button {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 16px !important;
+  font-size: 18px !important;
+}
+
+.native-tool-button {
+  border-radius: 999px !important;
+  padding: 9px 13px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.native-logout-button {
+  display: none !important;
+}
+
+.chat-header-copy {
+  align-items: center !important;
+  min-width: 0 !important;
+}
+
+.chat-header-title {
+  font-size: 18px !important;
+  letter-spacing: -0.045em !important;
+}
+
+.chat-header-subtitle {
+  max-width: 52vw !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+}
+
+.chat-header-right .status-badge {
+  display: none !important;
+}
+
+.native-status-strip {
+  padding: 8px 16px 4px !important;
+  border: 0 !important;
+  background: transparent !important;
+  justify-content: center !important;
+  opacity: 0.72 !important;
+}
+
+.native-status-strip .summary-chip:nth-child(n+4),
+.workspace-summary-bar:not(.native-status-strip) {
+  display: none !important;
+}
+
+.messages {
+  padding: 18px clamp(14px, 4vw, 34px) 20px !important;
+  gap: 12px !important;
+  max-width: 820px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.message {
+  max-width: min(78%, 620px) !important;
+  border-radius: 24px !important;
+  padding: 12px 15px !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18) !important;
+}
+
+.message.user {
+  margin-left: auto !important;
+  border-bottom-right-radius: 8px !important;
+  background: linear-gradient(135deg, #6d5dfc, #c842f5) !important;
+  color: white !important;
+}
+
+.message.assistant {
+  margin-right: auto !important;
+  border-bottom-left-radius: 8px !important;
+  background: rgba(15, 23, 42, 0.78) !important;
+}
+
+.message-role-row {
+  min-height: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+.message.user .message-role,
+.message.user .message-role-row {
+  display: none !important;
+}
+
+.message.assistant .message-role {
+  font-size: 10px !important;
+  opacity: 0.55 !important;
+  letter-spacing: 0.1em !important;
+}
+
+.message-content,
+.markdown-body,
+.message-content p {
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+.input-form {
+  width: calc(100% - 24px) !important;
+  max-width: 820px !important;
+  margin: 0 auto calc(10px + env(safe-area-inset-bottom)) !important;
+  border-radius: 26px !important;
+  padding: 8px !important;
+  background: rgba(5, 10, 24, 0.86) !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32) !important;
+  backdrop-filter: blur(24px) !important;
+}
+
+.chat-input {
+  min-height: 42px !important;
+  padding: 12px 10px !important;
+  font-size: 14px !important;
+}
+
+.send-button {
+  min-width: 58px !important;
+  height: 40px !important;
+  border-radius: 18px !important;
+}
+
+.command-center-home {
+  max-width: 720px !important;
+  margin: auto !important;
+  padding: 12px 0 24px !important;
+}
+
+.command-metrics-grid,
+.command-board-grid {
+  display: none !important;
+}
+
+.command-hero-card {
+  text-align: center !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 24px 12px !important;
+}
+
+.command-hero-card h2 {
+  font-size: clamp(28px, 7vw, 48px) !important;
+}
+
+.command-primary-actions {
+  max-width: 560px !important;
+  margin: 22px auto 0 !important;
+}
+
+@media (max-width: 720px) {
+  .workspace-app {
+    max-width: none !important;
+  }
+
+  .chat-header--workspace {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .native-tool-button {
+    padding: 9px 11px !important;
+  }
+
+  .message {
+    max-width: 86% !important;
+  }
+
+  .messages {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .send-button[type="button"] {
+    display: none !important;
+  }
+}
