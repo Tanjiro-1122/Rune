@@ -514,7 +514,7 @@ button:disabled {
   padding: 8px;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto auto;
-  align-items: end;
+  align-items: center;
   gap: 8px;
   border-radius: 30px;
   border: 1px solid rgba(100,116,166,0.18);
@@ -547,12 +547,15 @@ button:disabled {
 }
 
 .chat-input {
+  height: 44px;
   min-height: 44px;
-  max-height: 150px;
+  max-height: 120px;
   resize: none;
   border: 0;
   background: transparent;
-  padding: 12px 8px;
+  padding: 10px 8px;
+  line-height: 24px;
+  align-self: center;
 }
 
 .workspace-field--multiline {
@@ -1184,8 +1187,12 @@ button:disabled {
   }
 
   .chat-input {
+    height: 44px;
     min-height: 44px;
     font-size: 16px;
+    line-height: 24px;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .input-form .send-button[type="submit"] {
