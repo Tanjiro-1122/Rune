@@ -10,24 +10,22 @@
 
 ## 1. Executive status
 
-Foundation is **not 100% complete yet**.
+Foundation is **code-complete for review**, but not owner-approved as 100% yet.
 
 Current honest status:
 
 ```txt
-Foundation: about 78% complete
+Foundation: about 95% complete
 ```
 
-Why it is not 100:
+What changed after the first audit:
 
-- the memory core schema is split between `supabase/schema.sql` and `supabase/memory-core.sql`
-- Deploy Health does not check every Foundation table yet
-- `agent_memory_events` exists in SQL but is not actively used by the memory API for all memory actions
-- runner foundation exists, but an external runner is not fully installed/validated
-- Foundation has not been verified against the live Vercel/Supabase environment in one pass
-- Javier has not approved Foundation as 100% complete
+- Memory Core is now included in the canonical `supabase/schema.sql`
+- Deploy Health now checks every Foundation table
+- memory save/update/archive now writes to `agent_memory_events`
+- the remaining work is live verification plus Javier approval
 
-The good news: most of the underlying concrete is poured. The remaining Foundation work is mostly unification, verification, and closing audit gaps.
+Foundation cannot be marked 100 until the unified schema is run in Supabase, Deploy Health is checked in production, and Javier approves Foundation as complete.
 
 ---
 
@@ -56,9 +54,9 @@ Foundation includes:
 
 | Foundation requirement | Status | Evidence | Notes |
 |---|---:|---|---|
-| latest unified Supabase schema is applied successfully | ⚠️ Partial | `supabase/schema.sql`, `supabase/memory-core.sql` | Schema exists, but memory core is separate from the unified schema. Needs one canonical schema path. |
+| latest unified Supabase schema is applied successfully | ✅ Code complete / live verification needed | `supabase/schema.sql` | Memory Core is now included in the canonical schema. Javier still needs to run the latest schema in Supabase. |
 | `agent_memories` works for create/read/update/archive | ✅ Mostly complete | `lib/memory.ts`, `app/api/memory/route.ts` | Memory CRUD and archive-only behavior exist. Needs live verification in Foundation test pass. |
-| `agent_memory_events` logs memory actions | ⚠️ Partial | `supabase/memory-core.sql` | Table exists, but memory API currently relies mainly on `jarvis_action_events`. Need either wire memory events or intentionally deprecate this table. |
+| `agent_memory_events` logs memory actions | ✅ Code complete / live verification needed | `lib/memory.ts`, `supabase/schema.sql` | Memory save/update/archive now write dedicated memory events. |
 | `jarvis_action_events` logs significant actions | ✅ Complete | `lib/action-events.ts`, `app/api/actions/route.ts` | Used by memory, repo, upload, deploy health, jobs, and runner flows. |
 | `jarvis_repo_action_proposals` stores repo proposals | ✅ Complete | `lib/repo-actions.ts`, `app/api/repo-actions/route.ts`, `supabase/schema.sql` | Proposal, diff, sandbox, build rehearsal, PR metadata paths exist. |
 | workspace persistence works after reload | ⚠️ Needs live verification | `lib/workspaces.ts`, `app/api/workspaces/route.ts` | Code exists. Must be verified live after current schema is confirmed. |
@@ -69,7 +67,7 @@ Foundation includes:
 | `JARVIS_OWNER_MEMORY` or Supabase memory provides private owner context | ✅ Mostly complete | `lib/owner-memory.ts`, `lib/memory.ts`, `app/api/chat/route.ts` | Both patterns exist. Supabase memory is preferred long-term. |
 | upload endpoint stores files without oversized chat payloads | ✅ Complete | `app/api/upload/route.ts`, Patch 23 in `components/chat.tsx` | Selected images now upload first. Pasted images already uploaded first. |
 | signed URL endpoint opens private files safely | ✅ Complete | `app/api/files/signed-url/route.ts` | Generates fresh signed URLs for stored private files. |
-| deploy health reports required, optional, and missing setup clearly | ⚠️ Partial | `lib/deploy-health.ts` | Works, but table coverage is incomplete. Needs Foundation-level checks. |
+| deploy health reports required, optional, and missing setup clearly | ✅ Code complete / live verification needed | `lib/deploy-health.ts` | Deploy Health now checks every Foundation table. |
 | task queue stores and retrieves jobs | ✅ Mostly complete | `lib/tasks.ts`, `app/api/tasks/route.ts`, `app/api/jobs/route.ts` | Queue and resume flows exist. Needs live persistence verification. |
 | runner API is token-protected | ✅ Complete | `middleware.ts`, `app/api/runner/route.ts` | Requires `JARVIS_RUNNER_TOKEN` bearer token. |
 | secrets are never committed or displayed | ✅ Mostly complete | `lib/repo-actions.ts`, docs | Secret redaction and docs exist. Needs repo scan in final Foundation pass. |
@@ -126,19 +124,12 @@ Implemented:
 - duplicate blocking via title/project upsert and frontend logic
 - prompt injection of Supabase memory
 - `JARVIS_OWNER_MEMORY` fallback/seed pattern
+- dedicated `agent_memory_events` logging for save/update/archive actions
 
-Gap:
+Status:
 
-- `agent_memory_events` is present in SQL but is not consistently used by the memory API.
-
-Decision needed:
-
-```txt
-Option A: wire memory API to log to agent_memory_events and keep it as the canonical memory event trail.
-Option B: intentionally deprecate agent_memory_events and use jarvis_action_events as the single audit trail.
-```
-
-Recommendation: choose **Option A** for Foundation clarity because the blueprint specifically names `agent_memory_events`.
+- Memory Core is code-complete for Foundation review.
+- Live verification still needs to confirm `agent_memory_events` receives rows in production after the latest schema is applied.
 
 ---
 
@@ -210,129 +201,40 @@ Recommendation: keep external runner activation in Systems. For Foundation, veri
 
 ---
 
-## 5. Required fixes before Foundation can be 100
+## 5. Required live verification before Foundation can be 100
 
-### Fix 1 — unify the Supabase schema path
+The Foundation code path is now ready for live verification.
 
-Problem:
-
-`supabase/schema.sql` does not include `agent_memories` or `agent_memory_events`. They exist in `supabase/memory-core.sql`.
-
-Why it matters:
-
-The blueprint says to use the unified schema repair script. A split schema means future repairs can miss memory tables.
-
-Required action:
-
-- merge Memory Core SQL into `supabase/schema.sql`, or
-- clearly make `supabase/schema.sql` include the memory core block as part of the canonical full install.
-
-Recommended next patch:
+Javier must run the latest canonical schema:
 
 ```txt
-Patch 27 — Foundation Schema Unification
+supabase/schema.sql
 ```
 
----
+Then verify these in the deployed Jarvis app:
 
-### Fix 2 — expand Deploy Health foundation checks
+- [ ] login gate works
+- [ ] Deploy Health shows no missing required Foundation tables
+- [ ] memory create/read/update/archive works
+- [ ] `agent_memory_events` receives save/update/archive rows
+- [ ] `jarvis_action_events` receives action rows
+- [ ] workspace persists after reload
+- [ ] conversation persists after reload
+- [ ] image upload creates a storage object and a project file row
+- [ ] signed URL opens a private stored file
+- [ ] task queue creates/retrieves/resumes a task
+- [ ] runner route rejects missing/wrong token
+- [ ] runner route accepts valid bearer token when `JARVIS_RUNNER_TOKEN` is configured
+- [ ] repo proposal can be created and listed
+- [ ] repo secret scan confirms no secrets committed
 
-Problem:
+After this live pass, Javier can approve Foundation as 100% complete.
 
-Deploy Health currently checks only:
-
-- `conversations`
-- `agent_memories`
-- `jarvis_security_events`
-- `jarvis_action_events`
-- `jarvis_repo_action_proposals`
-
-It does not check all required Foundation tables.
-
-Required action:
-
-Deploy Health should check:
-
-- conversations
-- messages
-- workspaces
-- conversation_workspaces
-- workspace_memberships
-- workspace_documents
-- workspace_chunks
-- workspace_artifacts
-- workspace_events
-- workspace_project_files
-- workspace_tasks
-- workspace_task_steps
-- agent_memories
-- agent_memory_events
-- jarvis_security_events
-- jarvis_action_events
-- jarvis_repo_action_proposals
-
-Recommended next patch:
+Recommended owner phrase:
 
 ```txt
-Patch 28 — Foundation Deploy Health Expansion
+Foundation approved
 ```
-
----
-
-### Fix 3 — wire memory event logging or explicitly deprecate it
-
-Problem:
-
-The `agent_memory_events` table exists and the blueprint expects it, but current memory actions primarily log to `jarvis_action_events`.
-
-Required action:
-
-Either:
-
-- wire memory create/update/archive to `agent_memory_events`, or
-- change the blueprint to say `jarvis_action_events` is the canonical audit trail and remove `agent_memory_events` as a Foundation requirement.
-
-Recommendation:
-
-Wire it. Keep memory events separate for clean memory history.
-
-Recommended next patch:
-
-```txt
-Patch 29 — Memory Event Logging Completion
-```
-
----
-
-### Fix 4 — run live Foundation verification
-
-Problem:
-
-Code and schema exist, but Foundation cannot be declared 100 without a live verification pass.
-
-Required test pass:
-
-- login gate works
-- deploy health returns no required missing items
-- memory create/read/update/archive works
-- memory event logs work
-- action log records events
-- workspace persists after reload
-- conversation persists after reload
-- image upload creates storage object and project file row
-- signed URL opens private file
-- task queue creates/retrieves/resumes a task
-- runner route rejects missing/wrong token and accepts valid bearer token
-- repo proposal can be created and listed
-- secret scan shows no committed secrets
-
-Recommended next patch:
-
-```txt
-Patch 30 — Foundation Live Verification Checklist
-```
-
----
 
 ## 6. Deferred until later phases
 
@@ -355,19 +257,22 @@ They belong to Systems, Interior Polish, or Advanced Capabilities.
 
 ## 7. Recommended Foundation completion sequence
 
-To get Foundation to 100, do these in order:
+Patch 27–30 have now been combined into the Foundation completion push:
 
 ```txt
-Patch 27 — Foundation Schema Unification
-Patch 28 — Foundation Deploy Health Expansion
-Patch 29 — Memory Event Logging Completion
-Patch 30 — Foundation Live Verification Checklist
+Patch 27 — Foundation Schema Unification ✅
+Patch 28 — Foundation Deploy Health Expansion ✅
+Patch 29 — Memory Event Logging Completion ✅
+Patch 30 — Foundation Live Verification Checklist ✅ document-ready / live pass pending
 ```
 
-After those pass, Javier can review and say:
+Remaining before Framing:
 
 ```txt
-Foundation approved
+1. Run latest supabase/schema.sql in Supabase.
+2. Redeploy Jarvis.
+3. Complete the live verification checklist.
+4. Javier says: Foundation approved.
 ```
 
 Only then should Jarvis move to Framing.
@@ -379,9 +284,9 @@ Only then should Jarvis move to Framing.
 Current status:
 
 ```txt
-Foundation is under audit.
-Foundation is not approved.
-Foundation is not 100% complete.
+Foundation is code-complete for review.
+Foundation is not approved yet.
+Foundation is not 100% complete until live verification passes and Javier approves it.
 ```
 
 Owner approval checkpoint remains open.

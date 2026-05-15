@@ -363,34 +363,22 @@ Future hardening to consider:
 
 ## Jarvis Memory Core
 
-Jarvis can now store long-term memory in Supabase instead of only using the static `JARVIS_OWNER_MEMORY` environment variable.
+Jarvis stores long-term memory in Supabase instead of only using the static `JARVIS_OWNER_MEMORY` environment variable.
 
-### 1. Install the memory tables
+The Memory Core tables are now included in the canonical Foundation schema:
 
-In Supabase, open:
-
-```txt
-SQL Editor → New query
+```bash
+cat supabase/schema.sql
 ```
 
-Copy and run the full contents of:
-
-```txt
-supabase/memory-core.sql
-```
-
-You should see:
-
-```txt
-Jarvis Memory Core schema installed
-```
-
-Then Table Editor should show:
+Run `supabase/schema.sql` in the Supabase SQL Editor to install or repair the full Jarvis Foundation, including:
 
 ```txt
 agent_memories
 agent_memory_events
 ```
+
+`supabase/memory-core.sql` remains as a small reference/legacy helper, but `supabase/schema.sql` is the source of truth for full Foundation repair.
 
 ### 2. Optional seed endpoint token
 

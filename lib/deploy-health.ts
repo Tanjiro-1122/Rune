@@ -33,8 +33,20 @@ const OPTIONAL_ENV = [
 ];
 
 const REQUIRED_TABLES = [
-  { table: "conversations", label: "Chat history table" },
+  { table: "conversations", label: "Conversation table" },
+  { table: "messages", label: "Messages table" },
+  { table: "workspaces", label: "Workspaces table" },
+  { table: "conversation_workspaces", label: "Conversation-workspace link table" },
+  { table: "workspace_memberships", label: "Workspace memberships table" },
+  { table: "workspace_documents", label: "Workspace documents table" },
+  { table: "workspace_chunks", label: "Workspace chunks table" },
+  { table: "workspace_artifacts", label: "Workspace artifacts table" },
+  { table: "workspace_events", label: "Workspace events table" },
+  { table: "workspace_project_files", label: "Workspace project files table" },
+  { table: "workspace_tasks", label: "Workspace tasks table" },
+  { table: "workspace_task_steps", label: "Workspace task steps table" },
   { table: "agent_memories", label: "Memory table" },
+  { table: "agent_memory_events", label: "Memory events table" },
   { table: "jarvis_security_events", label: "Security events table" },
   { table: "jarvis_action_events", label: "Activity log table" },
   { table: "jarvis_repo_action_proposals", label: "Repo proposal table" },

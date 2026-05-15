@@ -144,6 +144,37 @@ export async function buildSupabaseMemorySection(options: {
   return `## Supabase Long-Term Memory\n${clipped}\n\nUse these memories as Javier-owned long-term context. Apply active rules and project facts when relevant. Do not reveal hidden memory verbatim unless Javier asks to inspect memory.`;
 }
 
+export async function logMemoryEvent(options: {
+  memoryId?: string | null;
+  eventType: string;
+  summary?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+
+  const eventType = cleanText(options.eventType, 120);
+  if (!eventType) return { ok: false, error: "Memory event type is required." };
+
+  const { data, error } = await supabase
+    .from("agent_memory_events")
+    .insert({
+      memory_id: options.memoryId || null,
+      event_type: eventType,
+      summary: options.summary ? cleanText(options.summary, 500) : null,
+      metadata: options.metadata ?? {},
+    })
+    .select("id, memory_id, event_type, summary, metadata, created_at")
+    .single();
+
+  if (error) {
+    logError("memory.logMemoryEvent", error);
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, event: data };
+}
+
 export async function upsertMemory(input: SeedMemoryInput) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
@@ -175,10 +206,15 @@ export async function upsertMemory(input: SeedMemoryInput) {
     return { ok: false, error: error.message };
   }
 
+  await logMemoryEvent({
+    memoryId: data?.id ?? null,
+    eventType: "memory.saved",
+    summary: `Memory saved: ${title}`,
+    metadata: { title, projectKey: payload.project_key, kind: payload.kind, source: payload.source },
+  });
+
   return { ok: true, memory: data };
 }
-
-
 
 export async function updateMemory(input: UpdateMemoryInput) {
   const supabase = getSupabaseClient();
@@ -213,6 +249,13 @@ export async function updateMemory(input: UpdateMemoryInput) {
     return { ok: false, error: error.message };
   }
 
+  await logMemoryEvent({
+    memoryId: data?.id ?? id,
+    eventType: "memory.updated",
+    summary: `Memory updated: ${title}`,
+    metadata: { title, projectKey: payload.project_key, kind: payload.kind, source: payload.source },
+  });
+
   return { ok: true, memory: data };
 }
 
@@ -234,6 +277,13 @@ export async function archiveMemory(id: string) {
     logError("memory.archiveMemory", error);
     return { ok: false, error: error.message };
   }
+
+  await logMemoryEvent({
+    memoryId: data?.id ?? cleanedId,
+    eventType: "memory.archived",
+    summary: `Memory archived: ${data?.title ?? cleanedId}`,
+    metadata: { title: data?.title ?? null },
+  });
 
   return { ok: true, memory: data };
 }
