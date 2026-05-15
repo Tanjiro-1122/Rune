@@ -872,3 +872,22 @@ runner_metadata
 Important limitation:
 
 Patch 18 creates the secure runner foundation, not a full autonomous remote machine. The next patch should add a concrete local/hosted runner script that polls this endpoint and performs only allowlisted actions.
+
+## Master Blueprint and Phase Gates
+
+Jarvis is now governed by the master construction blueprint in `docs/jarvis-master-blueprint.md`.
+
+Current construction order:
+
+1. Blueprint
+2. Foundation
+3. Framing
+4. Systems / Appliances
+5. Interior Polish
+6. Advanced Capabilities
+
+Rule: Jarvis does not move to the next phase until the current phase checklist is reviewed and Javier approves it as 100% complete.
+
+Current phase after Patch 25: **Phase 1 — Blueprint Lock**.
+
+Next allowed work after Javier approves Blueprint: **Phase 2 — Foundation Completion Audit**.
