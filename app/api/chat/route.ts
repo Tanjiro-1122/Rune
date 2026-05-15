@@ -38,6 +38,7 @@ import {
   resolveCanonicalRepo,
   splitRepoSlug,
 } from "@/lib/project-registry";
+import { getCapabilityTruthSnapshot } from "@/lib/capability-truth";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -404,54 +405,9 @@ function isSafeImageUrl(url: string): boolean {
 const baseAgentTools = {
   get_jarvis_capability_snapshot: tool({
     description:
-      "Return a safe, non-secret snapshot of Jarvis owner-console capabilities, configured integrations, missing setup, and approval rules. Use this for self-assessments, capability questions, and owner-console planning.",
+      "Return a safe, non-secret truth snapshot of Jarvis capabilities, configuration readiness, missing setup, not-connected integrations, canonical projects, and approval rules. Use this before answering capability, setup, self-assessment, or owner-console planning questions.",
     parameters: z.object({}),
-    execute: async () => {
-      const env = (key: string) => Boolean(process.env[key]?.trim());
-      const hasAny = (keys: string[]) => keys.some(env);
-      return {
-        identity: {
-          mode: "private-owner-console",
-          owner: "Javier",
-          productIntent: "Not for sale. Built as Javier's private operating system for apps, projects, customer support, and eventually sensitive owner-only services.",
-        },
-        verifiedConfiguration: {
-          openai: env("OPENAI_API_KEY"),
-          authPassword: env("APP_PASSWORD"),
-          sessionSigning: hasAny(["SESSION_SECRET", "AUTH_SECRET"]),
-          supabase: env("SUPABASE_URL") && hasAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_ANON_KEY"]),
-          serviceRolePersistence: hasAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"]),
-          ownerMemorySeed: env("JARVIS_OWNER_MEMORY"),
-          memorySeedToken: env("JARVIS_MEMORY_SEED_TOKEN"),
-          githubToken: hasAny(["JARVIS_GITHUB_TOKEN", "GITHUB_TOKEN"]),
-          vercelToken: hasAny(["JARVIS_VERCEL_TOKEN", "VERCEL_TOKEN"]),
-          tavilyWebSearch: env("TAVILY_API_KEY"),
-          runnerToken: env("JARVIS_RUNNER_TOKEN"),
-          uploadStorageBucket: process.env.JARVIS_UPLOAD_BUCKET || "jarvis-uploads",
-        },
-        builtCapabilities: {
-          memory: "Supabase-backed memory tables and owner-memory injection are supported when configured.",
-          workspaces: "Project switchboard supports Jarvis, Unfiltr, SWH, and Unfiltr Family scopes.",
-          files: "Images can be stored in private Supabase Storage with signed URLs; text/code files can be indexed into workspace context.",
-          repoControl: "Repo changes are gated through proposals, review diffs, approvals, sandbox/build checks, and optional PR flow.",
-          buildIntelligence: "GitHub and Vercel deployment signals are available when tokens/project env vars are configured.",
-          tasksAndRunner: "Background task queue and isolated runner API exist; real long-running execution requires an external runner using JARVIS_RUNNER_TOKEN.",
-          auditLog: "Significant memory, repo, runner, deploy-health, and file events are logged to jarvis_action_events when Supabase is configured.",
-        },
-        notConnectedYet: {
-          email: "No Gmail/Outlook connector is wired inside this Jarvis app yet. Customer email actions should remain draft-only until connected and approved.",
-          banking: "No Bank of America or banking connector is wired. Future banking should be read-only first, with re-auth and no transfers/payments.",
-          revenueGranting: "RevenueCat/App Store customer credit tooling is not wired yet. Granting free months needs a safe customer-entitlement integration and approval.",
-          voice: "Voice interface is not wired yet.",
-        },
-        safetyPolicy: {
-          readAllowedWithPermission: ["project context", "app logs", "build status", "customer records", "email inbox", "read-only bank balances"],
-          requiresApprovalBeforeAction: ["sending email", "granting free months/credits", "changing production code", "deploying", "opening PRs", "accessing sensitive financial data", "customer-facing messages"],
-          forbiddenWithoutNewSecurityDesign: ["bank transfers", "bill payments", "moving money", "deleting production data", "sending mass customer emails"],
-          defaultRule: "Read and diagnose with permission. Draft confidently. Act externally only after Javier approves.",
-        },
-      };
-    },
+    execute: async () => getCapabilityTruthSnapshot(),
   }),
 
   get_current_datetime: tool({
