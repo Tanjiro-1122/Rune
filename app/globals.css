@@ -2843,3 +2843,96 @@ body {
     display: none !important;
   }
 }
+
+/* Patch 31 hotfix: correct native shell structure after older responsive rules */
+html,
+body {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.workspace-home {
+  width: 100vw !important;
+  max-width: none !important;
+  min-height: 100dvh !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+}
+
+.workspace-app,
+.workspace-app:not(:has(.context-sidebar)) {
+  width: min(100vw, 1180px) !important;
+  max-width: 1180px !important;
+  min-width: min(100vw, 720px) !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.chat-panel {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  align-self: stretch !important;
+  justify-self: stretch !important;
+}
+
+.chat-header--workspace,
+.native-status-strip,
+.input-form {
+  width: min(100%, 920px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.messages {
+  width: min(100%, 920px) !important;
+  max-width: 920px !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.message {
+  min-width: 160px !important;
+}
+
+.message.user {
+  max-width: min(68%, 620px) !important;
+}
+
+.message.assistant {
+  max-width: min(74%, 660px) !important;
+}
+
+@media (max-width: 760px) {
+  .workspace-app,
+  .workspace-app:not(:has(.context-sidebar)) {
+    width: 100vw !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .chat-header--workspace,
+  .native-status-strip,
+  .messages,
+  .input-form {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .message.user,
+  .message.assistant {
+    max-width: 86% !important;
+  }
+}
