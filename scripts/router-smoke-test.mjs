@@ -10,6 +10,7 @@ const checks = [
   ['chat can create repo proposals', /create_repo_action_proposal/.test(route)],
   ['chat can run repo action stages', /run_repo_action_stage/.test(route)],
   ['chat can run repo action ladder', /run_repo_action_ladder/.test(route)],
+  ['repo targeting layer exists', fs.existsSync('lib/repo-targeting.ts') && /inferRepoActionTargets/.test(fs.readFileSync('lib/repo-targeting.ts', 'utf8'))],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

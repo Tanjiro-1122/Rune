@@ -9,6 +9,7 @@ import { Octokit } from "@octokit/rest";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logError } from "@/lib/errors";
 import { logActionEvent } from "@/lib/action-events";
+import { inferRepoActionTargets } from "@/lib/repo-targeting";
 
 export type RepoActionRisk = "low" | "medium" | "high";
 export type RepoActionStatus = "draft" | "proposed" | "approved" | "rejected" | "blocked" | "executed" | "cancelled";
@@ -444,16 +445,27 @@ export async function createRepoActionProposal(input: RepoActionProposalInput) {
   const summary = cleanText(input.summary, 900);
   if (!title || !summary) return { ok: false, error: "Proposal title and summary are required." };
 
+  const inferredTargets = inferRepoActionTargets({
+    title,
+    summary,
+    findings: input.findings,
+    plan: input.plan,
+    repo: input.repo || process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO,
+    projectKey: input.projectKey,
+    riskLevel: input.riskLevel,
+    files: input.files,
+  });
+
   const payload = {
     title,
     summary,
     findings: cleanMultiline(input.findings, 6000),
     plan: cleanMultiline(input.plan, 6000),
-    repo: cleanText(input.repo || process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO, 160),
-    project_key: normalizeProjectKey(input.projectKey),
-    risk_level: normalizeRisk(input.riskLevel),
+    repo: cleanText(inferredTargets.repo, 160),
+    project_key: normalizeProjectKey(inferredTargets.projectKey),
+    risk_level: normalizeRisk(inferredTargets.riskLevel),
     status: "proposed" as RepoActionStatus,
-    files: cleanFiles(input.files),
+    files: cleanFiles(inferredTargets.files),
     diff_preview: cleanMultiline(input.diffPreview, 10000),
     session_id: input.sessionId ? cleanText(input.sessionId, 120) : null,
     workspace_id: input.workspaceId || null,

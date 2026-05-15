@@ -4,6 +4,8 @@ Agent Core v1 is the first quality upgrade after the Brain phase.
 
 ## Included
 
+- Smart repo targeting for known projects and common feature areas, used when Repo Control proposals are created without explicit file paths.
+
 - Deterministic router priority so self-audit/capability questions cannot fall through to calculator.
 - Safer calculator routing: math requires explicit math language or a real numeric expression.
 - Mandatory repository-inspection signal for app/code/error/fix requests.
