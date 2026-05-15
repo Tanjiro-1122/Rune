@@ -296,14 +296,14 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
     sections,
     summary,
     recommendedNextPatch: {
-      title: "Brain Patch 4 — Reasoning Router",
+      title: "Hands Phase 1 — Approval-Gated Action Executor",
       reason:
-        "Now that Jarvis has identity, capability truth, and self-audit, the next intelligence step is routing user requests into the right mode: answer, inspect, plan, propose, or ask for approval.",
+        "The Brain foundation is now in place: identity, project registry, capability truth, self-audit, reasoning router, and project-aware memory. The next safe step is giving Jarvis controlled hands through explicit approval-gated execution paths.",
       acceptanceCriteria: [
-        "Classify requests into safe internal answers, read-only inspections, proposal-needed actions, and blocked/not-connected actions.",
-        "Use the capability truth layer before answering capability questions.",
-        "Use self-audit for system health/self-assessment questions.",
-        "Require explicit Javier approval before any sensitive or external action.",
+        "Every sensitive action starts with Findings → Plan.",
+        "No external/code/customer/financial action executes without exact Javier approval.",
+        "Approved actions are written to the audit log before and after execution.",
+        "Failures include a clear rollback or recovery note.",
       ],
     },
   };
