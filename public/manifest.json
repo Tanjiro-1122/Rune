@@ -1,0 +1,20 @@
+{
+  "name": "Jarvis Private Workspace",
+  "short_name": "Jarvis",
+  "description": "Javier's private AI workspace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#eef4ff",
+  "theme_color": "#eef4ff",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
