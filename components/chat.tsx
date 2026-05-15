@@ -125,6 +125,68 @@ function CalculateCard({
   );
 }
 
+
+type RepoControlToolResult = {
+  success?: boolean;
+  proposalId?: string;
+  action?: string;
+  status?: string;
+  repo?: string;
+  projectKey?: string;
+  riskLevel?: string;
+  stoppedAt?: string;
+  error?: string;
+  message?: string;
+  steps?: Array<{ action?: string; ok?: boolean; error?: string; summary?: string }>;
+};
+
+function RepoControlCard({
+  name,
+  state,
+  args,
+  result,
+}: {
+  name: string;
+  state: ToolInvocation["state"];
+  args: Record<string, unknown>;
+  result?: RepoControlToolResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const title = getToolLabel(name);
+  const proposalId = result?.proposalId || (typeof args.proposalId === "string" ? args.proposalId : undefined);
+  const stage = result?.action || (typeof args.action === "string" ? args.action : undefined);
+  const steps = Array.isArray(result?.steps) ? result.steps.slice(0, 7) : [];
+
+  return (
+    <div className={`tool-card tool-card--repo-control ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🛠️" : failed ? "⚠️" : "✅"}</span>
+        <span className="tool-card-title">{title}</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        {proposalId && <span className="repo-control-meta">Proposal: {proposalId}</span>}
+        {stage && <span className="repo-control-meta">Stage: {stage.replace(/_/g, " ")}</span>}
+        {result?.repo && <span className="repo-control-meta">Repo: {result.repo}</span>}
+        {result?.message && <span>{result.message}</span>}
+        {result?.error && <span className="tool-error">{result.error}</span>}
+        {steps.length > 0 && (
+          <ol className="repo-control-steps">
+            {steps.map((step, index) => (
+              <li key={`${step.action || "step"}-${index}`} className={step.ok ? "repo-control-step--ok" : "repo-control-step--blocked"}>
+                <span>{step.ok ? "✓" : "!"}</span>
+                <span>{(step.action || "stage").replace(/_/g, " ")}</span>
+                {step.error && <em>{step.error}</em>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DatetimeCard({ result }: { result?: { readable: string } }) {
   return (
     <div className="tool-card tool-card--datetime">
@@ -866,6 +928,21 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
             ? (invocation.result as CodeExecutionToolResult)
             : undefined
         }
+      />
+    );
+  }
+
+  if (
+    invocation.toolName === "create_repo_action_proposal" ||
+    invocation.toolName === "run_repo_action_stage" ||
+    invocation.toolName === "run_repo_action_ladder"
+  ) {
+    return (
+      <RepoControlCard
+        name={invocation.toolName}
+        state={invocation.state}
+        args={invocation.args}
+        result={invocation.state === "result" ? (invocation.result as RepoControlToolResult) : undefined}
       />
     );
   }

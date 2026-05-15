@@ -1288,3 +1288,57 @@ button:disabled {
     font-size: 16px;
   }
 }
+
+
+.tool-card--repo-control {
+  border-color: rgba(124, 92, 255, 0.28);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(236, 232, 255, 0.58));
+  box-shadow: 0 18px 42px rgba(83, 63, 167, 0.12);
+}
+
+.tool-card--failed {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 232, 232, 0.6));
+}
+
+.repo-control-meta {
+  color: rgba(58, 46, 91, 0.72);
+  font-size: 0.82rem;
+}
+
+.repo-control-steps {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.repo-control-steps li {
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: rgba(255, 255, 255, 0.55);
+  color: rgba(42, 34, 66, 0.82);
+  font-size: 0.82rem;
+}
+
+.repo-control-steps em {
+  grid-column: 2;
+  color: rgba(180, 40, 40, 0.82);
+  font-style: normal;
+  font-size: 0.78rem;
+}
+
+.repo-control-step--ok span:first-child {
+  color: #27a269;
+  font-weight: 800;
+}
+
+.repo-control-step--blocked span:first-child {
+  color: #d97706;
+  font-weight: 800;
+}
