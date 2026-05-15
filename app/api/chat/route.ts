@@ -32,6 +32,12 @@ import {
   startWorkspaceTask,
   updateWorkspaceTaskStep,
 } from "@/lib/tasks";
+import {
+  JARVIS_DEFAULT_REPO,
+  buildProjectRegistryPromptSection,
+  resolveCanonicalRepo,
+  splitRepoSlug,
+} from "@/lib/project-registry";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -66,8 +72,12 @@ function cleanupRateWindow(now: number) {
 
 const MAX_TASK_SUMMARY_LENGTH = 240;
 
+function getGithubToken() {
+  return process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+}
+
 function getOctokitClient() {
-  const githubToken = process.env.GITHUB_TOKEN;
+  const githubToken = getGithubToken();
   return new Octokit({
     ...(githubToken ? { auth: githubToken } : {}),
     userAgent: "Jarvis-Super-Agent/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
@@ -243,10 +253,8 @@ function evalMath(expression: string): number {
 }
 
 // ─── GitHub URL / "owner/repo" normalizer ────────────────────────────────────
-function parseOwnerRepo(input: string): string {
-  const urlMatch = input.match(/github\.com\/([^/\s]+\/[^/\s#?]+)/);
-  if (urlMatch) return urlMatch[1].replace(/\.git$/, "");
-  return input.trim().replace(/\.git$/, "");
+function parseOwnerRepo(input: string | null | undefined, textHint?: string | null): string {
+  return resolveCanonicalRepo(input, textHint);
 }
 
 function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
@@ -585,12 +593,14 @@ const baseAgentTools = {
 
   analyze_github_repo: tool({
     description:
-      "Analyze a public GitHub repository. Returns repository metadata, README content, top-level file structure, and language breakdown. Use when the user provides a GitHub URL or an 'owner/repo' string and wants to understand or discuss the repository.",
+      "Analyze a GitHub repository. If the user asks about Jarvis, your own repo, this app, your source code, or does not provide a repo, default to Tanjiro-1122/Jarvis. Use the canonical project registry instead of guessing owner/repo names.",
     parameters: z.object({
       repo: z
         .string()
+        .optional()
+        .default(JARVIS_DEFAULT_REPO)
         .describe(
-          "GitHub repository as 'owner/repo' or a full URL such as 'https://github.com/owner/repo'"
+          "GitHub repository as 'owner/repo', a full URL, a known project alias like 'Jarvis'/'Unfiltr'/'SWH'/'Unfiltr Family', or omitted to inspect Jarvis itself"
         ),
       include_readme: z
         .boolean()
@@ -618,7 +628,7 @@ const baseAgentTools = {
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "Jarvis-Super-Agent/1.0",
       };
-      const token = process.env.GITHUB_TOKEN;
+      const token = getGithubToken();
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       try {
@@ -637,7 +647,7 @@ const baseAgentTools = {
           if (repoRes.status === 403 || repoRes.status === 429) {
             return {
               error:
-                "GitHub API rate limit reached. Set the GITHUB_TOKEN environment variable for a higher rate limit.",
+                "GitHub API rate limit reached. Set GITHUB_TOKEN or JARVIS_GITHUB_TOKEN for a higher rate limit and private repo access.",
               repo: ownerRepo,
             };
           }
@@ -753,10 +763,10 @@ const baseAgentTools = {
 
   readRepositoryFile: tool({
     description:
-      "Read the complete code contents of a specific file in the GitHub repository before making edits.",
+      "Read the complete code contents of a specific file in the GitHub repository before making edits. For Jarvis itself, use owner 'Tanjiro-1122' and repo 'Jarvis'. Never guess javierhuertas/jarvis.",
     parameters: z.object({
-      owner: z.string().describe("The GitHub username (e.g., 'Tanjiro-1122')."),
-      repo: z.string().describe("The repository name (e.g., 'Jarvis')."),
+      owner: z.string().describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
+      repo: z.string().describe("The repository name. For Jarvis itself, use 'Jarvis'."),
       path: z
         .string()
         .describe("The path to the file relative to the repo root (e.g., 'app/api/chat/route.ts')."),
@@ -764,9 +774,10 @@ const baseAgentTools = {
     execute: async ({ owner, repo, path }) => {
       try {
         const octokit = getOctokitClient();
+        const resolved = splitRepoSlug(`${owner}/${repo}`);
         const { data } = await octokit.repos.getContent({
-          owner,
-          repo,
+          owner: resolved.owner,
+          repo: resolved.repo,
           path,
         });
 
@@ -799,26 +810,27 @@ const baseAgentTools = {
 
   listRepositoryTree: tool({
     description:
-      "List the complete file structure and folder layout of the GitHub repository.",
+      "List the complete file structure and folder layout of the GitHub repository. For Jarvis itself, use owner 'Tanjiro-1122' and repo 'Jarvis'. Never guess javierhuertas/jarvis.",
     parameters: z.object({
-      owner: z.string().describe("The GitHub username."),
-      repo: z.string().describe("The repository name."),
+      owner: z.string().describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
+      repo: z.string().describe("The repository name. For Jarvis itself, use 'Jarvis'."),
     }),
     execute: async ({ owner, repo }) => {
       try {
         const octokit = getOctokitClient();
-        const { data: repoData } = await octokit.repos.get({ owner, repo });
+        const resolved = splitRepoSlug(`${owner}/${repo}`);
+        const { data: repoData } = await octokit.repos.get({ owner: resolved.owner, repo: resolved.repo });
         const defaultBranch = repoData.default_branch;
 
         const { data: refData } = await octokit.git.getRef({
-          owner,
-          repo,
+          owner: resolved.owner,
+          repo: resolved.repo,
           ref: `heads/${defaultBranch}`,
         });
 
         const { data: treeData } = await octokit.git.getTree({
-          owner,
-          repo,
+          owner: resolved.owner,
+          repo: resolved.repo,
           tree_sha: refData.object.sha,
           recursive: "true",
         });
@@ -1181,9 +1193,13 @@ ${retrievalHits
       projectKey: workspaceId ? "jarvis" : null,
     });
 
+    const projectRegistrySection = buildProjectRegistryPromptSection();
+
     const result = streamText({
       model: openai(CHAT_MODEL),
-      system: `You are Jarvis, a self-healing autonomous workspace developer agent. You are intelligent, capable, and methodical.
+      system: `You are Jarvis, Javier's private AI owner console and self-healing workspace developer agent. You are intelligent, capable, grounded, and methodical.
+
+${projectRegistrySection}
 
 ## Self-Healing Operating Procedure
 1. If the user reports an error or asks to modify/fix functionality, run \`listRepositoryTree\` first to map the codebase.
