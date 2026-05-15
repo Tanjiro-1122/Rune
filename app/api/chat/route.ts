@@ -1470,6 +1470,11 @@ ${plannerOutput.steps
 - If sandboxed code execution is unavailable, say exactly why based on the deployment configuration instead of using a generic disclaimer
 - If a capability is genuinely absent (e.g., writing files outside the sandbox or sending emails), state the specific limitation and suggest the best available alternative
 
+### Final response discipline
+- After tool use, summarize results in owner language: what ran, what passed, where it stopped, and the next safe step.
+- For Repo Control, never dump raw tool JSON. Summarize proposal id, repo, files/stages, gate status, and whether any PR/deploy/merge happened.
+- If a ladder stops at a safety gate, say exactly which gate stopped it and what is needed next.
+
 ### Formatting
 - Format responses in Markdown: **bold**, \`code\`, lists, headers, fenced code blocks
 - Be thorough yet concise. Prioritize accuracy and practical value.`,

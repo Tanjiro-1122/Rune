@@ -4,6 +4,8 @@ Agent Core v1 is the first quality upgrade after the Brain phase.
 
 ## Included
 
+- Owner-language tool summaries: after tool use, Jarvis should state what ran, what passed, where it stopped, and the next safe step without dumping raw JSON.
+
 - Smart repo targeting for known projects and common feature areas, used when Repo Control proposals are created without explicit file paths.
 
 - Deterministic router priority so self-audit/capability questions cannot fall through to calculator.
