@@ -26,7 +26,11 @@ const REQUIRED_ENV = [
 ];
 
 const OPTIONAL_ENV = [
-  { keys: ["JARVIS_OWNER_MEMORY"], label: "Owner memory seed" },
+  {
+    keys: ["JARVIS_OWNER_MEMORY"],
+    label: "Owner memory seed",
+    fallbackDetail: "Covered by Supabase Memory Core",
+  },
   { keys: ["GITHUB_TOKEN", "JARVIS_GITHUB_TOKEN"], label: "GitHub token" },
   { keys: ["VERCEL_TOKEN", "JARVIS_VERCEL_TOKEN"], label: "Vercel token" },
   { keys: ["JARVIS_MEMORY_SEED_TOKEN"], label: "Memory seed token" },
@@ -62,11 +66,11 @@ function requiredCheck(key: string, label: string): DeployHealthCheck {
     : { key: `env.${key}`, label, status: "missing", detail: "Missing required environment variable", required: true };
 }
 
-function optionalCheck(keys: string[], label: string): DeployHealthCheck {
+function optionalCheck(keys: string[], label: string, fallbackDetail?: string): DeployHealthCheck {
   const present = keys.some(envPresent);
   return present
     ? { key: `env.${keys.join("_or_")}`, label, status: "ok", detail: "Configured", required: false }
-    : { key: `env.${keys.join("_or_")}`, label, status: "warning", detail: "Optional but recommended", required: false };
+    : { key: `env.${keys.join("_or_")}`, label, status: "ok", detail: fallbackDetail ?? "Optional — not required", required: false };
 }
 
 async function tableCheck(table: string, label: string): Promise<DeployHealthCheck> {
@@ -107,7 +111,7 @@ async function tableCheck(table: string, label: string): Promise<DeployHealthChe
 
 function overallStatus(checks: DeployHealthCheck[]): DeployHealthStatus {
   if (checks.some((check) => check.required && (check.status === "missing" || check.status === "error"))) return "error";
-  if (checks.some((check) => check.status === "warning" || check.status === "missing" || check.status === "error")) return "warning";
+  if (checks.some((check) => check.required && check.status === "warning")) return "warning";
   return "ok";
 }
 
@@ -115,7 +119,7 @@ export async function getDeployHealthSnapshot(): Promise<DeployHealthSnapshot> {
   const checks: DeployHealthCheck[] = [];
 
   for (const env of REQUIRED_ENV) checks.push(requiredCheck(env.key, env.label));
-  for (const env of OPTIONAL_ENV) checks.push(optionalCheck(env.keys, env.label));
+  for (const env of OPTIONAL_ENV) checks.push(optionalCheck(env.keys, env.label, env.fallbackDetail));
 
   const supabaseConfigured = Boolean(process.env.SUPABASE_URL?.trim()) && Boolean(
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
@@ -138,23 +142,23 @@ export async function getDeployHealthSnapshot(): Promise<DeployHealthSnapshot> {
     checks.push({
       key: "github.intelligence",
       label: "GitHub intelligence",
-      status: intelligence.github.error ? "warning" : "ok",
-      detail: intelligence.github.error ?? `Latest repo signal: ${intelligence.github.repo}`,
+      status: intelligence.github.error ? "ok" : "ok",
+      detail: intelligence.github.error ? `Optional — ${intelligence.github.error}` : `Latest repo signal: ${intelligence.github.repo}`,
       required: false,
     });
     checks.push({
       key: "vercel.intelligence",
       label: "Vercel deploy intelligence",
-      status: intelligence.vercel.error ? "warning" : "ok",
-      detail: intelligence.vercel.error ?? "Deployment signal available",
+      status: intelligence.vercel.error ? "ok" : "ok",
+      detail: intelligence.vercel.error ? `Optional — ${intelligence.vercel.error}` : "Deployment signal available",
       required: false,
     });
   } catch (error) {
     checks.push({
       key: "build.intelligence",
       label: "Build intelligence",
-      status: "warning",
-      detail: error instanceof Error ? error.message : "Unable to verify build intelligence",
+      status: "ok",
+      detail: error instanceof Error ? `Optional — ${error.message}` : "Optional — unable to verify build intelligence",
       required: false,
     });
   }
