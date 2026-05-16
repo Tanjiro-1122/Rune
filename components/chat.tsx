@@ -35,6 +35,7 @@ const TOOL_LABELS: Record<string, string> = {
   execute_code: "Running a safe code check",
   listRepositoryTree: "Inspecting the repository structure",
   readRepositoryFile: "Reading the exact source file",
+  prepare_app_creator_preview_handoff: "Preparing preview handoff",
   preview_app_creator_proposal: "Previewing app proposal",
   refine_app_creator_proposal: "Refining app proposal",
   run_app_creator_scaffold_bridge: "Running App Creator bridge",
@@ -88,6 +89,7 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
     const stage = typeof args?.action === "string" ? args.action : result?.action;
     return stage ? REPO_STAGE_LABELS[stage] ?? `Running ${humanizeToolName(stage)}` : TOOL_LABELS[name];
   }
+  if (name === "prepare_app_creator_preview_handoff") return "Preparing preview handoff";
   if (name === "preview_app_creator_proposal") return "Previewing app proposal";
   if (name === "refine_app_creator_proposal") return "Refining app proposal";
   if (name === "run_app_creator_scaffold_bridge") return "Running App Creator bridge";
@@ -251,6 +253,7 @@ type AppCreatorToolResult = {
   changedFields?: string[];
   revision?: number;
   preview?: { headline?: string; featureCount?: number; screenCount?: number; dataModelCount?: number; scaffoldReady?: boolean; iterationCount?: number };
+  previewHandoff?: { intent?: string; appName?: string; slug?: string; targetUsers?: string; ready?: boolean; prUrl?: string; prBranch?: string; requiredApprovalPhrase?: string; generatedFiles?: string[]; preparedAt?: string };
   changedFiles?: string[];
   prUrl?: string;
   repoFlow?: RepoControlFlowResult;
@@ -308,6 +311,11 @@ function AppCreatorCard({
         {plan?.screens && plan.screens.length > 0 && <div className="deployment-handoff-line"><strong>Screens:</strong> {plan.screens.slice(0, 6).join(", ")}</div>}
         {plan?.dataModel && plan.dataModel.length > 0 && <div className="deployment-handoff-line"><strong>Data:</strong> {plan.dataModel.slice(0, 4).join(" · ")}</div>}
         {result?.changedFields && result.changedFields.length > 0 && <div className="deployment-handoff-line"><strong>Changed:</strong> {result.changedFields.slice(0, 6).join(" · ")}</div>}
+        {result?.previewHandoff && (
+          <div className="deployment-handoff-line"><strong>Preview handoff:</strong> {result.previewHandoff.ready ? "ready" : "blocked"} · approval phrase required before deployment</div>
+        )}
+        {result?.previewHandoff?.prUrl && <a className="repo-control-link" href={result.previewHandoff.prUrl} target="_blank" rel="noreferrer">Open preview PR</a>}
+        {result?.previewHandoff?.generatedFiles && result.previewHandoff.generatedFiles.length > 0 && <div className="deployment-handoff-line"><strong>Preview files:</strong> {result.previewHandoff.generatedFiles.slice(0, 5).join(" · ")}</div>}
         {result?.changedFiles && result.changedFiles.length > 0 && <div className="deployment-handoff-line"><strong>Files:</strong> {result.changedFiles.slice(0, 5).join(" · ")}</div>}
         {result?.repoFlow?.steps && result.repoFlow.steps.length > 0 && (
           <div className="repo-flow-step-list">
@@ -1560,6 +1568,7 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
 
   if (
     invocation.toolName === "create_app_proposal" ||
+    invocation.toolName === "prepare_app_creator_preview_handoff" ||
     invocation.toolName === "preview_app_creator_proposal" ||
     invocation.toolName === "refine_app_creator_proposal" ||
     invocation.toolName === "approved_app_scaffold" ||

@@ -1,4 +1,4 @@
-import { createRepoActionProposal, isRepoActionProposalId, repoActionProposalIdError, runRepoControlFlow, type RepoControlFlowResult, type RepoActionFileTarget, type RepoActionProposalRow, type RepoActionRisk } from "@/lib/repo-actions";
+import { createRepoActionProposal, isRepoActionProposalId, prepareRepoDeploymentHandoff, repoActionProposalIdError, runRepoControlFlow, type RepoControlFlowResult, type RepoDeploymentPrepResult, type RepoActionFileTarget, type RepoActionProposalRow, type RepoActionRisk } from "@/lib/repo-actions";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logError } from "@/lib/errors";
 import { logActionEvent } from "@/lib/action-events";
@@ -105,6 +105,29 @@ export interface AppCreatorRefineResult extends AppCreatorPreviewResult {
   revision?: number;
   changedFields?: string[];
   proposal?: RepoActionProposalRow;
+}
+
+export interface AppCreatorPreviewHandoffResult {
+  ok: boolean;
+  proposalId: string;
+  appPlan?: AppCreatorPlan;
+  deploymentPrep?: RepoDeploymentPrepResult;
+  previewHandoff?: {
+    intent: "preview_deployment";
+    appName: string;
+    slug: string;
+    targetUsers: string;
+    prUrl?: string;
+    prBranch?: string;
+    ready: boolean;
+    requiredApprovalPhrase: string;
+    generatedFiles: string[];
+    preparedAt: string;
+  };
+  error?: string;
+  message: string;
+  safety: string;
+  nextAction: string;
 }
 
 function cleanText(value: string | null | undefined, max = 900) {
@@ -847,6 +870,127 @@ export async function createApprovedAppScaffold(options: { proposalId: string })
   };
 }
 
+
+
+export async function prepareAppCreatorPreviewHandoff(options: { proposalId: string }): Promise<AppCreatorPreviewHandoffResult> {
+  const proposalId = cleanText(options.proposalId, 120);
+  if (!isRepoActionProposalId(proposalId)) {
+    return {
+      ok: false,
+      proposalId,
+      error: repoActionProposalIdError(proposalId),
+      message: "App Creator preview handoff did not start because the proposal ID was invalid.",
+      safety: "metadata_only_no_deploy_no_merge_no_schema_mutation",
+      nextAction: "Use the App Creator proposal UUID from the proposal card.",
+    };
+  }
+
+  const fetched = await fetchAppCreatorProposal(proposalId);
+  if (!fetched.ok) {
+    return {
+      ok: false,
+      proposalId,
+      error: fetched.error,
+      message: "App Creator preview handoff could not load the proposal.",
+      safety: "metadata_only_no_deploy_no_merge_no_schema_mutation",
+      nextAction: "Confirm the App Creator proposal ID and try again.",
+    };
+  }
+
+  const proposal = fetched.proposal;
+  const plan = planFromProposal(proposal);
+  const { metadata, appCreator } = appCreatorMetadata(proposal);
+  const generatedFiles = Array.isArray(appCreator.scaffold_changed_files)
+    ? appCreator.scaffold_changed_files.filter((item): item is string => typeof item === "string")
+    : Array.isArray(proposal.files)
+      ? proposal.files.map((file) => file.path).filter(Boolean)
+      : [];
+
+  const deploymentPrep = await prepareRepoDeploymentHandoff({ proposalId });
+  const preparedAt = new Date().toISOString();
+  const previewHandoff = {
+    intent: "preview_deployment" as const,
+    appName: plan.appName,
+    slug: plan.slug,
+    targetUsers: plan.targetUsers,
+    prUrl: deploymentPrep.prUrl,
+    prBranch: deploymentPrep.prBranch,
+    ready: deploymentPrep.ready,
+    requiredApprovalPhrase: deploymentPrep.requiredApprovalPhrase,
+    generatedFiles,
+    preparedAt,
+  };
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    const { data: latest } = await supabase
+      .from("jarvis_repo_action_proposals")
+      .select("draft_metadata")
+      .eq("id", proposalId)
+      .single();
+    const latestMetadata = metadataRecord(latest?.draft_metadata) || metadata;
+    const latestAppCreator = metadataRecord(latestMetadata.app_creator);
+    await supabase
+      .from("jarvis_repo_action_proposals")
+      .update({
+        draft_metadata: {
+          ...latestMetadata,
+          app_creator: {
+            ...latestAppCreator,
+            version: "1.4",
+            phase: deploymentPrep.ready ? "preview_handoff_ready" : "preview_handoff_blocked",
+            plan,
+            preview_handoff: {
+              ...previewHandoff,
+              readinessSummary: deploymentPrep.readinessSummary,
+              readinessReasons: deploymentPrep.readinessReasons || [],
+              safety: "metadata_only_no_deploy_no_merge_no_schema_mutation",
+            },
+          },
+        },
+        updated_at: preparedAt,
+      })
+      .eq("id", proposalId);
+  }
+
+  await logActionEvent({
+    eventType: deploymentPrep.ready ? "app_creator.preview_handoff_prepared" : "app_creator.preview_handoff_blocked",
+    summary: deploymentPrep.ready ? `App Creator preview handoff prepared: ${plan.appName}` : `App Creator preview handoff blocked: ${plan.appName}`,
+    status: deploymentPrep.ready ? "proposed" : "blocked",
+    approvalStage: deploymentPrep.ready ? "approval" : "findings",
+    riskLevel: proposal.risk_level,
+    projectKey: proposal.project_key,
+    sessionId: proposal.session_id,
+    workspaceId: proposal.workspace_id,
+    conversationId: proposal.conversation_id,
+    metadata: {
+      proposalId,
+      appName: plan.appName,
+      slug: plan.slug,
+      ready: deploymentPrep.ready,
+      prUrl: deploymentPrep.prUrl,
+      generatedFiles,
+      requiredApprovalPhrase: deploymentPrep.requiredApprovalPhrase,
+      safety: "metadata_only_no_deploy_no_merge_no_schema_mutation",
+    },
+  });
+
+  return {
+    ok: deploymentPrep.ok,
+    proposalId,
+    appPlan: plan,
+    deploymentPrep,
+    previewHandoff,
+    error: deploymentPrep.ok ? undefined : deploymentPrep.error || "Preview handoff is blocked until PR/preview readiness is available.",
+    message: deploymentPrep.ready
+      ? "App Creator v1.4 prepared a preview deployment handoff for review only. Nothing was deployed, merged, or changed in production."
+      : "App Creator v1.4 prepared the preview handoff metadata but it is blocked until the PR is ready. Nothing was deployed, merged, or changed in production.",
+    safety: "metadata_only_no_deploy_no_merge_no_schema_mutation",
+    nextAction: deploymentPrep.ready
+      ? "Review the PR/preview handoff. Any actual deployment still requires the exact deployment approval phrase."
+      : deploymentPrep.nextAction,
+  };
+}
 
 export async function runAppCreatorScaffoldBridge(options: {
   proposalId: string;
