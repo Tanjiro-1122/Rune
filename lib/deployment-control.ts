@@ -1,5 +1,6 @@
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
+import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
 
 export type DeploymentControlAction = "inspect" | "prepare_redeploy" | "prepare_rollback" | "execute_redeploy" | "execute_rollback";
 
@@ -298,23 +299,47 @@ export async function executeDeploymentControlAction(options: {
     };
   }
 
-  await logActionEvent({
-    eventType: `deployment.${options.action}.blocked`,
-    summary: `Deployment ${options.action.replace("execute_", "")} blocked: CLI runner execution not implemented in web runtime`,
-    status: "blocked",
-    approvalStage: "action",
+  const queued = await queueCliRunnerJob({
+    workspaceId: process.env.JARVIS_DEFAULT_WORKSPACE_ID || null,
+    title: options.action === "execute_redeploy" ? "Approved Vercel redeploy" : "Approved Vercel rollback",
+    command,
+    kind: options.action === "execute_redeploy" ? "vercel_redeploy" : "vercel_rollback",
     riskLevel: "high",
-    projectKey: "jarvis",
-    metadata: { ...baseMetadata, reason_blocked: "cli_runner_execution_not_implemented", documentedCommand: command },
+    approvalText,
+    reason: options.reason || null,
+    metadata: { deployment: selectedDeployment, action: options.action },
   });
 
+  if (!queued.ok) {
+    await logActionEvent({
+      eventType: `deployment.${options.action}.blocked`,
+      summary: `Deployment ${options.action.replace("execute_", "")} approved but queueing failed`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "high",
+      projectKey: "jarvis",
+      metadata: { ...baseMetadata, reason_blocked: "cli_runner_queue_failed", documentedCommand: command, error: queued.error },
+    });
+    return {
+      ok: false,
+      blocked: true,
+      error: queued.error,
+      action: options.action,
+      deployment: selectedDeployment,
+      documentedCommand: command,
+      safety: "approved_but_not_queued_no_deployment_mutation",
+    };
+  }
+
   return {
-    ok: false,
-    blocked: true,
-    error: "The approval gate passed, but the production CLI runner execution layer is not implemented in this web runtime yet.",
+    ok: true,
+    blocked: false,
     action: options.action,
     deployment: selectedDeployment,
     documentedCommand: command,
-    safety: "approved_but_blocked_no_deployment_mutation",
+    taskId: queued.taskId,
+    task: queued.task,
+    safety: queued.safety,
+    message: queued.message,
   };
 }

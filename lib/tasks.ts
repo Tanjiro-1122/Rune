@@ -458,6 +458,7 @@ export async function createQueuedWorkspaceJob(options: {
   inputText: string;
   intent: string;
   steps?: WorkspaceTaskStepInput[];
+  runnerMetadata?: Record<string, unknown> | null;
 }) {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
@@ -481,6 +482,8 @@ export async function createQueuedWorkspaceJob(options: {
       status: "queued",
       progress: 0,
       resume_count: 0,
+      runner_status: options.runnerMetadata ? "queued_for_runner" : null,
+      runner_metadata: options.runnerMetadata ?? {},
     })
     .select(WORKSPACE_TASK_SELECT)
     .single();

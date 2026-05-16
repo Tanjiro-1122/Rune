@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const tasks = fs.readFileSync('lib/tasks.ts', 'utf8');
 const jobs = fs.readFileSync('app/api/jobs/route.ts', 'utf8');
+const cliRunnerJobs = fs.readFileSync('lib/cli-runner-jobs.ts', 'utf8');
 const roadmap = fs.readFileSync('docs/jarvis-endgame-roadmap.md', 'utf8');
 const chatUi = fs.readFileSync('components/chat.tsx', 'utf8');
 const css = fs.readFileSync('app/globals.css', 'utf8');
@@ -18,6 +19,7 @@ const checks = [
   ['persistent operator phase documented', /Persistent Operator/.test(roadmap) && /resumable work plans and checkpoints/.test(roadmap)],
   ['checkpoint UI exists', /latest_checkpoint/.test(chatUi) && /Latest checkpoint/.test(chatUi) && /task-checkpoint-card/.test(css)],
   ['chat auto-checkpoint exists', /addWorkspaceTaskCheckpoint/.test(chatRoute) && /Chat task completed/.test(chatRoute) && /Chat task interrupted/.test(chatRoute)],
+  ['cli runner queued jobs exist', /queueCliRunnerJob/.test(cliRunnerJobs) && /queued_only_no_local_execution/.test(cliRunnerJobs) && /intent: \"cli_runner\"/.test(cliRunnerJobs)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
