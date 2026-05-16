@@ -48,6 +48,7 @@ import {
   generateRepoActionProposedDiff,
   inspectRepoActionFiles,
   openRepoActionPullRequest,
+  runApprovedRepoActionExecutor,
   runTemporaryWorkspaceBuildCheck,
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
@@ -1021,6 +1022,37 @@ function getAgentTools({
         };
       },
     }),
+
+    run_approved_repo_action: tool({
+      description:
+        "Run the controlled executor for an approved Repo Control proposal. It requires approved status, runs sandbox and temporary workspace checks, then opens/tracks a PR if gates pass. It never merges or deploys.",
+      parameters: z.object({
+        proposalId: z.string().min(1).max(120),
+        openPr: z.boolean().optional().default(true),
+        trackPr: z.boolean().optional().default(true),
+      }),
+      execute: async ({ proposalId, openPr = true, trackPr = true }) => {
+        const result = await runApprovedRepoActionExecutor({ id: proposalId, openPr, trackPr });
+        if (!result.ok) {
+          return {
+            success: false,
+            proposalId,
+            steps: result.steps || [],
+            stoppedAt: result.stoppedAt || "controlled_executor",
+            error: result.error || "Controlled executor stopped safely.",
+            message: "No merge or deployment happened.",
+          };
+        }
+        return {
+          success: true,
+          proposalId,
+          steps: result.steps || [],
+          prUrl: result.prUrl,
+          message: result.message || "Controlled executor completed. No merge or deployment happened.",
+        };
+      },
+    }),
+
 
     execute_code: tool({
       description:

@@ -1666,6 +1666,125 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
   return { ok: true, proposal: updated, overallReady, prUrl, vercel };
 }
 
+
+export async function runApprovedRepoActionExecutor(options: { id: string; openPr?: boolean; trackPr?: boolean }) {
+  const id = cleanText(options.id, 120);
+  if (!id) return { ok: false, error: "Proposal id is required." };
+
+  const steps: Array<{ step: string; ok: boolean; error?: string }> = [];
+  const record = (step: string, result: { ok: boolean; error?: string }) => {
+    steps.push({ step, ok: Boolean(result.ok), error: result.ok ? undefined : result.error || "Stage failed." });
+    return result;
+  };
+
+  const supabase = getSupabaseClient();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("repoActions.runApprovedRepoActionExecutor.fetch", fetchError);
+    return { ok: false, error: fetchError?.message ?? "Proposal not found.", steps };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  if (proposal.status !== "approved") {
+    await logActionEvent({
+      eventType: "repo_action.executor_blocked",
+      summary: `Executor blocked before PR: ${proposal.title}`,
+      status: "blocked",
+      approvalStage: "approval",
+      riskLevel: proposal.risk_level,
+      projectKey: proposal.project_key,
+      sessionId: proposal.session_id,
+      workspaceId: proposal.workspace_id,
+      conversationId: proposal.conversation_id,
+      metadata: { proposalId: proposal.id, repo: proposal.repo, status: proposal.status, reason: "proposal_not_approved" },
+    });
+    return {
+      ok: false,
+      error: "Proposal must be approved before the controlled executor can open a PR.",
+      steps,
+      stoppedAt: "approval_gate",
+    };
+  }
+
+  const diffPresent = Boolean(proposal.diff_preview && proposal.diff_preview.includes("diff"));
+  if (!diffPresent) {
+    const result = record("generate_diff", await generateRepoActionProposedDiff({ id }));
+    if (!result.ok) return { ok: false, error: result.error, steps, stoppedAt: "generate_diff" };
+  }
+
+  const sandbox = record("sandbox_check", await sandboxCheckRepoActionDiff({ id }));
+  if (!sandbox.ok) return { ok: false, error: sandbox.error, steps, stoppedAt: "sandbox_check" };
+
+  const tempWorkspace = record("temp_workspace_check", await runTemporaryWorkspaceBuildCheck({ id }));
+  if (!tempWorkspace.ok) return { ok: false, error: tempWorkspace.error, steps, stoppedAt: "temp_workspace_check" };
+
+  if (options.openPr === false) {
+    await logActionEvent({
+      eventType: "repo_action.executor_checked",
+      summary: `Controlled executor checks passed without PR: ${proposal.title}`,
+      status: "approved",
+      approvalStage: "action",
+      riskLevel: proposal.risk_level,
+      projectKey: proposal.project_key,
+      sessionId: proposal.session_id,
+      workspaceId: proposal.workspace_id,
+      conversationId: proposal.conversation_id,
+      metadata: { proposalId: proposal.id, repo: proposal.repo, steps, safety: "no_pr_no_merge_no_deploy" },
+    });
+    return {
+      ok: true,
+      proposal,
+      steps,
+      message: "Controlled executor checks passed. PR creation was skipped by request. No merge or deployment happened.",
+    };
+  }
+
+  const pr = record("open_pr", await openRepoActionPullRequest({ id }));
+  if (!pr.ok) return { ok: false, error: pr.error, steps, stoppedAt: "open_pr" };
+
+  let tracked: Awaited<ReturnType<typeof trackRepoActionPullRequest>> | null = null;
+  if (options.trackPr !== false) {
+    tracked = record("track_pr", await trackRepoActionPullRequest({ id })) as Awaited<ReturnType<typeof trackRepoActionPullRequest>>;
+    if (!tracked.ok) {
+      return { ok: false, error: tracked.error, steps, stoppedAt: "track_pr", prUrl: "prUrl" in pr ? pr.prUrl : undefined };
+    }
+  }
+
+  await logActionEvent({
+    eventType: "repo_action.executor_completed",
+    summary: `Controlled executor completed PR path: ${proposal.title}`,
+    status: "executed",
+    approvalStage: "action",
+    riskLevel: proposal.risk_level,
+    projectKey: proposal.project_key,
+    sessionId: proposal.session_id,
+    workspaceId: proposal.workspace_id,
+    conversationId: proposal.conversation_id,
+    metadata: {
+      proposalId: proposal.id,
+      repo: proposal.repo,
+      steps,
+      prUrl: "prUrl" in pr ? pr.prUrl : undefined,
+      safety: "opened_pr_only_no_merge_no_deploy",
+    },
+  });
+
+  return {
+    ok: true,
+    proposal,
+    steps,
+    prUrl: "prUrl" in pr ? pr.prUrl : undefined,
+    tracked,
+    message: "Controlled executor completed. A PR may have been opened/tracked, but no merge or deployment happened.",
+  };
+}
+
 export async function updateRepoActionStatus(options: {
   id: string;
   status: RepoActionStatus;

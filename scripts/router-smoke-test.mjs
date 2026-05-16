@@ -13,6 +13,7 @@ const checks = [
   ['repo targeting layer exists', fs.existsSync('lib/repo-targeting.ts') && /inferRepoActionTargets/.test(fs.readFileSync('lib/repo-targeting.ts', 'utf8'))],
   ['repo tree validation exists', /validateRepoActionTargets/.test(fs.readFileSync('lib/repo-targeting.ts', 'utf8')) && /repo_tree_verified/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8'))],
   ['owner summary discipline exists', /Final response discipline/.test(route) && /never dump raw tool JSON/.test(route)],
+  ['controlled executor exists', /runApprovedRepoActionExecutor/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8')) && /run_approved_repo_action/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

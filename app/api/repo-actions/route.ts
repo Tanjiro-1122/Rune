@@ -7,6 +7,7 @@ import {
   inspectRepoActionFiles,
   listRepoActionProposals,
   openRepoActionPullRequest,
+  runApprovedRepoActionExecutor,
   runTemporaryWorkspaceBuildCheck,
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
@@ -36,7 +37,7 @@ const CreateProposalSchema = z.object({
 
 const UpdateProposalSchema = z.object({
   id: z.string().min(1).max(120),
-  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check", "open_pr", "track_pr"]).default("status"),
+  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check", "open_pr", "track_pr", "execute_approved"]).default("status"),
   status: z.enum(["approved", "rejected", "blocked", "cancelled"]).optional(),
   approvalNote: z.string().max(700).nullable().optional(),
 });
@@ -133,6 +134,14 @@ export async function PATCH(req: NextRequest) {
     const result = await trackRepoActionPullRequest({ id: parsed.data.id });
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? "Failed to track pull request." }, { status: 500 });
+    }
+    return NextResponse.json(result);
+  }
+
+  if (parsed.data.action === "execute_approved") {
+    const result = await runApprovedRepoActionExecutor({ id: parsed.data.id });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? "Failed to run controlled executor.", steps: result.steps, stoppedAt: result.stoppedAt }, { status: 500 });
     }
     return NextResponse.json(result);
   }

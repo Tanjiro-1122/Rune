@@ -4,6 +4,8 @@ Agent Core v1 is the first quality upgrade after the Brain phase.
 
 ## Included
 
+- Controlled executor for approved proposals: runs existing safety gates and can open/track a PR, but does not merge or deploy.
+
 - Repo-tree validation for inferred file targets: likely file guesses are checked against GitHub tree data and retargeted to closest real paths when possible.
 
 - Owner-language tool summaries: after tool use, Jarvis should state what ran, what passed, where it stopped, and the next safe step without dumping raw JSON.
