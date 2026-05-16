@@ -1106,8 +1106,11 @@ export async function queuePrivateAppCreatorDeploy(options: {
       customerFacing: false,
       paymentsChange: false,
       schemaMutation: false,
+      authRequired: true,
+      accessPolicy: "owner_only_authenticated_javier",
+      executorMode: "dry_run_validator_only",
       previewHandoff: handoff.previewHandoff,
-      safety: "queued_private_owner_only_no_public_launch_no_merge_no_schema_mutation",
+      safety: "queued_private_owner_only_dry_run_no_public_launch_no_merge_no_schema_mutation",
     },
   });
 
@@ -1157,7 +1160,10 @@ export async function queuePrivateAppCreatorDeploy(options: {
               ownerOnly: true,
               targetAudience: "javier_only",
               publicLaunch: false,
-              safety: "queued_private_owner_only_no_public_launch_no_merge_no_schema_mutation",
+              authRequired: true,
+              accessPolicy: "owner_only_authenticated_javier",
+              executorMode: "dry_run_validator_only",
+              safety: "queued_private_owner_only_dry_run_no_public_launch_no_merge_no_schema_mutation",
             },
           },
         },
@@ -1175,7 +1181,7 @@ export async function queuePrivateAppCreatorDeploy(options: {
     projectKey: proposal.project_key,
     workspaceId: options.workspaceId || proposal.workspace_id || null,
     conversationId: options.conversationId || proposal.conversation_id || null,
-    metadata: { proposalId, taskId: queued.taskId, commandPreview: command, ownerOnly: true, targetAudience: "javier_only", safety: "queued_private_owner_only_no_public_launch_no_merge_no_schema_mutation" },
+    metadata: { proposalId, taskId: queued.taskId, commandPreview: command, ownerOnly: true, targetAudience: "javier_only", authRequired: true, executorMode: "dry_run_validator_only", safety: "queued_private_owner_only_dry_run_no_public_launch_no_merge_no_schema_mutation" },
   });
 
   return {
@@ -1187,9 +1193,9 @@ export async function queuePrivateAppCreatorDeploy(options: {
     task: queued.task,
     commandPreview: command,
     requiredApprovalPhrase: PRIVATE_DEPLOY_APPROVAL_PHRASE,
-    message: "App Creator v1.5 queued a private owner-only production job for the trusted runner. Jarvis did not deploy from chat, merge, mutate schema, or make the app public.",
-    safety: "queued_private_owner_only_no_public_launch_no_merge_no_schema_mutation",
-    nextAction: "Watch the Runner dashboard. The current runner will keep this private job visible until a dedicated owner-only executor is approved/enabled.",
+    message: "App Creator v1.6 queued a private owner-only production job for trusted-runner dry-run validation. Jarvis did not deploy from chat, merge, mutate schema, or make the app public.",
+    safety: "queued_private_owner_only_dry_run_no_public_launch_no_merge_no_schema_mutation",
+    nextAction: "Watch the Runner dashboard. The runner can validate this private job as dry-run passed, but real owner-only execution still requires a later dedicated executor approval.",
   };
 }
 
