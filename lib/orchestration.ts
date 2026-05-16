@@ -50,7 +50,11 @@ export type ReasoningRoute =
 const SELF_AUDIT_PATTERN = /\b(self\s*-?\s*audit|audit yourself|system health|are you ready|check your brain|brain check|readiness report|what should we patch next)\b/i;
 const CAPABILITY_TRUTH_PATTERN = /\b(what can you actually do|what can you do|what is connected|what's connected|anything missing|what is missing|what's missing|setup missing|capabilities|capability|how far can we take you|fully set up)\b/i;
 const SENSITIVE_ACTION_PATTERN = /\b(send email|email customer|reply to customer|grant free|grant credit|free month|refund|charge|bank transfer|bill payment|move money|delete production|push to production|open pr|pull request|commit|merge)\b/i;
-const DEPLOY_ACTION_PATTERN = /\b(deploy|deployment|rollback|redeploy)\b/i;
+const EXPLICIT_REPO_PROPOSAL_PATTERN = /\b(create|make|prepare|draft|open)\b[\s\S]{0,80}\b(repo control proposal|repo action proposal|proposal)\b|\b(repo control proposal|repo action proposal)\b/i;
+const SAFE_REVIEW_ONLY_PATTERN = /\b(do not execute|don't execute|without executing|proposal only|review only|no execution|do not run|don't run)\b/i;
+// Only route deployment as approval-required when the user is asking for an actual deployment mutation.
+// Phrases like "deployment health wording" or "deployment summary" are repo/content work, not deploy actions.
+const DEPLOY_ACTION_PATTERN = /\b(rollback|redeploy|deploy to production|trigger (a )?deploy|run (a )?deploy|start (a )?deployment|push to production)\b/i;
 const NOT_CONNECTED_PATTERN = /\b(bank|banking|bank of america|gmail|outlook|customer inbox|revenuecat admin|app store connect|google play console|play console|send customer email)\b/i;
 const REPO_CHANGE_VERB_PATTERN = /\b(fix|patch|change|modify|update|implement|add|remove|refactor|finish|build)\b/i;
 const REPO_SCOPE_PATTERN = /\b(repo|repository|code|jarvis|unfiltr|swh|family|app|site|ui|router|agent|core|workflow)\b/i;
@@ -83,6 +87,13 @@ export function detectToolIntent(
   // ── Brain/control-plane routing ─────────────────────────────────────────
   if (SELF_AUDIT_PATTERN.test(lower)) return "self_audit";
   if (CAPABILITY_TRUTH_PATTERN.test(lower)) return "capability_truth";
+
+  // Explicit review-only Repo Control requests should route to proposal creation,
+  // even when they mention words like "deployment" as content being edited.
+  if (EXPLICIT_REPO_PROPOSAL_PATTERN.test(lower) || (SAFE_REVIEW_ONLY_PATTERN.test(lower) && needsRepositoryInspection(input))) {
+    return "repo_proposal";
+  }
+
   if (SENSITIVE_ACTION_PATTERN.test(lower) || DEPLOY_ACTION_PATTERN.test(lower)) return "approval_required";
   if (NOT_CONNECTED_PATTERN.test(lower)) return "not_connected";
   if (needsRepositoryInspection(input)) return "repo_proposal";

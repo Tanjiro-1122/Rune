@@ -2448,7 +2448,23 @@ export function Chat() {
                           toolInvocation: ToolInvocation;
                         }
                       ).toolInvocation;
-                      const toolSignature = `${invocation.toolName}:${invocation.state === "result" ? JSON.stringify(invocation.result ?? {}) : invocation.state}`;
+                      const stageKey =
+                        typeof invocation.args?.action === "string"
+                          ? invocation.args.action
+                          : typeof (invocation.result as { action?: unknown } | undefined)?.action === "string"
+                            ? ((invocation.result as { action?: string }).action as string)
+                            : "";
+                      const proposalKey =
+                        typeof invocation.args?.proposalId === "string"
+                          ? invocation.args.proposalId
+                          : typeof (invocation.result as { proposalId?: unknown } | undefined)?.proposalId === "string"
+                            ? ((invocation.result as { proposalId?: string }).proposalId as string)
+                            : "";
+                      const capabilityDedupeKey =
+                        invocation.toolName === "get_jarvis_capability_snapshot" || invocation.toolName === "get_jarvis_self_audit_snapshot"
+                          ? invocation.toolName
+                          : "";
+                      const toolSignature = capabilityDedupeKey || `${invocation.toolName}:${stageKey}:${proposalKey}:${invocation.state === "result" ? JSON.stringify(invocation.result ?? {}) : invocation.state}`;
                       if (seenToolCards.has(toolSignature)) return null;
                       seenToolCards.add(toolSignature);
                       return (

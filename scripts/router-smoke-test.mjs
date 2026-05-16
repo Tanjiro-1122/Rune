@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 const source = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
+
+const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
+const explicitRepoProposalPattern = /const EXPLICIT_REPO_PROPOSAL_PATTERN/.test(orchestration);
+const safeReviewOnlyPattern = /const SAFE_REVIEW_ONLY_PATTERN/.test(orchestration);
+const narrowedDeployPattern = /Only route deployment as approval-required/.test(orchestration) && /deploy to production/.test(orchestration) && !orchestration.includes('const DEPLOY_ACTION_PATTERN = /\\b(deploy|deployment|rollback|redeploy)');
 const checks = [
   ['self-audit pattern exists', /SELF_AUDIT_PATTERN/.test(source)],
   ['no corrupted backspace word-boundary characters', !source.includes('\u0008') && !source.includes('=\b')],
@@ -16,6 +21,7 @@ const checks = [
   ['controlled executor exists', /runApprovedRepoActionExecutor/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8')) && /run_approved_repo_action/.test(route)],
   ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
   ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
+  ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);
