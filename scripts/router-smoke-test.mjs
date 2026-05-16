@@ -2,6 +2,7 @@ import fs from 'node:fs';
 const source = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 const repoActions = fs.readFileSync('lib/repo-actions.ts', 'utf8');
+const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
 
 const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const explicitRepoProposalPattern = /const EXPLICIT_REPO_PROPOSAL_PATTERN/.test(orchestration);
@@ -22,6 +23,7 @@ const checks = [
   ['owner summary discipline exists', /Final response discipline/.test(route) && /never dump raw tool JSON/.test(route)],
   ['controlled executor exists', /runApprovedRepoActionExecutor/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8')) && /run_approved_repo_action/.test(route)],
   ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
+  ['deployment executor gate exists', /executeDeploymentControlAction/.test(deploymentControl) && /APPROVE JARVIS REDEPLOY/.test(deploymentControl) && /cli_runner_not_enabled/.test(deploymentControl) && /execute_redeploy/.test(route)],
   ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo ladder avoids calculator', /isRepoControlCommand/.test(chatRoute) && /withoutUuids/.test(chatRoute) && /Repo Control command detected; do not route to calculator/.test(chatRoute) && /safe repo control ladder/.test(orchestration)],

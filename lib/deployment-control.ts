@@ -1,7 +1,7 @@
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 
-export type DeploymentControlAction = "inspect" | "prepare_redeploy" | "prepare_rollback";
+export type DeploymentControlAction = "inspect" | "prepare_redeploy" | "prepare_rollback" | "execute_redeploy" | "execute_rollback";
 
 type VercelDeploymentSummary = {
   uid?: string;
@@ -178,5 +178,143 @@ export async function prepareDeploymentControlAction(options: {
     rollbackCandidate,
     safety,
     message: "Deployment action prepared for Javier approval only. No redeploy, rollback, merge, or production mutation happened.",
+  };
+}
+
+
+function getDeploymentMutationMode() {
+  return (process.env.JARVIS_DEPLOYMENT_MUTATION_MODE || "disabled").trim().toLowerCase();
+}
+
+function expectedDeploymentApprovalText(action: "execute_redeploy" | "execute_rollback") {
+  return action === "execute_redeploy"
+    ? "APPROVE JARVIS REDEPLOY"
+    : "APPROVE JARVIS ROLLBACK";
+}
+
+export async function executeDeploymentControlAction(options: {
+  action: "execute_redeploy" | "execute_rollback";
+  deploymentId?: string | null;
+  approvalText?: string | null;
+  reason?: string | null;
+}) {
+  const expectedApproval = expectedDeploymentApprovalText(options.action);
+  const approvalText = (options.approvalText || "").trim();
+  const mutationMode = getDeploymentMutationMode();
+  const { token, project, teamId } = getVercelConfig();
+
+  const inspection = await listVercelDeployments({ limit: 8, target: "production" });
+  const selectedDeployment = options.deploymentId && inspection.ok
+    ? inspection.deployments.find((deployment) => deployment.uid === options.deploymentId) ?? null
+    : options.action === "execute_rollback" && inspection.ok
+      ? inspection.deployments.find((deployment, index) => index > 0 && deployment.state === "READY") ?? null
+      : inspection.ok
+        ? inspection.deployments[0] ?? null
+        : null;
+
+  const baseMetadata = {
+    action: options.action,
+    reason: options.reason || null,
+    selectedDeployment,
+    expectedApproval,
+    receivedApproval: approvalText ? "provided" : "missing",
+    mutationMode,
+    configured: Boolean(token),
+    project: project || null,
+    teamId: teamId || null,
+  };
+
+  if (approvalText !== expectedApproval) {
+    await logActionEvent({
+      eventType: `deployment.${options.action}.blocked`,
+      summary: `Deployment ${options.action.replace("execute_", "")} blocked: approval phrase missing`,
+      status: "blocked",
+      approvalStage: "approval",
+      riskLevel: "high",
+      projectKey: "jarvis",
+      metadata: { ...baseMetadata, reason_blocked: "approval_text_mismatch" },
+    });
+    return {
+      ok: false,
+      blocked: true,
+      error: `Deployment mutation requires exact approval text: ${expectedApproval}`,
+      expectedApproval,
+      safety: "blocked_no_deployment_mutation",
+    };
+  }
+
+  if (!inspection.ok) {
+    await logActionEvent({
+      eventType: `deployment.${options.action}.blocked`,
+      summary: `Deployment ${options.action.replace("execute_", "")} blocked: Vercel inspection unavailable`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "high",
+      projectKey: "jarvis",
+      metadata: { ...baseMetadata, reason_blocked: "inspection_failed", error: inspection.error },
+    });
+    return { ok: false, blocked: true, error: inspection.error, configured: inspection.configured, safety: "blocked_no_deployment_mutation" };
+  }
+
+  if (!selectedDeployment?.uid && !selectedDeployment?.url) {
+    await logActionEvent({
+      eventType: `deployment.${options.action}.blocked`,
+      summary: `Deployment ${options.action.replace("execute_", "")} blocked: no deployment target`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "high",
+      projectKey: "jarvis",
+      metadata: { ...baseMetadata, reason_blocked: "no_deployment_target" },
+    });
+    return { ok: false, blocked: true, error: "No deployment target was found for this action.", deployments: inspection.deployments, safety: "blocked_no_deployment_mutation" };
+  }
+
+  // Vercel documents redeploy/rollback through the CLI. We intentionally do not call
+  // undocumented production mutation endpoints from the web app runtime. A future
+  // runner can execute the documented CLI command after this same approval gate.
+  const command = options.action === "execute_redeploy"
+    ? `vercel redeploy ${selectedDeployment.url || selectedDeployment.uid} --token=$VERCEL_TOKEN`
+    : `vercel rollback ${selectedDeployment.url || selectedDeployment.uid} --token=$VERCEL_TOKEN`;
+
+  if (mutationMode !== "cli_runner") {
+    await logActionEvent({
+      eventType: `deployment.${options.action}.blocked`,
+      summary: `Deployment ${options.action.replace("execute_", "")} approved but blocked: CLI runner not enabled`,
+      status: "blocked",
+      approvalStage: "action",
+      riskLevel: "high",
+      projectKey: "jarvis",
+      metadata: { ...baseMetadata, reason_blocked: "cli_runner_not_enabled", documentedCommand: command },
+    });
+    return {
+      ok: false,
+      blocked: true,
+      error: "Approval was valid, but deployment mutation is disabled because JARVIS_DEPLOYMENT_MUTATION_MODE is not set to cli_runner.",
+      action: options.action,
+      deployment: selectedDeployment,
+      documentedCommand: command,
+      safety: "approved_but_blocked_no_deployment_mutation",
+      message: "Jarvis prepared the exact documented Vercel CLI command but did not redeploy or rollback production.",
+    };
+  }
+
+  await logActionEvent({
+    eventType: `deployment.${options.action}.blocked`,
+    summary: `Deployment ${options.action.replace("execute_", "")} blocked: CLI runner execution not implemented in web runtime`,
+    status: "blocked",
+    approvalStage: "action",
+    riskLevel: "high",
+    projectKey: "jarvis",
+    metadata: { ...baseMetadata, reason_blocked: "cli_runner_execution_not_implemented", documentedCommand: command },
+  });
+
+  return {
+    ok: false,
+    blocked: true,
+    error: "The approval gate passed, but the production CLI runner execution layer is not implemented in this web runtime yet.",
+    action: options.action,
+    deployment: selectedDeployment,
+    documentedCommand: command,
+    safety: "approved_but_blocked_no_deployment_mutation",
   };
 }

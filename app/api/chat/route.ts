@@ -54,7 +54,7 @@ import {
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
-import { inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
+import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -1081,13 +1081,14 @@ function getAgentTools({
       description:
         "Inspect Vercel deployment status or prepare a redeploy/rollback action for Javier approval. This tool never redeploys, rolls back, merges, or mutates production.",
       parameters: z.object({
-        action: z.enum(["inspect", "prepare_redeploy", "prepare_rollback"]),
+        action: z.enum(["inspect", "prepare_redeploy", "prepare_rollback", "execute_redeploy", "execute_rollback"]),
         gitBranch: z.string().max(160).nullable().optional(),
         target: z.string().max(80).nullable().optional(),
         deploymentId: z.string().max(160).nullable().optional(),
         reason: z.string().max(700).nullable().optional(),
+        approvalText: z.string().max(120).nullable().optional(),
       }),
-      execute: async ({ action, gitBranch, target, deploymentId, reason }) => {
+      execute: async ({ action, gitBranch, target, deploymentId, reason, approvalText }) => {
         if (action === "inspect") {
           const result = await inspectDeploymentControl({ gitBranch, target, limit: 6 });
           return {
@@ -1099,6 +1100,16 @@ function getAgentTools({
               : result.error || "Deployment inspection unavailable.",
           };
         }
+        if (action === "execute_redeploy" || action === "execute_rollback") {
+          const result = await executeDeploymentControlAction({ action, deploymentId, reason, approvalText });
+          return {
+            success: result.ok,
+            action,
+            result,
+            message: result.message || result.error || "Deployment execution gate completed. No production action happened unless explicitly supported and approved.",
+          };
+        }
+
         const result = await prepareDeploymentControlAction({ action, deploymentId, reason });
         return {
           success: result.ok,
