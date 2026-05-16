@@ -9,7 +9,7 @@ import { Octokit } from "@octokit/rest";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logError } from "@/lib/errors";
 import { logActionEvent } from "@/lib/action-events";
-import { inferRepoActionTargets } from "@/lib/repo-targeting";
+import { inferRepoActionTargets, validateRepoActionTargets } from "@/lib/repo-targeting";
 
 export type RepoActionRisk = "low" | "medium" | "high";
 export type RepoActionStatus = "draft" | "proposed" | "approved" | "rejected" | "blocked" | "executed" | "cancelled";
@@ -456,6 +456,15 @@ export async function createRepoActionProposal(input: RepoActionProposalInput) {
     files: input.files,
   });
 
+  const validatedTargets = await validateRepoActionTargets({
+    repo: inferredTargets.repo,
+    files: inferredTargets.files,
+  });
+  const targetingNotes = [
+    validatedTargets.verified ? `Repo-tree validation checked ${validatedTargets.defaultBranch || "default"} branch.` : "Repo-tree validation was not completed.",
+    ...validatedTargets.notes,
+  ].filter(Boolean);
+
   const payload = {
     title,
     summary,
@@ -465,8 +474,16 @@ export async function createRepoActionProposal(input: RepoActionProposalInput) {
     project_key: normalizeProjectKey(inferredTargets.projectKey),
     risk_level: normalizeRisk(inferredTargets.riskLevel),
     status: "proposed" as RepoActionStatus,
-    files: cleanFiles(inferredTargets.files),
+    files: cleanFiles(validatedTargets.files),
     diff_preview: cleanMultiline(input.diffPreview, 10000),
+    draft_metadata: {
+      targeting: {
+        inferred: true,
+        repo_tree_verified: validatedTargets.verified,
+        default_branch: validatedTargets.defaultBranch,
+        notes: targetingNotes.slice(0, 20),
+      },
+    },
     session_id: input.sessionId ? cleanText(input.sessionId, 120) : null,
     workspace_id: input.workspaceId || null,
     conversation_id: input.conversationId || null,
