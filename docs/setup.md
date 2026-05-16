@@ -881,3 +881,15 @@ Rule: Jarvis does not move to the next phase until the current phase checklist i
 Current phase after Patch 25: **Phase 1 — Blueprint Lock**.
 
 Next allowed work after Javier approves Blueprint: **Phase 2 — Foundation Completion Audit**.
+
+
+## RevenueCat read-only visibility
+
+Jarvis can inspect a RevenueCat subscriber in read-only mode through `GET /api/revenuecat?appUserId=<id>` when `REVENUECAT_API_KEY` or `JARVIS_REVENUECAT_API_KEY` is configured.
+
+Safety boundaries:
+
+- Only RevenueCat `GET /v1/subscribers/{app_user_id}` is used.
+- No grants, entitlement changes, refunds, transfers, deletes, or subscription mutations are implemented.
+- Secret values are never returned to the UI or action log.
+- Action logging stores only a short app user ID preview and counts.

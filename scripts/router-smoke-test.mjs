@@ -4,6 +4,8 @@ const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 const repoActions = fs.readFileSync('lib/repo-actions.ts', 'utf8');
 const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
 const externalServicesHealth = fs.readFileSync('lib/external-services-health.ts', 'utf8');
+const revenueCatReadOnly = fs.readFileSync('lib/revenuecat-readonly.ts', 'utf8');
+const revenueCatRoute = fs.readFileSync('app/api/revenuecat/route.ts', 'utf8');
 const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
 
 const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
@@ -31,6 +33,8 @@ const checks = [
   ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo ladder avoids calculator', /isRepoControlCommand/.test(chatRoute) && /withoutUuids/.test(chatRoute) && /Repo Control command detected; do not route to calculator/.test(chatRoute) && /safe repo control ladder/.test(orchestration)],
   ['jarvis voice layer exists', /Voice and personality/.test(chatRoute) && /private AI person/.test(chatRoute) && /not a compliance dashboard/.test(chatRoute) && /honest read/.test(chatRoute) && /Personality never overrides safety/.test(chatRoute)],
+  ['external services health exists', /RevenueCat/.test(externalServicesHealth) && /App Store Connect/.test(externalServicesHealth) && /Google Play/.test(externalServicesHealth) && /externalServices/.test(buildIntelligence)],
+  ['revenuecat read-only client exists', /getRevenueCatSubscriberReadOnly/.test(revenueCatReadOnly) && /method: \"GET\"/.test(revenueCatReadOnly) && !/method: \"POST\"|method: \"PATCH\"|method: \"DELETE\"|method: \"PUT\"/.test(revenueCatReadOnly) && /readOnly: true/.test(revenueCatRoute)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);
