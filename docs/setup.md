@@ -927,3 +927,24 @@ Safety boundaries:
 - Release track visibility is intentionally blocked because Google exposes tracks through the edits API, which requires creating an edit session.
 - No edits, release-track changes, rollout changes, publishing actions, product edits, review replies, or deletions are implemented.
 - Service account JSON content/path values are never returned to the UI or action log.
+
+
+## One-command app health snapshot
+
+Jarvis can generate a combined read-only app health snapshot through `GET /api/app-health` or the chat tool `get_app_health_snapshot`.
+
+It combines:
+
+- GitHub repository/build intelligence
+- Vercel deployment visibility
+- External service readiness
+- Optional RevenueCat subscriber lookup when an app user ID is provided
+- App Store Connect read-only app/build/version visibility
+- Google Play read-only reviews/subscriptions/in-app products visibility
+
+Safety boundaries:
+
+- Read-only health snapshot only.
+- No repo commits, pull requests, merges, deployments, rollbacks, releases, publishing, entitlement grants, refunds, product edits, review replies, or deletes are executed.
+- Google Play release-track visibility remains blocked because it requires Play edit sessions.
+- Secrets and private keys are never returned in the snapshot.

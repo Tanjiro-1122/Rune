@@ -43,6 +43,7 @@ const TOOL_LABELS: Record<string, string> = {
   lookup_revenuecat_subscriber: "Checking RevenueCat subscriber",
   lookup_app_store_connect_status: "Checking App Store Connect",
   lookup_google_play_status: "Checking Google Play",
+  get_app_health_snapshot: "Checking app health",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -171,6 +172,79 @@ function CalculateCard({
   );
 }
 
+
+type AppHealthSnapshotResult = {
+  success?: boolean;
+  status?: "healthy" | "warning" | "blocked";
+  score?: number;
+  summary?: string;
+  projectKey?: string;
+  generatedAt?: string;
+  findings?: string[];
+  blockers?: string[];
+  safeBoundaries?: string[];
+  build?: {
+    github?: { repo?: string; latestCommit?: { sha?: string; message?: string }; latestWorkflowRun?: { status?: string | null; conclusion?: string | null } | null; error?: string };
+    vercel?: { latestDeployment?: { state?: string | null; url?: string | null } | null; error?: string };
+  };
+  appStoreConnect?: { ok?: boolean; configured?: boolean; summary?: { latestBuilds?: Array<{ version?: string | null; processingState?: string | null }>; latestVersions?: Array<{ versionString?: string | null; appStoreState?: string | null }> }; error?: string };
+  googlePlay?: { ok?: boolean; configured?: boolean; summary?: { reviews?: unknown[]; subscriptions?: unknown[]; inAppProducts?: unknown[]; blockedCapabilities?: Array<{ name: string; reason: string }> }; error?: string };
+  revenueCat?: { ok?: boolean; configured?: boolean; subscriber?: { entitlements?: unknown[]; subscriptions?: unknown[] }; error?: string };
+};
+
+function AppHealthSnapshotCard({
+  state,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  result?: AppHealthSnapshotResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const status = result?.status ?? "warning";
+  const failed = !isPending && status === "blocked";
+  const latestBuild = result?.appStoreConnect?.summary?.latestBuilds?.[0];
+  const latestVersion = result?.appStoreConnect?.summary?.latestVersions?.[0];
+  const latestCommit = result?.build?.github?.latestCommit;
+  const deployment = result?.build?.vercel?.latestDeployment;
+
+  return (
+    <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🔎" : failed ? "🚧" : status === "warning" ? "🟡" : "🟢"}</span>
+        <span className="tool-card-title">App health snapshot</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">Project: {result?.projectKey ?? "checking"}</span>
+        <span className={status === "healthy" ? "repo-control-status repo-control-status--safe" : "repo-control-status repo-control-status--warning"}>
+          {isPending ? "Read-only inspection running" : `${status.toUpperCase()} · score ${result?.score ?? "—"}/100`}
+        </span>
+        {result?.summary && <p className="build-intel-copy">{result.summary}</p>}
+        {result && (
+          <>
+            <div className="memory-meta-row">
+              <span>GitHub: {result.build?.github?.error ? "issue" : result.build?.github?.repo ?? "visible"}</span>
+              <span>Vercel: {result.build?.vercel?.error ? "issue" : deployment?.state ?? "visible"}</span>
+              <span>ASC: {result.appStoreConnect?.ok ? "ok" : result.appStoreConnect?.configured ? "issue" : "not configured"}</span>
+              <span>Play: {result.googlePlay?.ok ? "ok" : result.googlePlay?.configured ? "issue" : "not configured"}</span>
+            </div>
+            <div className="app-health-mini-list">
+              {latestCommit?.sha && <span><strong>Latest commit</strong> · {latestCommit.sha.slice(0, 7)} · {latestCommit.message?.split("\n")[0]}</span>}
+              {latestBuild && <span><strong>iOS build</strong> · {latestBuild.version ?? "version unknown"} · {latestBuild.processingState ?? "state unknown"}</span>}
+              {latestVersion && <span><strong>iOS version</strong> · {latestVersion.versionString ?? "version unknown"} · {latestVersion.appStoreState ?? "state unknown"}</span>}
+            </div>
+            {(result.blockers?.length ?? 0) > 0 && (
+              <div className="app-health-blockers">
+                {result.blockers!.slice(0, 5).map((blocker, index) => <span key={`${blocker}-${index}`}>{blocker}</span>)}
+              </div>
+            )}
+            <div className="app-health-boundary">Read-only only · no deploys, releases, payment changes, review replies, or repo mutations.</div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type GooglePlayLookupResult = {
   success?: boolean;
@@ -1241,6 +1315,15 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "get_app_health_snapshot") {
+    return (
+      <AppHealthSnapshotCard
+        state={invocation.state}
+        result={invocation.state === "result" ? (invocation.result as AppHealthSnapshotResult) : undefined}
       />
     );
   }

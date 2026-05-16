@@ -8,6 +8,8 @@ const revenueCatReadOnly = fs.readFileSync('lib/revenuecat-readonly.ts', 'utf8')
 const appStoreConnectReadOnly = fs.readFileSync('lib/app-store-connect-readonly.ts', 'utf8');
 const googlePlayReadOnly = fs.readFileSync('lib/google-play-readonly.ts', 'utf8');
 const googlePlayRoute = fs.readFileSync('app/api/google-play/route.ts', 'utf8');
+const appHealthSnapshot = fs.readFileSync('lib/app-health-snapshot.ts', 'utf8');
+const appHealthRoute = fs.readFileSync('app/api/app-health/route.ts', 'utf8');
 const appStoreConnectRoute = fs.readFileSync('app/api/app-store-connect/route.ts', 'utf8');
 const revenueCatRoute = fs.readFileSync('app/api/revenuecat/route.ts', 'utf8');
 const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
@@ -44,6 +46,8 @@ const checks = [
   ['app store connect chat tool exists', /lookup_app_store_connect_status/.test(route) && /getAppStoreConnectReadOnlySummary/.test(route) && /never imply release/.test(route)],
   ['google play read-only client exists', /getGooglePlayReadOnlySummary/.test(googlePlayReadOnly) && /method: \"GET\"/.test(googlePlayReadOnly) && /Release track visibility/.test(googlePlayReadOnly) && /readOnly: true/.test(googlePlayRoute)],
   ['google play chat tool exists', /lookup_google_play_status/.test(route) && /getGooglePlayReadOnlySummary/.test(route) && /release tracks are blocked/.test(route)],
+  ['app health snapshot exists', /getAppHealthSnapshot/.test(appHealthSnapshot) && /getBuildIntelligenceSnapshot/.test(appHealthSnapshot) && /getAppStoreConnectReadOnlySummary/.test(appHealthSnapshot) && /getGooglePlayReadOnlySummary/.test(appHealthSnapshot) && /getAppHealthSnapshot/.test(appHealthRoute)],
+  ['app health snapshot tool exists', /get_app_health_snapshot/.test(route) && /getAppHealthSnapshot/.test(route) && /never commits, deploys, releases, publishes/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

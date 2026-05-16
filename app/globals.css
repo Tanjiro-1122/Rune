@@ -1663,3 +1663,43 @@ button:disabled {
 .googleplay-blocked-list strong {
   color: #92400e;
 }
+
+
+.tool-card--app-health {
+  border-color: rgba(124, 58, 237, 0.22);
+  background: linear-gradient(135deg, rgba(245, 243, 255, 0.82), rgba(255, 255, 255, 0.92));
+}
+
+.app-health-mini-list,
+.app-health-blockers {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-health-mini-list span,
+.app-health-blockers span,
+.app-health-boundary {
+  display: block;
+  color: #4b4268;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.app-health-mini-list strong {
+  color: #6d28d9;
+}
+
+.app-health-blockers {
+  border-top: 1px solid rgba(124, 58, 237, 0.16);
+  padding-top: 0.45rem;
+}
+
+.app-health-blockers span {
+  color: #92400e;
+}
+
+.app-health-boundary {
+  border-top: 1px solid rgba(124, 58, 237, 0.12);
+  padding-top: 0.45rem;
+  color: #6b5f86;
+}

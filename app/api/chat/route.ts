@@ -58,6 +58,7 @@ import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploy
 import { getRevenueCatSubscriberReadOnly } from "@/lib/revenuecat-readonly";
 import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-readonly";
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
+import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -521,6 +522,27 @@ const baseAgentTools = {
         message: result.ok
           ? "Google Play inspected in read-only mode. No release track, publishing, product, or review changes happened."
           : result.error || "Google Play read-only lookup failed. No release track, publishing, product, or review changes happened.",
+      };
+    },
+  }),
+
+
+  get_app_health_snapshot: tool({
+    description:
+      "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, Unfiltr health, release health, store health, build health, or overall project readiness. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
+    parameters: z.object({
+      projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
+      repo: z.string().min(1).max(180).optional().describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
+      revenueCatAppUserId: z.string().min(1).max(180).optional().describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
+      appStoreAppId: z.string().min(1).max(64).optional().describe("Optional App Store Connect app ID override."),
+      googlePlayPackageName: z.string().min(1).max(220).optional().describe("Optional Google Play package name override."),
+    }),
+    execute: async ({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName }) => {
+      const snapshot = await getAppHealthSnapshot({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName });
+      return {
+        success: snapshot.status !== "blocked",
+        ...snapshot,
+        message: "App health snapshot completed in read-only mode. No deployment, release, repo, payment, store, or customer mutation happened.",
       };
     },
   }),
@@ -1628,7 +1650,7 @@ ${plannerOutput.steps
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
-- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available. Google Play lookup is read-only only through lookup_google_play_status; never imply release-track edits, publishing, rollout, halt, product edits, or review replies are available. Google Play release tracks are blocked unless Javier approves a separate edit-session reader design.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available. Google Play lookup is read-only only through lookup_google_play_status; never imply release-track edits, publishing, rollout, halt, product edits, or review replies are available. Google Play release tracks are blocked unless Javier approves a separate edit-session reader design. One-command app health snapshots are read-only only through get_app_health_snapshot and must not imply repair actions were executed.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 
