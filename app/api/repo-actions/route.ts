@@ -14,6 +14,8 @@ import {
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
   updateRepoActionStatus,
+  isRepoActionProposalId,
+  repoActionProposalIdError,
 } from "@/lib/repo-actions";
 
 const FileTargetSchema = z.object({
@@ -84,6 +86,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Invalid repo action update.", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  if (!isRepoActionProposalId(parsed.data.id)) {
+    return NextResponse.json(
+      { error: repoActionProposalIdError(parsed.data.id), invalidProposalId: true },
+      { status: 400 }
+    );
+  }
+
   if (parsed.data.action === "draft_diff") {
     const result = await draftRepoActionDiff({ id: parsed.data.id });
     if (!result.ok) {
@@ -143,7 +152,11 @@ export async function PATCH(req: NextRequest) {
   if (parsed.data.action === "execute_approved") {
     const result = await runApprovedRepoActionExecutor({ id: parsed.data.id });
     if (!result.ok) {
-      return NextResponse.json({ error: result.error ?? "Failed to run controlled executor.", steps: result.steps, stoppedAt: result.stoppedAt }, { status: 500 });
+      return NextResponse.json({
+        error: result.error ?? "Failed to run controlled executor.",
+        steps: "steps" in result ? result.steps : [],
+        stoppedAt: "stoppedAt" in result ? result.stoppedAt : "controlled_executor",
+      }, { status: 500 });
     }
     return NextResponse.json(result);
   }

@@ -62,6 +62,31 @@ const VALID_RISKS: RepoActionRisk[] = ["low", "medium", "high"];
 const VALID_STATUSES: RepoActionStatus[] = ["draft", "proposed", "approved", "rejected", "blocked", "executed", "cancelled"];
 const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NUMERIC_ID_RE = /^\d{8,}$/;
+
+export function isRepoActionProposalId(value: string | null | undefined) {
+  return UUID_RE.test(cleanText(value, 120));
+}
+
+export function repoActionProposalIdError(value: string | null | undefined) {
+  const cleaned = cleanText(value, 120);
+  if (!cleaned) return "Repo Control proposal ID is required.";
+  if (NUMERIC_ID_RE.test(cleaned)) {
+    return "That looks like a GitHub Actions run ID, not a Repo Control proposal ID. Use the proposal UUID from the Repo Control card, or inspect the workflow run with the build/app-health tools instead.";
+  }
+  return "Invalid Repo Control proposal ID. Proposal IDs must be UUIDs from a Repo Control proposal card.";
+}
+
+function normalizeRepoActionProposalId(value: string | null | undefined) {
+  const id = cleanText(value, 120);
+  return isRepoActionProposalId(id) ? id : null;
+}
+
+function invalidRepoActionProposalResult(value: string | null | undefined) {
+  return { ok: false as const, error: repoActionProposalIdError(value), invalidProposalId: true as const };
+}
+
 function getRepoParts(repoSlug: string) {
   const raw = cleanText(repoSlug || DEFAULT_REPO, 180);
   const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
@@ -658,8 +683,8 @@ export async function draftRepoActionDiff(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -724,8 +749,8 @@ export async function inspectRepoActionFiles(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -858,8 +883,8 @@ export async function generateRepoActionProposedDiff(options: { id: string }) {
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
   if (!process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -1007,8 +1032,8 @@ export async function sandboxCheckRepoActionDiff(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -1159,8 +1184,8 @@ export async function runTemporaryWorkspaceBuildCheck(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -1314,8 +1339,8 @@ export async function openRepoActionPullRequest(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -1519,8 +1544,8 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const { data: existing, error: fetchError } = await supabase
     .from("jarvis_repo_action_proposals")
@@ -1707,8 +1732,8 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
 
 
 export async function runApprovedRepoActionExecutor(options: { id: string; openPr?: boolean; trackPr?: boolean }) {
-  const id = cleanText(options.id, 120);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  const id = normalizeRepoActionProposalId(options.id);
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const steps: Array<{ step: string; ok: boolean; error?: string }> = [];
   const record = (step: string, result: { ok: boolean; error?: string }) => {
@@ -1861,17 +1886,18 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
     };
   }
 
-  const proposalId = cleanText("id" in options ? options.id : options.proposalId, 120);
+  const rawProposalId = "id" in options ? options.id : options.proposalId;
+  const proposalId = normalizeRepoActionProposalId(rawProposalId);
   if (!proposalId) {
     return {
       ok: false,
-      proposalId: "",
+      proposalId: cleanText(rawProposalId, 120),
       ready: false,
       requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
-      nextAction: "Provide a valid Repo Control proposal ID.",
+      nextAction: "Use a Repo Control proposal UUID from the proposal card, not a GitHub Actions run ID.",
       safety: "metadata_only_no_deploy",
-      message: "Deployment handoff could not start because proposal ID was missing.",
-      error: "Proposal id is required.",
+      message: "Deployment handoff could not start because the proposal ID was invalid.",
+      error: repoActionProposalIdError(rawProposalId),
     };
   }
 
@@ -2004,7 +2030,8 @@ function flowStep(action: string, result: { ok?: boolean; error?: string }, summ
 }
 
 export async function runRepoControlFlow(options: { id: string; openPr?: boolean; trackPr?: boolean } | { proposalId: string; openPr?: boolean; trackPr?: boolean }): Promise<RepoControlFlowResult> {
-  const proposalId = cleanText("id" in options ? options.id : options.proposalId, 120);
+  const rawProposalId = "id" in options ? options.id : options.proposalId;
+  const proposalId = normalizeRepoActionProposalId(rawProposalId);
   const openPr = options.openPr ?? true;
   const trackPr = options.trackPr ?? true;
   const steps: RepoControlFlowStep[] = [];
@@ -2012,13 +2039,13 @@ export async function runRepoControlFlow(options: { id: string; openPr?: boolean
   if (!proposalId) {
     return {
       ok: false,
-      proposalId: "",
+      proposalId: cleanText(rawProposalId, 120),
       mode: "safe_ladder",
       steps,
-      stoppedAt: "input",
-      nextAction: "Provide a valid Repo Control proposal ID.",
+      stoppedAt: "proposal_id_validation",
+      nextAction: "Use a Repo Control proposal UUID from the proposal card, not a GitHub Actions run ID.",
       safety: "no_repo_mutation_no_merge_no_deploy",
-      message: "Repo Control flow could not start because proposal ID was missing.",
+      message: "Repo Control flow could not start because the supplied ID was not a proposal UUID.",
     };
   }
 
@@ -2076,14 +2103,19 @@ export async function runRepoControlFlow(options: { id: string; openPr?: boolean
       status: "blocked",
       approvalStage: "approval",
       riskLevel: "medium",
-      metadata: { proposalId, stoppedAt: executor.stoppedAt || "approved_executor", error: executor.error, safety: "no_merge_no_deploy" },
+      metadata: {
+        proposalId,
+        stoppedAt: "stoppedAt" in executor ? executor.stoppedAt || "approved_executor" : "approved_executor",
+        error: executor.error,
+        safety: "no_merge_no_deploy",
+      },
     });
     return {
       ok: false,
       proposalId,
       mode: "safe_ladder",
       steps,
-      stoppedAt: executor.stoppedAt || "approved_executor",
+      stoppedAt: "stoppedAt" in executor ? executor.stoppedAt || "approved_executor" : "approved_executor",
       nextAction: "Approve the proposal in Repo Control, then rerun this flow to open/track a PR. Jarvis still will not merge or deploy.",
       safety: "approval_required_no_merge_no_deploy",
       message: "Safe ladder completed, then stopped at the approval/PR gate. No merge or deployment happened.",
@@ -2134,9 +2166,9 @@ export async function updateRepoActionStatus(options: {
   const supabase = getSupabaseClient();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
-  const id = cleanText(options.id, 120);
+  const id = normalizeRepoActionProposalId(options.id);
   const status = normalizeStatus(options.status);
-  if (!id) return { ok: false, error: "Proposal id is required." };
+  if (!id) return invalidRepoActionProposalResult(options.id);
 
   const now = new Date().toISOString();
   const payload: Record<string, unknown> = {

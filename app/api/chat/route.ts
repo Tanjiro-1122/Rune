@@ -55,6 +55,8 @@ import {
   runTemporaryWorkspaceBuildCheck,
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
+  isRepoActionProposalId,
+  repoActionProposalIdError,
 } from "@/lib/repo-actions";
 import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
 import { getRevenueCatSubscriberReadOnly } from "@/lib/revenuecat-readonly";
@@ -1026,6 +1028,9 @@ function getAgentTools({
         ]),
       }),
       execute: async ({ proposalId, action }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, action, proposalId, error: repoActionProposalIdError(proposalId), message: "No Repo Control stage ran. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
+        }
         const run = async () => {
           if (action === "inspect_repo") return inspectRepoActionFiles({ id: proposalId });
           if (action === "draft_diff") return draftRepoActionDiff({ id: proposalId });
@@ -1065,6 +1070,9 @@ function getAgentTools({
         includePrStep: z.boolean().optional().default(false),
       }),
       execute: async ({ proposalId, includePrStep = false }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "No Repo Control ladder ran. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID.", steps: [] };
+        }
         const steps: Array<{ action: string; ok: boolean; error?: string; summary?: string }> = [];
         const runStage = async (action: "inspect_repo" | "draft_diff" | "generate_diff" | "sandbox_check" | "temp_workspace_check" | "open_pr" | "track_pr") => {
           const result =
@@ -1138,13 +1146,16 @@ function getAgentTools({
         trackPr: z.boolean().optional().default(true),
       }),
       execute: async ({ proposalId, openPr = true, trackPr = true }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "No approved executor ran. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
+        }
         const result = await runApprovedRepoActionExecutor({ id: proposalId, openPr, trackPr });
         if (!result.ok) {
           return {
             success: false,
             proposalId,
-            steps: result.steps || [],
-            stoppedAt: result.stoppedAt || "controlled_executor",
+            steps: "steps" in result ? result.steps || [] : [],
+            stoppedAt: "stoppedAt" in result ? result.stoppedAt || "controlled_executor" : "controlled_executor",
             error: result.error || "Controlled executor stopped safely.",
             message: "No merge or deployment happened.",
           };
@@ -1152,8 +1163,8 @@ function getAgentTools({
         return {
           success: true,
           proposalId,
-          steps: result.steps || [],
-          prUrl: result.prUrl,
+          steps: "steps" in result ? result.steps || [] : [],
+          prUrl: "prUrl" in result ? result.prUrl : undefined,
           message: result.message || "Controlled executor completed. No merge or deployment happened.",
         };
       },
@@ -1169,6 +1180,9 @@ function getAgentTools({
         trackPr: z.boolean().optional().default(true),
       }),
       execute: async ({ proposalId, openPr = true, trackPr = true }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "Repo Control flow did not start. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
+        }
         const result = await runRepoControlFlow({ proposalId, openPr, trackPr });
         return {
           success: result.ok,
@@ -1186,6 +1200,9 @@ function getAgentTools({
         proposalId: z.string().min(1).max(120),
       }),
       execute: async ({ proposalId }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "Deployment handoff did not start. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
+        }
         const result = await prepareRepoDeploymentHandoff({ proposalId });
         return {
           success: result.ready,
