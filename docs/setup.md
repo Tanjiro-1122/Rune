@@ -857,6 +857,8 @@ runner_logs
 runner_metadata
 ```
 
+See `docs/external-runner-spec.md` for the full approved CLI runner contract, including deployment command allowlists, exact approval phrases, heartbeat/reporting behavior, and the rule that the Jarvis web runtime must not execute queued shell commands directly.
+
 Important limitation:
 
 Patch 18 creates the secure runner foundation, not a full autonomous remote machine. The next patch should add a concrete local/hosted runner script that polls this endpoint and performs only allowlisted actions.

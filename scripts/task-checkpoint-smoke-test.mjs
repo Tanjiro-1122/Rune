@@ -4,6 +4,7 @@ const tasks = fs.readFileSync('lib/tasks.ts', 'utf8');
 const jobs = fs.readFileSync('app/api/jobs/route.ts', 'utf8');
 const cliRunnerJobs = fs.readFileSync('lib/cli-runner-jobs.ts', 'utf8');
 const roadmap = fs.readFileSync('docs/jarvis-endgame-roadmap.md', 'utf8');
+const externalRunnerSpec = fs.readFileSync('docs/external-runner-spec.md', 'utf8');
 const chatUi = fs.readFileSync('components/chat.tsx', 'utf8');
 const css = fs.readFileSync('app/globals.css', 'utf8');
 const chatRoute = fs.readFileSync('app/api/chat/route.ts', 'utf8');
@@ -20,6 +21,7 @@ const checks = [
   ['checkpoint UI exists', /latest_checkpoint/.test(chatUi) && /Latest checkpoint/.test(chatUi) && /task-checkpoint-card/.test(css)],
   ['chat auto-checkpoint exists', /addWorkspaceTaskCheckpoint/.test(chatRoute) && /Chat task completed/.test(chatRoute) && /Chat task interrupted/.test(chatRoute)],
   ['cli runner queued jobs exist', /queueCliRunnerJob/.test(cliRunnerJobs) && /queued_only_no_local_execution/.test(cliRunnerJobs) && /intent: \"cli_runner\"/.test(cliRunnerJobs)],
+  ['external runner spec exists', /External Runner Spec v1/.test(externalRunnerSpec) && /JARVIS_RUNNER_TOKEN/.test(externalRunnerSpec) && /APPROVE JARVIS ROLLBACK/.test(externalRunnerSpec) && /must not execute/.test(externalRunnerSpec)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
