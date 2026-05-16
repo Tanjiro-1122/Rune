@@ -4,6 +4,8 @@ Agent Core v1 is the first quality upgrade after the Brain phase.
 
 ## Included
 
+- Deployment control foundation: inspect Vercel deployments and prepare redeploy/rollback approval notes without mutating production.
+
 - Controlled executor for approved proposals: runs existing safety gates and can open/track a PR, but does not merge or deploy.
 
 - Repo-tree validation for inferred file targets: likely file guesses are checked against GitHub tree data and retargeted to closest real paths when possible.

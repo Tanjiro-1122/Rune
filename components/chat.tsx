@@ -39,6 +39,7 @@ const TOOL_LABELS: Record<string, string> = {
   run_repo_action_stage: "Running a Repo Control stage",
   run_repo_action_ladder: "Running the Repo Control ladder",
   run_approved_repo_action: "Running approved Repo Control executor",
+  deployment_control: "Checking deployment control",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -937,7 +938,8 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
     invocation.toolName === "create_repo_action_proposal" ||
     invocation.toolName === "run_repo_action_stage" ||
     invocation.toolName === "run_repo_action_ladder" ||
-    invocation.toolName === "run_approved_repo_action"
+    invocation.toolName === "run_approved_repo_action" ||
+    invocation.toolName === "deployment_control"
   ) {
     return (
       <RepoControlCard

@@ -14,6 +14,7 @@ const checks = [
   ['repo tree validation exists', /validateRepoActionTargets/.test(fs.readFileSync('lib/repo-targeting.ts', 'utf8')) && /repo_tree_verified/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8'))],
   ['owner summary discipline exists', /Final response discipline/.test(route) && /never dump raw tool JSON/.test(route)],
   ['controlled executor exists', /runApprovedRepoActionExecutor/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8')) && /run_approved_repo_action/.test(route)],
+  ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

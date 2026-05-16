@@ -53,6 +53,7 @@ import {
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
+import { inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -1049,6 +1050,41 @@ function getAgentTools({
           steps: result.steps || [],
           prUrl: result.prUrl,
           message: result.message || "Controlled executor completed. No merge or deployment happened.",
+        };
+      },
+    }),
+
+
+    deployment_control: tool({
+      description:
+        "Inspect Vercel deployment status or prepare a redeploy/rollback action for Javier approval. This tool never redeploys, rolls back, merges, or mutates production.",
+      parameters: z.object({
+        action: z.enum(["inspect", "prepare_redeploy", "prepare_rollback"]),
+        gitBranch: z.string().max(160).nullable().optional(),
+        target: z.string().max(80).nullable().optional(),
+        deploymentId: z.string().max(160).nullable().optional(),
+        reason: z.string().max(700).nullable().optional(),
+      }),
+      execute: async ({ action, gitBranch, target, deploymentId, reason }) => {
+        if (action === "inspect") {
+          const result = await inspectDeploymentControl({ gitBranch, target, limit: 6 });
+          return {
+            success: result.ok,
+            action,
+            result,
+            message: result.ok
+              ? "Deployment status inspected. No production action happened."
+              : result.error || "Deployment inspection unavailable.",
+          };
+        }
+        const result = await prepareDeploymentControlAction({ action, deploymentId, reason });
+        return {
+          success: result.ok,
+          action,
+          result,
+          message: result.ok
+            ? result.message
+            : result.error || "Deployment action could not be prepared. No production action happened.",
         };
       },
     }),
