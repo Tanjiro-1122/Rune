@@ -29,6 +29,7 @@ const checks = [
   ['runner workspace handoff exists', /workspaceId: workspaceId \?\? null/.test(chatRoute) && /workspaceId: options\.workspaceId/.test(deploymentControl) && /conversationId: options\.conversationId/.test(deploymentControl)],
   ['external services UI exists', /externalServices/.test(chatUi) && /external-service-list/.test(css) && /RevenueCat, App Store Connect, and Google Play/.test(chatUi)],
   ['revenuecat lookup UI exists', /RevenueCatLookupCard/.test(chatUi) && /tool-card--revenuecat/.test(css) && /lookup_revenuecat_subscriber/.test(chatUi)],
+  ['app store connect lookup UI exists', /AppStoreConnectLookupCard/.test(chatUi) && /tool-card--appstore/.test(css) && /lookup_app_store_connect_status/.test(chatUi)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

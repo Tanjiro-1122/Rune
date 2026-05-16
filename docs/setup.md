@@ -893,3 +893,20 @@ Safety boundaries:
 - No grants, entitlement changes, refunds, transfers, deletes, or subscription mutations are implemented.
 - Secret values are never returned to the UI or action log.
 - Action logging stores only a short app user ID preview and counts.
+
+
+## App Store Connect read-only visibility
+
+Jarvis can inspect App Store Connect in read-only mode through `GET /api/app-store-connect` when these environment variables are configured:
+
+- `APP_STORE_CONNECT_KEY_ID` or `JARVIS_APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID` or `JARVIS_APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_PRIVATE_KEY` or `JARVIS_APP_STORE_CONNECT_PRIVATE_KEY`
+- `APP_STORE_CONNECT_APP_ID` or `JARVIS_APP_STORE_CONNECT_APP_ID`
+
+Safety boundaries:
+
+- Only App Store Connect `GET` requests are used.
+- Jarvis reads app metadata, recent builds, and recent App Store versions.
+- No release, submit, metadata edit, build expiry, price change, TestFlight action, or review mutation is implemented.
+- Private key content is never returned to the UI or action log.

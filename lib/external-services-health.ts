@@ -47,11 +47,11 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
   ];
 
   const appStoreRequired = [
-    "APP_STORE_CONNECT_KEY_ID",
-    "APP_STORE_CONNECT_ISSUER_ID",
-    "APP_STORE_CONNECT_PRIVATE_KEY",
+    process.env.JARVIS_APP_STORE_CONNECT_KEY_ID ? "JARVIS_APP_STORE_CONNECT_KEY_ID" : "APP_STORE_CONNECT_KEY_ID",
+    process.env.JARVIS_APP_STORE_CONNECT_ISSUER_ID ? "JARVIS_APP_STORE_CONNECT_ISSUER_ID" : "APP_STORE_CONNECT_ISSUER_ID",
+    process.env.JARVIS_APP_STORE_CONNECT_PRIVATE_KEY ? "JARVIS_APP_STORE_CONNECT_PRIVATE_KEY" : "APP_STORE_CONNECT_PRIVATE_KEY",
   ];
-  const appStoreOptional = ["APP_STORE_CONNECT_VENDOR_NUMBER", "APP_STORE_CONNECT_APP_ID"];
+  const appStoreOptional = ["APP_STORE_CONNECT_VENDOR_NUMBER", "APP_STORE_CONNECT_APP_ID", "JARVIS_APP_STORE_CONNECT_APP_ID"];
 
   const googlePlayRequiredAlternatives = ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS"];
   const googlePlayConfigured = configuredKeys(googlePlayRequiredAlternatives);

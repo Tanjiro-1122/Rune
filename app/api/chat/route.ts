@@ -56,6 +56,7 @@ import {
 } from "@/lib/repo-actions";
 import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
 import { getRevenueCatSubscriberReadOnly } from "@/lib/revenuecat-readonly";
+import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-readonly";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -481,6 +482,25 @@ const baseAgentTools = {
         message: result.ok
           ? "RevenueCat subscriber inspected in read-only mode. No subscription or entitlement changes happened."
           : result.error || "RevenueCat read-only lookup failed. No subscription or entitlement changes happened.",
+      };
+    },
+  }),
+
+
+  lookup_app_store_connect_status: tool({
+    description:
+      "Inspect App Store Connect for the configured app in strict read-only mode. Use when Javier asks about iOS builds, TestFlight/build processing, App Store versions, review/release status, or App Store Connect status. This tool only reads builds and versions; it never submits, releases, edits metadata, expires builds, or mutates App Store Connect.",
+    parameters: z.object({
+      appId: z.string().min(1).max(64).optional().describe("Optional App Store Connect app ID override. Omit to use the configured Jarvis app ID."),
+    }),
+    execute: async ({ appId }) => {
+      const result = await getAppStoreConnectReadOnlySummary(appId);
+      return {
+        success: result.ok,
+        ...result,
+        message: result.ok
+          ? "App Store Connect inspected in read-only mode. No release, submission, or metadata changes happened."
+          : result.error || "App Store Connect read-only lookup failed. No release, submission, or metadata changes happened.",
       };
     },
   }),
@@ -1588,7 +1608,7 @@ ${plannerOutput.steps
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
-- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 

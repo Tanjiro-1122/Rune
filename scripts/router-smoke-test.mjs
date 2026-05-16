@@ -5,6 +5,8 @@ const repoActions = fs.readFileSync('lib/repo-actions.ts', 'utf8');
 const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
 const externalServicesHealth = fs.readFileSync('lib/external-services-health.ts', 'utf8');
 const revenueCatReadOnly = fs.readFileSync('lib/revenuecat-readonly.ts', 'utf8');
+const appStoreConnectReadOnly = fs.readFileSync('lib/app-store-connect-readonly.ts', 'utf8');
+const appStoreConnectRoute = fs.readFileSync('app/api/app-store-connect/route.ts', 'utf8');
 const revenueCatRoute = fs.readFileSync('app/api/revenuecat/route.ts', 'utf8');
 const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
 
@@ -36,6 +38,8 @@ const checks = [
   ['external services health exists', /RevenueCat/.test(externalServicesHealth) && /App Store Connect/.test(externalServicesHealth) && /Google Play/.test(externalServicesHealth) && /externalServices/.test(buildIntelligence)],
   ['revenuecat read-only client exists', /getRevenueCatSubscriberReadOnly/.test(revenueCatReadOnly) && /method: \"GET\"/.test(revenueCatReadOnly) && !/method: \"POST\"|method: \"PATCH\"|method: \"DELETE\"|method: \"PUT\"/.test(revenueCatReadOnly) && /readOnly: true/.test(revenueCatRoute)],
   ['revenuecat chat tool exists', /lookup_revenuecat_subscriber/.test(route) && /getRevenueCatSubscriberReadOnly/.test(route) && /never grants entitlements/.test(route)],
+  ['app store connect read-only client exists', /getAppStoreConnectReadOnlySummary/.test(appStoreConnectReadOnly) && /method: \"GET\"/.test(appStoreConnectReadOnly) && !/method: \"POST\"|method: \"PATCH\"|method: \"DELETE\"|method: \"PUT\"/.test(appStoreConnectReadOnly) && /readOnly: true/.test(appStoreConnectRoute)],
+  ['app store connect chat tool exists', /lookup_app_store_connect_status/.test(route) && /getAppStoreConnectReadOnlySummary/.test(route) && /never imply release/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

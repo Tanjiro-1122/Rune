@@ -1608,3 +1608,25 @@ button:disabled {
 .revenuecat-mini-list strong {
   color: #1f6f54;
 }
+
+
+.tool-card--appstore {
+  border-color: rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.78), rgba(255, 255, 255, 0.9));
+}
+
+.appstore-mini-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.appstore-mini-list span {
+  display: block;
+  color: #44506d;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.appstore-mini-list strong {
+  color: #1d4ed8;
+}

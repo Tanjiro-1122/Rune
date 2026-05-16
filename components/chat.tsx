@@ -41,6 +41,7 @@ const TOOL_LABELS: Record<string, string> = {
   run_approved_repo_action: "Running approved Repo Control executor",
   deployment_control: "Checking deployment control",
   lookup_revenuecat_subscriber: "Checking RevenueCat subscriber",
+  lookup_app_store_connect_status: "Checking App Store Connect",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -169,6 +170,73 @@ function CalculateCard({
   );
 }
 
+
+type AppStoreConnectLookupResult = {
+  success?: boolean;
+  configured?: boolean;
+  readOnly?: boolean;
+  error?: string;
+  message?: string;
+  summary?: {
+    appId: string;
+    app?: { id: string; name?: string | null; bundleId?: string | null; sku?: string | null; primaryLocale?: string | null } | null;
+    latestBuilds: Array<{ id: string; version?: string | null; uploadedDate?: string | null; processingState?: string | null; expired?: boolean | null; minOsVersion?: string | null }>;
+    latestVersions: Array<{ id: string; versionString?: string | null; platform?: string | null; appStoreState?: string | null; appVersionState?: string | null; createdDate?: string | null }>;
+  };
+};
+
+function AppStoreConnectLookupCard({
+  state,
+  args,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  args: Record<string, unknown>;
+  result?: AppStoreConnectLookupResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const summary = result?.summary;
+  const latestBuild = summary?.latestBuilds?.[0];
+  const latestVersion = summary?.latestVersions?.[0];
+
+  return (
+    <div className={`tool-card tool-card--appstore ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🔎" : failed ? "⚠️" : "🍎"}</span>
+        <span className="tool-card-title">App Store Connect read-only lookup</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">App ID: {summary?.appId || (typeof args.appId === "string" ? args.appId : "configured app")}</span>
+        <span className="repo-control-status repo-control-status--safe">Read-only · no release changes</span>
+        {failed && <span className="tool-error">{result?.error || result?.message || "App Store Connect lookup failed."}</span>}
+        {summary && (
+          <>
+            <p className="build-intel-copy">
+              {summary.app?.name ?? "App"}{summary.app?.bundleId ? ` · ${summary.app.bundleId}` : ""}
+            </p>
+            <div className="memory-meta-row">
+              <span>{summary.latestBuilds.length} recent builds</span>
+              <span>{summary.latestVersions.length} app versions</span>
+              {latestBuild?.processingState && <span>Latest build: {latestBuild.processingState}</span>}
+            </div>
+            {latestBuild && (
+              <div className="appstore-mini-list">
+                <span><strong>Latest build</strong> · {latestBuild.version ?? "version unknown"}{latestBuild.uploadedDate ? ` · ${formatTimestamp(latestBuild.uploadedDate)}` : ""}</span>
+              </div>
+            )}
+            {latestVersion && (
+              <div className="appstore-mini-list">
+                <span><strong>Latest version</strong> · {latestVersion.versionString ?? "version unknown"}{latestVersion.appStoreState ? ` · ${latestVersion.appStoreState}` : ""}</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type RevenueCatLookupResult = {
   success?: boolean;
@@ -1099,6 +1167,16 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "lookup_app_store_connect_status") {
+    return (
+      <AppStoreConnectLookupCard
+        state={invocation.state}
+        args={invocation.args}
+        result={invocation.state === "result" ? (invocation.result as AppStoreConnectLookupResult) : undefined}
       />
     );
   }
