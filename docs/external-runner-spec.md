@@ -101,7 +101,7 @@ Before running anything, the external runner must verify:
    - `vercel redeploy <deployment-url-or-id> --token=$VERCEL_TOKEN`
    - `vercel rollback <deployment-url-or-id> --token=$VERCEL_TOKEN`
    - `npm run private-owner-deploy -- --proposal-id=<uuid> --owner-only=true`
-6. For `private_app_creator_deploy`, v1.6 is a dry-run validator only. The runner must verify:
+6. For `private_app_creator_deploy`, v1.7 supports an owner-only artifact executor only when `JARVIS_PRIVATE_OWNER_EXECUTOR_MODE=execute`. Otherwise it stays dry-run validation. The runner must verify:
    - `ownerOnly === true`
    - `targetAudience === "javier_only"`
    - `productionClass === "private_owner_only"`
@@ -111,10 +111,10 @@ Before running anything, the external runner must verify:
    - `schemaMutation === false`
    - `authRequired === true`
    - `accessPolicy === "owner_only_authenticated_javier"`
-   - `executorMode === "dry_run_validator_only"`
+   - `executorMode === "owner_only_executor_v1"` or `executorMode === "dry_run_validator_only"`
    - preview handoff is ready
 
-If any check fails, the runner must call `/api/runner` with `action: "fail"` and must not execute the command. Private App Creator deploy v1.6 must call `action: "complete"` only for dry-run validation success; it must not spawn a deploy command.
+If any check fails, the runner must call `/api/runner` with `action: "fail"` and must not execute the command. Private App Creator deploy v1.7 may execute only the artifact-only `npm run private-owner-deploy` command when `JARVIS_PRIVATE_OWNER_EXECUTOR_MODE=execute`; it must not run `vercel --prod`, public deploys, merges, schema migrations, payment changes, or customer-facing releases. The private executor writes `.jarvis/private-deployments/<proposal-id>.json` as an audit artifact.
 
 ## Heartbeats
 
@@ -160,3 +160,27 @@ The external runner is intentionally separate so production mutation requires:
 3. bearer-token runner authorization,
 4. external runner allowlist checks,
 5. explicit result reporting.
+
+
+## Private owner executor v1.7
+
+`private_app_creator_deploy` is for private production for an audience of one: Javier. It is not public production.
+
+Required environment for artifact execution:
+
+```txt
+JARVIS_RUNNER_EXECUTION_MODE=execute
+JARVIS_RUNNER_DRY_RUN=false
+JARVIS_PRIVATE_OWNER_EXECUTOR_MODE=execute
+```
+
+The runner passes sanitized metadata through `JARVIS_PRIVATE_DEPLOY_METADATA_BASE64` to `npm run private-owner-deploy`. The executor must create only an artifact manifest and must keep these guarantees:
+
+```txt
+no --prod
+no public launch
+no merge
+no schema mutation
+no payment changes
+no customer-facing release
+```

@@ -4,6 +4,8 @@ const lib = fs.readFileSync("lib/app-creator.ts", "utf8");
 const route = fs.readFileSync("app/api/chat/route.ts", "utf8");
 const ui = fs.readFileSync("components/chat.tsx", "utf8");
 const css = fs.readFileSync("app/globals.css", "utf8");
+const pkg = fs.readFileSync("package.json", "utf8");
+const privateExecutor = fs.readFileSync("scripts/private-owner-deploy.mjs", "utf8");
 
 function assert(condition, message) {
   if (!condition) {
@@ -30,8 +32,8 @@ assert(/refined_preview_only_no_files_changed_no_schema_no_deploy/.test(lib), "A
 assert(/metadata_only_no_deploy_no_merge_no_schema_mutation/.test(lib), "App Creator preview handoff must be metadata-only.");
 assert(/prepareRepoDeploymentHandoff/.test(lib), "App Creator preview handoff must wrap existing Repo Control deployment handoff.");
 assert(/APPROVE PRIVATE JARVIS DEPLOY/.test(lib), "App Creator private deploy must require exact private approval phrase.");
-assert(/queued_private_owner_only_dry_run_no_public_launch_no_merge_no_schema_mutation/.test(lib), "App Creator private deploy must be owner-only, dry-run, and queue-only.");
-assert(/authRequired: true/.test(lib) && /owner_only_authenticated_javier/.test(lib) && /dry_run_validator_only/.test(lib), "App Creator private deploy must require owner auth metadata for dry-run validation.");
+assert(/queued_private_owner_only_executor_artifact_no_public_launch_no_merge_no_schema_mutation/.test(lib), "App Creator private deploy must be owner-only, artifact-only, and queue-only.");
+assert(/authRequired: true/.test(lib) && /owner_only_authenticated_javier/.test(lib) && /owner_only_executor_v1/.test(lib), "App Creator private deploy must require owner auth metadata for owner-only execution.");
 assert(/queueCliRunnerJob/.test(lib), "App Creator private deploy must queue through the trusted runner system.");
 assert(/runRepoControlFlow/.test(lib), "App Creator bridge must route through Repo Control flow.");
 assert(/Proposal must be approved before scaffolding/.test(lib), "App Creator scaffold must require proposal approval.");

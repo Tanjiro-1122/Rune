@@ -50,6 +50,14 @@ function isFalse(value) {
   return value === false || value === "false" || value === undefined || value === null;
 }
 
+function privateOwnerExecutorEnabled() {
+  return (process.env.JARVIS_PRIVATE_OWNER_EXECUTOR_MODE || "disabled").toLowerCase() === "execute";
+}
+
+function encodeMetadataForEnv(metadata) {
+  return Buffer.from(JSON.stringify(metadata), "utf8").toString("base64url");
+}
+
 function validatePrivateAppCreatorDeployMetadata(metadata, command) {
   const proposalMatch = command.match(/--proposal-id=([0-9a-f-]+)/);
   const commandProposalId = proposalMatch?.[1] || "";
@@ -68,7 +76,8 @@ function validatePrivateAppCreatorDeployMetadata(metadata, command) {
   if (!isFalse(metadata.schemaMutation)) blockers.push("schema_mutation_must_be_false");
   if (!isTrue(metadata.authRequired)) blockers.push("auth_required_not_true");
   if (metadata.accessPolicy !== "owner_only_authenticated_javier") blockers.push("access_policy_not_owner_only_authenticated_javier");
-  if (metadata.executorMode !== "dry_run_validator_only") blockers.push("executor_mode_not_dry_run_validator_only");
+  const executorMode = String(metadata.executorMode || "");
+  if (!["dry_run_validator_only", "owner_only_executor_v1"].includes(executorMode)) blockers.push("executor_mode_not_allowed_private_owner_mode");
   if (!isTrue(previewHandoff.ready)) blockers.push("preview_handoff_not_ready");
   if (previewHandoff.requiredApprovalPhrase && previewHandoff.requiredApprovalPhrase !== "APPROVE JARVIS REDEPLOY") blockers.push("unexpected_preview_handoff_approval_phrase");
   if (metadata.approval_text !== requiredApproval) blockers.push("private_approval_phrase_mismatch");
@@ -77,10 +86,15 @@ function validatePrivateAppCreatorDeployMetadata(metadata, command) {
     return { ok: false, error: `Private App Creator dry-run blocked: ${blockers.join(", ")}.` };
   }
 
+  const executePrivateOwner = metadata.executorMode === "owner_only_executor_v1" && privateOwnerExecutorEnabled();
   return {
     ok: true,
-    dryRunOnly: true,
-    message: `Private App Creator deploy dry-run passed for proposal ${commandProposalId}. Owner-only metadata is valid; no command was executed.`,
+    dryRunOnly: !executePrivateOwner,
+    privateOwnerExecutor: executePrivateOwner,
+    metadataEnv: encodeMetadataForEnv(metadata),
+    message: executePrivateOwner
+      ? `Private App Creator owner-only executor approved for proposal ${commandProposalId}. Artifact-only command may run.`
+      : `Private App Creator deploy dry-run passed for proposal ${commandProposalId}. Owner-only metadata is valid; no command was executed.`,
   };
 }
 
@@ -116,7 +130,7 @@ function validateTask(task) {
     }
     const privateValidation = validatePrivateAppCreatorDeployMetadata(metadata, command);
     if (!privateValidation.ok) return privateValidation;
-    return { ok: true, kind, command, metadata, dryRunOnly: true, dryRunMessage: privateValidation.message };
+    return { ok: true, kind, command, metadata, dryRunOnly: privateValidation.dryRunOnly, privateOwnerExecutor: privateValidation.privateOwnerExecutor, metadataEnv: privateValidation.metadataEnv, dryRunMessage: privateValidation.message };
   }
   if (!EXACT_APPROVALS.has(kind)) {
     return { ok: false, error: `Execution for job kind ${kind} is not implemented in runner v1.` };
@@ -126,17 +140,26 @@ function validateTask(task) {
 }
 
 function commandToSpawn(validation) {
+  if (validation.kind === "private_app_creator_deploy") {
+    const [, proposalId] = validation.command.match(/^npm run private-owner-deploy -- --proposal-id=([0-9a-f-]+) --owner-only=true$/) || [];
+    if (!proposalId) throw new Error("Unable to parse private owner deploy command.");
+    return {
+      command: "npm",
+      args: ["run", "private-owner-deploy", "--", `--proposal-id=${proposalId}`, "--owner-only=true"],
+      extraEnv: { JARVIS_PRIVATE_DEPLOY_METADATA_BASE64: validation.metadataEnv || "" },
+    };
+  }
   const [, action, target] = validation.command.match(/^vercel (redeploy|rollback) (\S+) --token=\$VERCEL_TOKEN$/) || [];
   if (!action || !target) throw new Error("Unable to parse Vercel command.");
-  return { command: "vercel", args: [action, target, "--token", process.env.VERCEL_TOKEN] };
+  return { command: "vercel", args: [action, target, "--token", process.env.VERCEL_TOKEN], extraEnv: {} };
 }
 
 function runCommand(validation) {
-  const { command, args } = commandToSpawn(validation);
+  const { command, args, extraEnv } = commandToSpawn(validation);
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
+      env: { ...process.env, ...(extraEnv || {}) },
       shell: false,
     });
     let stdout = "";
