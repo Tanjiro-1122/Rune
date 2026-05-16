@@ -27,6 +27,7 @@ import {
   getLatestUserText,
 } from "@/lib/orchestration";
 import {
+  addWorkspaceTaskCheckpoint,
   completeWorkspaceTask,
   createWorkspaceTask,
   failWorkspaceTask,
@@ -1643,6 +1644,17 @@ ${plannerOutput.steps
           });
           const taskSummary =
             summarizeTaskResult(text ?? "");
+          await addWorkspaceTaskCheckpoint(taskId, {
+            label: "Chat task completed",
+            summary: taskSummary || "Chat task completed and workspace state was saved.",
+            completedStep: "Persisted the answer and workspace state.",
+            nextStep: "Review the result, then continue with the next approved step.",
+            metadata: {
+              intent: plannerOutput.intent,
+              reasoningRoute: plannerOutput.reasoningRoute,
+              responseChars: (text ?? "").length,
+            },
+          });
           await completeWorkspaceTask(taskId, taskSummary);
           activeTaskId = null;
         }
@@ -1667,6 +1679,13 @@ ${plannerOutput.steps
             error instanceof Error
               ? error.message
               : "Streaming error after headers sent.";
+          addWorkspaceTaskCheckpoint(activeTaskId, {
+            label: "Chat task interrupted",
+            summary: "The chat stream hit an error before the task could finish cleanly.",
+            completedStep: "The request was captured before the interruption.",
+            nextStep: "Resume the task from the Tasks drawer after checking the error.",
+            blocker: errMsg,
+          }).catch(() => {});
           failWorkspaceTask(activeTaskId, errMsg).catch(() => {});
           activeTaskId = null;
         }
