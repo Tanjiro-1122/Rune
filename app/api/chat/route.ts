@@ -1101,7 +1101,14 @@ function getAgentTools({
           };
         }
         if (action === "execute_redeploy" || action === "execute_rollback") {
-          const result = await executeDeploymentControlAction({ action, deploymentId, reason, approvalText });
+          const result = await executeDeploymentControlAction({
+            action,
+            deploymentId,
+            reason,
+            approvalText,
+            workspaceId: workspaceId ?? null,
+            conversationId: conversationId ?? null,
+          });
           return {
             success: result.ok,
             action,

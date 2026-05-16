@@ -198,6 +198,8 @@ export async function executeDeploymentControlAction(options: {
   deploymentId?: string | null;
   approvalText?: string | null;
   reason?: string | null;
+  workspaceId?: string | null;
+  conversationId?: string | null;
 }) {
   const expectedApproval = expectedDeploymentApprovalText(options.action);
   const approvalText = (options.approvalText || "").trim();
@@ -285,7 +287,7 @@ export async function executeDeploymentControlAction(options: {
       approvalStage: "action",
       riskLevel: "high",
       projectKey: "jarvis",
-      metadata: { ...baseMetadata, reason_blocked: "cli_runner_not_enabled", documentedCommand: command },
+      metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_not_enabled", documentedCommand: command },
     });
     return {
       ok: false,
@@ -300,7 +302,8 @@ export async function executeDeploymentControlAction(options: {
   }
 
   const queued = await queueCliRunnerJob({
-    workspaceId: process.env.JARVIS_DEFAULT_WORKSPACE_ID || null,
+    workspaceId: options.workspaceId || process.env.JARVIS_DEFAULT_WORKSPACE_ID || null,
+    conversationId: options.conversationId ?? null,
     title: options.action === "execute_redeploy" ? "Approved Vercel redeploy" : "Approved Vercel rollback",
     command,
     kind: options.action === "execute_redeploy" ? "vercel_redeploy" : "vercel_rollback",
@@ -318,7 +321,7 @@ export async function executeDeploymentControlAction(options: {
       approvalStage: "action",
       riskLevel: "high",
       projectKey: "jarvis",
-      metadata: { ...baseMetadata, reason_blocked: "cli_runner_queue_failed", documentedCommand: command, error: queued.error },
+      metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_queue_failed", documentedCommand: command, error: queued.error },
     });
     return {
       ok: false,

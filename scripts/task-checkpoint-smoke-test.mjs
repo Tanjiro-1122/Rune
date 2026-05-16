@@ -6,6 +6,7 @@ const cliRunnerJobs = fs.readFileSync('lib/cli-runner-jobs.ts', 'utf8');
 const roadmap = fs.readFileSync('docs/jarvis-endgame-roadmap.md', 'utf8');
 const externalRunnerSpec = fs.readFileSync('docs/external-runner-spec.md', 'utf8');
 const trustedRunner = fs.readFileSync('scripts/trusted-runner.mjs', 'utf8');
+const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
 const chatUi = fs.readFileSync('components/chat.tsx', 'utf8');
 const css = fs.readFileSync('app/globals.css', 'utf8');
 const chatRoute = fs.readFileSync('app/api/chat/route.ts', 'utf8');
@@ -25,6 +26,7 @@ const checks = [
   ['external runner spec exists', /External Runner Spec v1/.test(externalRunnerSpec) && /JARVIS_RUNNER_TOKEN/.test(externalRunnerSpec) && /APPROVE JARVIS ROLLBACK/.test(externalRunnerSpec) && /must not execute/.test(externalRunnerSpec)],
   ['trusted runner script exists', /trusted runner starting/.test(trustedRunner) && /JARVIS_RUNNER_DRY_RUN/.test(trustedRunner) && /ALLOW_DRY_RUN_CLAIM/.test(trustedRunner) && /spawn\(command, args/.test(trustedRunner)],
   ['runner dashboard visibility exists', /runner-status-card/.test(chatUi) && /runnerMetadata\?\.job_kind/.test(chatUi) && /runner-command-preview/.test(css)],
+  ['runner workspace handoff exists', /workspaceId: workspaceId \?\? null/.test(chatRoute) && /workspaceId: options\.workspaceId/.test(deploymentControl) && /conversationId: options\.conversationId/.test(deploymentControl)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
