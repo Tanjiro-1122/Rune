@@ -35,6 +35,7 @@ const TOOL_LABELS: Record<string, string> = {
   execute_code: "Running a safe code check",
   listRepositoryTree: "Inspecting the repository structure",
   readRepositoryFile: "Reading the exact source file",
+  create_app_proposal: "Creating app blueprint",
   create_repo_action_proposal: "Creating a Repo Control proposal",
   run_repo_action_stage: "Running a Repo Control stage",
   run_repo_action_ladder: "Running the Repo Control ladder",
@@ -83,6 +84,7 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
     const stage = typeof args?.action === "string" ? args.action : result?.action;
     return stage ? REPO_STAGE_LABELS[stage] ?? `Running ${humanizeToolName(stage)}` : TOOL_LABELS[name];
   }
+  if (name === "create_app_proposal") return "Creating app blueprint";
   if (name === "run_repo_action_ladder") return "Running safe Repo Control ladder";
   if (name === "run_approved_repo_action") return "Running approved PR executor";
   if (name === "deployment_control") {
@@ -224,6 +226,70 @@ function DeploymentHandoffCard({
         )}
         {result?.nextAction && <div className="deployment-handoff-line"><strong>Next:</strong> {result.nextAction}</div>}
         <div className="deployment-handoff-boundary">Metadata-only · no merge, no deploy, no rollback, no runner job.</div>
+      </div>
+    </div>
+  );
+}
+
+
+type AppCreatorToolResult = {
+  success?: boolean;
+  ok?: boolean;
+  proposalId?: string;
+  message?: string;
+  safety?: string;
+  nextAction?: string;
+  error?: string;
+  appPlan?: {
+    appName?: string;
+    slug?: string;
+    platform?: string;
+    complexity?: string;
+    targetUsers?: string;
+    coreFeatures?: string[];
+    screens?: string[];
+    dataModel?: string[];
+    buildPlan?: string[];
+  };
+};
+
+function AppCreatorCard({
+  state,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  result?: AppCreatorToolResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const ok = Boolean(result?.success ?? result?.ok);
+  const failed = !isPending && !ok;
+  const plan = result?.appPlan;
+
+  return (
+    <div className={`tool-card tool-card--app-creator ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "✨" : ok ? "✅" : "🛑"}</span>
+        <span className="tool-card-title">App Creator v1</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className={ok ? "repo-control-status repo-control-status--safe" : "repo-control-status repo-control-status--warning"}>
+          {isPending ? "Designing blueprint" : ok ? "Blueprint + proposal ready" : "Stopped safely"}
+        </span>
+        {plan?.appName && <span className="repo-control-meta">App: {plan.appName} · {plan.platform ?? "web"} · {plan.complexity ?? "standard"}</span>}
+        {result?.proposalId && <span className="repo-control-meta">Proposal: {result.proposalId}</span>}
+        {result?.message && <p className="build-intel-copy">{result.message}</p>}
+        {plan?.coreFeatures && plan.coreFeatures.length > 0 && (
+          <div className="repo-flow-step-list">
+            {plan.coreFeatures.slice(0, 6).map((feature, index) => (
+              <span key={`${feature}-${index}`} className="repo-flow-step repo-flow-step--ok"><strong>✓ Feature</strong> · {feature}</span>
+            ))}
+          </div>
+        )}
+        {plan?.screens && plan.screens.length > 0 && <div className="deployment-handoff-line"><strong>Screens:</strong> {plan.screens.slice(0, 6).join(", ")}</div>}
+        {plan?.dataModel && plan.dataModel.length > 0 && <div className="deployment-handoff-line"><strong>Data:</strong> {plan.dataModel.slice(0, 4).join(" · ")}</div>}
+        {result?.nextAction && <div className="repo-flow-next"><strong>Next:</strong> {result.nextAction}</div>}
+        <div className="repo-flow-boundary">Safety: {result?.safety ?? "blueprint only · no files, schema, PR, or deploy"}</div>
       </div>
     </div>
   );
@@ -1457,6 +1523,15 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "create_app_proposal") {
+    return (
+      <AppCreatorCard
+        state={invocation.state}
+        result={invocation.state === "result" ? (invocation.result as AppCreatorToolResult) : undefined}
       />
     );
   }

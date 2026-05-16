@@ -2113,3 +2113,13 @@ button:disabled {
   background: rgba(220, 72, 94, 0.14);
   color: #a52b42;
 }
+
+.tool-card--app-creator {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(244, 239, 255, 0.72));
+  border-color: rgba(118, 87, 255, 0.24);
+  box-shadow: 0 18px 54px rgba(118, 87, 255, 0.14);
+}
+
+.tool-card--app-creator .tool-card-icon {
+  filter: drop-shadow(0 8px 18px rgba(118, 87, 255, 0.22));
+}

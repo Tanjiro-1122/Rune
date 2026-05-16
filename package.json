@@ -12,7 +12,8 @@
     "test:checkpoints": "node scripts/task-checkpoint-smoke-test.mjs",
     "runner:trusted": "node scripts/trusted-runner.mjs",
     "test:app-health-routing": "node scripts/app-health-project-routing-smoke-test.mjs",
-    "test:repo-control-id": "node scripts/repo-control-id-smoke-test.mjs"
+    "test:repo-control-id": "node scripts/repo-control-id-smoke-test.mjs",
+    "test:app-creator": "node scripts/app-creator-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
