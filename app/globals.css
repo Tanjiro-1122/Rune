@@ -1536,3 +1536,53 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+.build-intel-card--wide {
+  grid-column: 1 / -1;
+}
+
+.external-services-card {
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.external-service-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.external-service-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.72);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.external-service-row strong {
+  display: block;
+  color: #2d2554;
+  font-size: 0.82rem;
+}
+
+.external-service-row p {
+  margin: 0.2rem 0;
+  color: #5d527f;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.external-service-row span:not(.action-status-pill) {
+  color: #7c6aa5;
+  font-size: 0.68rem;
+}
+
+@media (max-width: 640px) {
+  .external-service-row {
+    flex-direction: column;
+  }
+}

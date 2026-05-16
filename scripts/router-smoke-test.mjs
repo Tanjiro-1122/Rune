@@ -3,6 +3,8 @@ const source = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 const repoActions = fs.readFileSync('lib/repo-actions.ts', 'utf8');
 const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
+const externalServicesHealth = fs.readFileSync('lib/external-services-health.ts', 'utf8');
+const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
 
 const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const explicitRepoProposalPattern = /const EXPLICIT_REPO_PROPOSAL_PATTERN/.test(orchestration);

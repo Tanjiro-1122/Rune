@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { logError } from "@/lib/errors";
+import { getExternalServicesHealth, summarizeExternalServicesHealth, type ExternalServiceCheck } from "@/lib/external-services-health";
 import { logActionEvent } from "@/lib/action-events";
 
 const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
@@ -51,6 +52,11 @@ export interface BuildIntelligenceSnapshot {
   generatedAt: string;
   github: GitHubIntelligence;
   vercel: VercelIntelligence;
+  externalServices: {
+    generatedAt: string;
+    summary: ReturnType<typeof summarizeExternalServicesHealth>;
+    services: ExternalServiceCheck[];
+  };
 }
 
 function getRepoSlug(repoOverride?: string | null) {
@@ -204,10 +210,16 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
 
 export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null } = {}): Promise<BuildIntelligenceSnapshot> {
   const [github, vercel] = await Promise.all([getGitHubIntelligence(options.repo), getVercelIntelligence()]);
+  const externalServices = getExternalServicesHealth();
   const snapshot = {
     generatedAt: new Date().toISOString(),
     github,
     vercel,
+    externalServices: {
+      generatedAt: new Date().toISOString(),
+      summary: summarizeExternalServicesHealth(externalServices),
+      services: externalServices,
+    },
   };
 
   await logActionEvent({
@@ -223,6 +235,7 @@ export async function getBuildIntelligenceSnapshot(options: { projectKey?: strin
       vercelConfigured: vercel.configured,
       githubError: github.error,
       vercelError: vercel.error,
+      externalServices: snapshot.externalServices.summary,
     },
   });
 

@@ -588,6 +588,20 @@ interface BuildIntelligenceSnapshot {
     } | null;
     error?: string;
   };
+  externalServices?: {
+    generatedAt: string;
+    summary: { configured: number; partial: number; missing: number; total: number };
+    services: Array<{
+      key: "revenuecat" | "app_store_connect" | "google_play";
+      label: string;
+      status: "configured" | "partial" | "missing";
+      summary: string;
+      readOnly: boolean;
+      configuredKeys: string[];
+      missingKeys: string[];
+      notes: string[];
+    }>;
+  };
 }
 
 interface RepoActionProposalSummary {
@@ -3183,6 +3197,45 @@ export function Chat() {
                       </>
                     ) : (
                       <p className="build-intel-copy">{buildIntel.vercel.error ?? "No deployment signal yet."}</p>
+                    )}
+                  </article>
+
+                  <article className="build-intel-card build-intel-card--wide external-services-card">
+                    <div className="build-intel-title-row">
+                      <span>External services</span>
+                      <span className="action-status-pill action-status-pill--info">
+                        Read-only
+                      </span>
+                    </div>
+                    <p className="build-intel-copy">
+                      RevenueCat, App Store Connect, and Google Play readiness without exposing secrets.
+                    </p>
+                    {buildIntel.externalServices ? (
+                      <>
+                        <div className="memory-meta-row">
+                          <span>{buildIntel.externalServices.summary.configured} configured</span>
+                          <span>{buildIntel.externalServices.summary.partial} partial</span>
+                          <span>{buildIntel.externalServices.summary.missing} missing</span>
+                        </div>
+                        <div className="external-service-list">
+                          {buildIntel.externalServices.services.map((service) => (
+                            <div key={service.key} className="external-service-row">
+                              <div>
+                                <strong>{service.label}</strong>
+                                <p>{service.summary}</p>
+                                {service.configuredKeys.length > 0 && (
+                                  <span>{service.configuredKeys.length} env key(s) present</span>
+                                )}
+                              </div>
+                              <span className={`action-status-pill action-status-pill--${service.status === "configured" ? "executed" : service.status === "partial" ? "proposed" : "failed"}`}>
+                                {service.status.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="build-intel-copy">Refresh to inspect external service readiness.</p>
                     )}
                   </article>
                 </div>
