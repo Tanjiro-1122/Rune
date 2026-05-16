@@ -6,6 +6,7 @@ const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const explicitRepoProposalPattern = /const EXPLICIT_REPO_PROPOSAL_PATTERN/.test(orchestration);
 const safeReviewOnlyPattern = /const SAFE_REVIEW_ONLY_PATTERN/.test(orchestration);
 const narrowedDeployPattern = /Only route deployment as approval-required/.test(orchestration) && /deploy to production/.test(orchestration) && !orchestration.includes('const DEPLOY_ACTION_PATTERN = /\\b(deploy|deployment|rollback|redeploy)');
+const chatRoute = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 const checks = [
   ['self-audit pattern exists', /SELF_AUDIT_PATTERN/.test(source)],
   ['no corrupted backspace word-boundary characters', !source.includes('\u0008') && !source.includes('=\b')],
@@ -22,6 +23,7 @@ const checks = [
   ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
   ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
+  ['repo ladder avoids calculator', /isRepoControlCommand/.test(chatRoute) && /withoutUuids/.test(chatRoute) && /Repo Control command detected; do not route to calculator/.test(chatRoute) && /safe repo control ladder/.test(orchestration)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

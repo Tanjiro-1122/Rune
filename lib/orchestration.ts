@@ -50,7 +50,7 @@ export type ReasoningRoute =
 const SELF_AUDIT_PATTERN = /\b(self\s*-?\s*audit|audit yourself|system health|are you ready|check your brain|brain check|readiness report|what should we patch next)\b/i;
 const CAPABILITY_TRUTH_PATTERN = /\b(what can you actually do|what can you do|what is connected|what's connected|anything missing|what is missing|what's missing|setup missing|capabilities|capability|how far can we take you|fully set up)\b/i;
 const SENSITIVE_ACTION_PATTERN = /\b(send email|email customer|reply to customer|grant free|grant credit|free month|refund|charge|bank transfer|bill payment|move money|delete production|push to production|open pr|pull request|commit|merge)\b/i;
-const EXPLICIT_REPO_PROPOSAL_PATTERN = /\b(create|make|prepare|draft|open)\b[\s\S]{0,80}\b(repo control proposal|repo action proposal|proposal)\b|\b(repo control proposal|repo action proposal)\b/i;
+const EXPLICIT_REPO_PROPOSAL_PATTERN = /\b(create|make|prepare|draft|open|run|start)\b[\s\S]{0,100}\b(repo control proposal|repo action proposal|repo control ladder|repo action ladder|safe repo control ladder|proposal)\b|\b(repo control proposal|repo action proposal|repo control ladder|repo action ladder|safe repo control ladder)\b/i;
 const SAFE_REVIEW_ONLY_PATTERN = /\b(do not execute|don't execute|without executing|proposal only|review only|no execution|do not run|don't run)\b/i;
 // Only route deployment as approval-required when the user is asking for an actual deployment mutation.
 // Phrases like "deployment health wording" or "deployment summary" are repo/content work, not deploy actions.
@@ -64,6 +64,7 @@ const NUMERIC_EXPRESSION_PATTERN = /\d\s*[+\-*/^%]\s*\d|\(\s*\d[\d\s+\-*/^%.()]*
 export function needsRepositoryInspection(input: string) {
   const lower = input.toLowerCase();
   return (
+    EXPLICIT_REPO_PROPOSAL_PATTERN.test(lower) ||
     (REPO_CHANGE_VERB_PATTERN.test(lower) && REPO_SCOPE_PATTERN.test(lower)) ||
     /\b(error|bug|broken|not working|fails|failed|issue|problem)\b/i.test(lower) ||
     (/\b(inspect|review|audit|look at|check)\b/i.test(lower) && REPO_SCOPE_PATTERN.test(lower))

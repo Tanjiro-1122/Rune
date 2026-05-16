@@ -295,14 +295,26 @@ function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   return hasCodeBlock || artifactIntent || (executionVerb && executionNoun);
 }
 
+function isRepoControlCommand(input: string) {
+  if (!input.trim()) return false;
+  return /\b(repo control|repo action|proposal)\b/i.test(input) &&
+    /\b(run|start|create|prepare|draft|inspect|ladder|stage|executor|proposal|stop before|pr|pull request)\b/i.test(input);
+}
+
+function hasMathExpression(input: string) {
+  const withoutUuids = input.replace(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+    " "
+  );
+  return /\d\s*[+*/^%]\s*\d|\d\s+-\s+\d|\(\s*\d[\d\s+\-*/^%.()]*\)/.test(withoutUuids);
+}
+
 function isCalculationIntent(input: string) {
   if (!input.trim()) return false;
-  return (
-    /\b(calculate|compute|what is|solve|tip|percentage|percent|sum|total|convert)\b/i.test(
-      input
-    ) &&
-    /[\d()%/*+-]/.test(input)
-  );
+  if (isRepoControlCommand(input)) return false;
+  const explicitMath = /\b(calculate|compute|solve|math|arithmetic|percentage|percent|tip|sum|total|convert)\b/i.test(input);
+  const conversationalMath = /\bwhat is\b/i.test(input) && hasMathExpression(input);
+  return (explicitMath || conversationalMath) && hasMathExpression(input);
 }
 
 function isDatetimeIntent(input: string) {
@@ -348,6 +360,9 @@ function getForcedToolChoice(
         | "get_jarvis_self_audit_snapshot";
     }
   | null {
+  if (isRepoControlCommand(input)) {
+    return null;
+  }
   if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     return { type: "tool", toolName: "execute_code" };
   }
@@ -365,6 +380,12 @@ function getForcedToolChoice(
 
 function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
   const hints: string[] = [];
+
+  if (isRepoControlCommand(input)) {
+    hints.push(
+      "- Legacy router guard: Repo Control command detected; do not route to calculator because proposal IDs contain hyphens/numbers. Prefer the matching Repo Control tool."
+    );
+  }
 
   if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     hints.push(

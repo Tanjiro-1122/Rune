@@ -4,6 +4,8 @@ Agent Core v1 is the first quality upgrade after the Brain phase.
 
 ## Included
 
+- Repo Control calculator guard for proposal UUIDs: ladder/stage/executor commands no longer route to math just because IDs contain hyphens and numbers.
+
 - Router priority fix: explicit review-only Repo Control proposal requests now outrank broad deployment wording, with UI dedupe for repeated capability cards.
 
 - Specific tool-status labels for Repo Control/deployment stages so mobile progress cards do not repeat generic capability labels.
