@@ -55,6 +55,7 @@ import {
   trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
 import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
+import { getRevenueCatSubscriberReadOnly } from "@/lib/revenuecat-readonly";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -464,6 +465,24 @@ const baseAgentTools = {
       scope: z.enum(["jarvis-brain", "full-owner-console"]).optional().default("jarvis-brain"),
     }),
     execute: async ({ scope }) => getSelfAuditSnapshot(scope),
+  }),
+
+  lookup_revenuecat_subscriber: tool({
+    description:
+      "Look up a RevenueCat subscriber by app user ID in strict read-only mode. Use only when Javier asks to check RevenueCat, subscriber status, entitlements, or subscriptions for a specific app user ID. This tool never grants entitlements, changes purchases, refunds, transfers, deletes, or mutates RevenueCat.",
+    parameters: z.object({
+      appUserId: z.string().min(1).max(180).describe("The exact RevenueCat app user ID to inspect."),
+    }),
+    execute: async ({ appUserId }) => {
+      const result = await getRevenueCatSubscriberReadOnly(appUserId);
+      return {
+        success: result.ok,
+        ...result,
+        message: result.ok
+          ? "RevenueCat subscriber inspected in read-only mode. No subscription or entitlement changes happened."
+          : result.error || "RevenueCat read-only lookup failed. No subscription or entitlement changes happened.",
+      };
+    },
   }),
 
   get_current_datetime: tool({
@@ -1569,7 +1588,7 @@ ${plannerOutput.steps
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
-- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 

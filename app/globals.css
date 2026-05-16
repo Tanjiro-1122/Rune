@@ -1586,3 +1586,25 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+
+.tool-card--revenuecat {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.78), rgba(255, 255, 255, 0.9));
+}
+
+.revenuecat-mini-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.revenuecat-mini-list span {
+  display: block;
+  color: #4b4268;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.revenuecat-mini-list strong {
+  color: #1f6f54;
+}

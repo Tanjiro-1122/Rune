@@ -28,6 +28,7 @@ const checks = [
   ['runner dashboard visibility exists', /runner-status-card/.test(chatUi) && /runnerMetadata\?\.job_kind/.test(chatUi) && /runner-command-preview/.test(css)],
   ['runner workspace handoff exists', /workspaceId: workspaceId \?\? null/.test(chatRoute) && /workspaceId: options\.workspaceId/.test(deploymentControl) && /conversationId: options\.conversationId/.test(deploymentControl)],
   ['external services UI exists', /externalServices/.test(chatUi) && /external-service-list/.test(css) && /RevenueCat, App Store Connect, and Google Play/.test(chatUi)],
+  ['revenuecat lookup UI exists', /RevenueCatLookupCard/.test(chatUi) && /tool-card--revenuecat/.test(css) && /lookup_revenuecat_subscriber/.test(chatUi)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

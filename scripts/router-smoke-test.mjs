@@ -35,6 +35,7 @@ const checks = [
   ['jarvis voice layer exists', /Voice and personality/.test(chatRoute) && /private AI person/.test(chatRoute) && /not a compliance dashboard/.test(chatRoute) && /honest read/.test(chatRoute) && /Personality never overrides safety/.test(chatRoute)],
   ['external services health exists', /RevenueCat/.test(externalServicesHealth) && /App Store Connect/.test(externalServicesHealth) && /Google Play/.test(externalServicesHealth) && /externalServices/.test(buildIntelligence)],
   ['revenuecat read-only client exists', /getRevenueCatSubscriberReadOnly/.test(revenueCatReadOnly) && /method: \"GET\"/.test(revenueCatReadOnly) && !/method: \"POST\"|method: \"PATCH\"|method: \"DELETE\"|method: \"PUT\"/.test(revenueCatReadOnly) && /readOnly: true/.test(revenueCatRoute)],
+  ['revenuecat chat tool exists', /lookup_revenuecat_subscriber/.test(route) && /getRevenueCatSubscriberReadOnly/.test(route) && /never grants entitlements/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

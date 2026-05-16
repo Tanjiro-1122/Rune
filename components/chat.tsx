@@ -40,6 +40,7 @@ const TOOL_LABELS: Record<string, string> = {
   run_repo_action_ladder: "Running the Repo Control ladder",
   run_approved_repo_action: "Running approved Repo Control executor",
   deployment_control: "Checking deployment control",
+  lookup_revenuecat_subscriber: "Checking RevenueCat subscriber",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -162,6 +163,86 @@ function CalculateCard({
               <>= {result.result}</>
             )}
           </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+type RevenueCatLookupResult = {
+  success?: boolean;
+  configured?: boolean;
+  readOnly?: boolean;
+  error?: string;
+  message?: string;
+  subscriber?: {
+    appUserId: string;
+    originalAppUserId?: string | null;
+    firstSeen?: string | null;
+    lastSeen?: string | null;
+    managementUrl?: string | null;
+    entitlements: Array<{ id: string; productIdentifier?: string | null; expiresDate?: string | null; purchaseDate?: string | null; store?: string | null; isActive: boolean }>;
+    subscriptions: Array<{ productIdentifier: string; store?: string | null; periodType?: string | null; purchaseDate?: string | null; expiresDate?: string | null; isSandbox?: boolean | null; isActive: boolean }>;
+  };
+};
+
+function RevenueCatLookupCard({
+  state,
+  args,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  args: Record<string, unknown>;
+  result?: RevenueCatLookupResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const subscriber = result?.subscriber;
+  const entitlements = subscriber?.entitlements ?? [];
+  const subscriptions = subscriber?.subscriptions ?? [];
+  const activeEntitlements = entitlements.filter((entitlement) => entitlement.isActive);
+  const activeSubscriptions = subscriptions.filter((subscription) => subscription.isActive);
+
+  return (
+    <div className={`tool-card tool-card--revenuecat ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🔎" : failed ? "⚠️" : "💳"}</span>
+        <span className="tool-card-title">RevenueCat read-only lookup</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">App user: {subscriber?.appUserId || (typeof args.appUserId === "string" ? args.appUserId : "pending")}</span>
+        <span className="repo-control-status repo-control-status--safe">Read-only · no entitlement changes</span>
+        {failed && <span className="tool-error">{result?.error || result?.message || "RevenueCat lookup failed."}</span>}
+        {subscriber && (
+          <>
+            <div className="memory-meta-row">
+              <span>{activeEntitlements.length}/{entitlements.length} active entitlements</span>
+              <span>{activeSubscriptions.length}/{subscriptions.length} active subscriptions</span>
+              {subscriber.lastSeen && <span>Last seen {formatTimestamp(subscriber.lastSeen)}</span>}
+            </div>
+            {entitlements.length > 0 && (
+              <div className="revenuecat-mini-list">
+                {entitlements.slice(0, 4).map((entitlement) => (
+                  <span key={entitlement.id}>
+                    <strong>{entitlement.id}</strong> · {entitlement.isActive ? "active" : "inactive"}
+                    {entitlement.expiresDate ? ` · expires ${formatTimestamp(entitlement.expiresDate)}` : ""}
+                  </span>
+                ))}
+              </div>
+            )}
+            {subscriptions.length > 0 && (
+              <div className="revenuecat-mini-list">
+                {subscriptions.slice(0, 4).map((subscription) => (
+                  <span key={subscription.productIdentifier}>
+                    <strong>{subscription.productIdentifier}</strong> · {subscription.isActive ? "active" : "inactive"}
+                    {subscription.store ? ` · ${subscription.store}` : ""}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1018,6 +1099,16 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "lookup_revenuecat_subscriber") {
+    return (
+      <RevenueCatLookupCard
+        state={invocation.state}
+        args={invocation.args}
+        result={invocation.state === "result" ? (invocation.result as RevenueCatLookupResult) : undefined}
       />
     );
   }
