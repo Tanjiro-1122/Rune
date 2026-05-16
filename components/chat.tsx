@@ -1637,6 +1637,7 @@ export function Chat() {
   const [operatorHealth, setOperatorHealth] = useState<AppHealthSnapshotResult | null>(null);
   const [operatorStatus, setOperatorStatus] = useState("");
   const [operatorBusy, setOperatorBusy] = useState(false);
+  const [operatorLastRefreshedAt, setOperatorLastRefreshedAt] = useState<string | null>(null);
   const [repoProposals, setRepoProposals] = useState<RepoActionProposalSummary[]>([]);
   const [repoProposalStatus, setRepoProposalStatus] = useState("");
   const [repoProposalBusy, setRepoProposalBusy] = useState(false);
@@ -1689,6 +1690,14 @@ export function Chat() {
   const selectedProject =
     PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === selectedProjectKey) ?? PROJECT_SWITCHBOARD_OPTIONS[0];
   const canManageWorkspaces = persistenceEnabled && schemaReady;
+  const activeOperatorTaskCount = tasks.filter((task) => task.status === "queued" || task.status === "running").length;
+  const latestRepoProposal = repoProposals[0] ?? null;
+  const latestRepoProposalMetadata = latestRepoProposal?.draft_metadata ?? {};
+  const latestRepoPrReady = latestRepoProposalMetadata.pr_overall_ready === true;
+  const latestRepoHandoff = latestRepoProposalMetadata.deployment_prep as { ready?: boolean; pr_url?: string; required_approval_phrase?: string } | undefined;
+  const latestRepoPrUrl =
+    (typeof latestRepoProposalMetadata.pr_url === "string" ? latestRepoProposalMetadata.pr_url : "") ||
+    (typeof latestRepoHandoff?.pr_url === "string" ? latestRepoHandoff.pr_url : "");
 
   function selectProject(projectKey: (typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]) {
     setSelectedProjectKey(projectKey);
@@ -1809,6 +1818,7 @@ export function Chat() {
       const healthPayload = (await healthResponse.json().catch(() => ({}))) as AppHealthSnapshotResult & { error?: string };
       if (!healthResponse.ok) throw new Error(healthPayload.error ?? "App health snapshot unavailable.");
       setOperatorHealth(healthPayload);
+      setOperatorLastRefreshedAt(new Date().toISOString());
       await Promise.all([
         refreshBuildIntelligence(nextProjectKey),
         refreshRepoProposals(nextProjectKey),
@@ -1822,6 +1832,17 @@ export function Chat() {
       setOperatorBusy(false);
     }
   }
+
+
+  useEffect(() => {
+    if (activeCabinetDrawer !== "operator") return;
+    const timer = window.setInterval(() => {
+      if (!operatorBusy && !buildIntelBusy && !deployHealthBusy) {
+        void refreshOperatorConsole(selectedProjectKey);
+      }
+    }, 180000);
+    return () => window.clearInterval(timer);
+  }, [activeCabinetDrawer, selectedProjectKey, operatorBusy, buildIntelBusy, deployHealthBusy, sessionId, workspaceId, conversationId]);
 
 
   async function refreshRepoProposals(nextProjectKey = selectedProjectKey) {
@@ -3288,10 +3309,15 @@ export function Chat() {
 
             {activeCabinetDrawer === "operator" && (
               <section className="operator-console-panel" data-testid="operator-console-panel">
-                <div className="drawer-section-heading">
+                <div className="drawer-section-heading operator-heading">
                   <div>
                     <p className="drawer-eyebrow">Operator console</p>
                     <h3>{selectedProject.label} command view</h3>
+                    <small className="operator-refresh-note">
+                      {operatorLastRefreshedAt
+                        ? `Last refreshed ${formatTimestamp(operatorLastRefreshedAt)} · auto-refreshes while open`
+                        : "Read-only status appears here. Auto-refresh starts after the first refresh."}
+                    </small>
                   </div>
                   <button
                     type="button"
@@ -3303,31 +3329,66 @@ export function Chat() {
                   </button>
                 </div>
 
+                <div className="operator-quick-actions" aria-label="Operator quick actions">
+                  <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>
+                    Refresh health
+                  </button>
+                  <button type="button" onClick={() => setActiveCabinetDrawer("repo")}>
+                    Open Repo Control
+                  </button>
+                  <button type="button" onClick={() => setActiveCabinetDrawer("tasks")}>
+                    View runner jobs
+                  </button>
+                  {latestRepoPrUrl ? (
+                    <a href={latestRepoPrUrl} target="_blank" rel="noreferrer">Open latest PR</a>
+                  ) : (
+                    <button type="button" disabled title="No PR URL loaded yet">Open latest PR</button>
+                  )}
+                </div>
+
                 <div className="operator-summary-grid">
                   <article className="operator-summary-card operator-summary-card--primary">
                     <span className="operator-card-label">App health</span>
-                    <strong>{operatorHealth?.status ? operatorHealth.status.toUpperCase() : "Not checked"}</strong>
+                    <div className="operator-card-title-row">
+                      <strong>{operatorHealth?.status ? operatorHealth.status.toUpperCase() : "Not checked"}</strong>
+                      {operatorHealth?.status && <span className={`operator-status-pill operator-status-pill--${operatorHealth.status}`}>{operatorHealth.status}</span>}
+                    </div>
                     <p>{operatorHealth?.summary ?? "Refresh to pull the latest read-only app health snapshot."}</p>
                     {operatorHealth?.score !== undefined && <small>Score {operatorHealth.score}/100</small>}
                   </article>
 
                   <article className="operator-summary-card">
                     <span className="operator-card-label">Build</span>
-                    <strong>{buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "Unknown"}</strong>
+                    <div className="operator-card-title-row">
+                      <strong>{buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "Unknown"}</strong>
+                      {buildIntel?.github?.latestWorkflowRun?.status && (
+                        <span className={`operator-status-pill operator-status-pill--${buildIntel.github.latestWorkflowRun.conclusion ?? buildIntel.github.latestWorkflowRun.status}`}>
+                          {buildIntel.github.latestWorkflowRun.conclusion ?? buildIntel.github.latestWorkflowRun.status}
+                        </span>
+                      )}
+                    </div>
                     <p>{buildIntel?.github?.latestCommit?.message?.split("\n")[0] ?? "GitHub/Vercel build signals appear here."}</p>
                     {buildIntel?.github?.latestCommit?.sha && <small>{buildIntel.github.latestCommit.sha.slice(0, 7)}</small>}
                   </article>
 
                   <article className="operator-summary-card">
                     <span className="operator-card-label">Deploy gate</span>
-                    <strong>{deployHealth?.overall ? deployHealth.overall.toUpperCase() : "Unknown"}</strong>
+                    <div className="operator-card-title-row">
+                      <strong>{deployHealth?.overall ? deployHealth.overall.toUpperCase() : "Unknown"}</strong>
+                      {deployHealth?.overall && <span className={`operator-status-pill operator-status-pill--${deployHealth.overall}`}>{deployHealth.overall}</span>}
+                    </div>
                     <p>{deployHealth?.checks?.find((check) => check.status !== "ok")?.detail ?? "Deployment checks are metadata-only until explicitly approved."}</p>
                     {deployHealth?.generatedAt && <small>{formatTimestamp(deployHealth.generatedAt)}</small>}
                   </article>
 
                   <article className="operator-summary-card">
                     <span className="operator-card-label">Tasks + runner</span>
-                    <strong>{tasks.filter((task) => task.status === "queued" || task.status === "running").length} active</strong>
+                    <div className="operator-card-title-row">
+                      <strong>{activeOperatorTaskCount} active</strong>
+                      <span className={`operator-status-pill operator-status-pill--${activeOperatorTaskCount ? "running" : "idle"}`}>
+                        {activeOperatorTaskCount ? "active" : "idle"}
+                      </span>
+                    </div>
                     <p>{tasks.find((task) => task.status === "queued" || task.status === "running")?.title ?? "No active queued/running tasks in this workspace."}</p>
                     <small>{tasks.length} recent task{tasks.length === 1 ? "" : "s"}</small>
                   </article>
@@ -3351,11 +3412,19 @@ export function Chat() {
                     {repoProposals.slice(0, 4).map((proposal) => {
                       const metadata = proposal.draft_metadata ?? {};
                       const prReady = metadata.pr_overall_ready === true;
-                      const deploymentPrep = metadata.deployment_prep as { ready?: boolean; required_approval_phrase?: string } | undefined;
+                      const deploymentPrep = metadata.deployment_prep as { ready?: boolean; required_approval_phrase?: string; pr_url?: string } | undefined;
+                      const prUrl = (typeof metadata.pr_url === "string" ? metadata.pr_url : "") || deploymentPrep?.pr_url;
                       return (
                         <div key={proposal.id} className="operator-list-row">
-                          <strong>{proposal.title}</strong>
-                          <span>{proposal.status} · {proposal.risk_level} risk · {prReady ? "PR ready" : "PR not ready"}</span>
+                          <div className="operator-row-title">
+                            <strong>{proposal.title}</strong>
+                            <span className={`operator-status-pill operator-status-pill--${prReady ? "ready" : proposal.status}`}>{prReady ? "PR ready" : proposal.status}</span>
+                          </div>
+                          <span>{proposal.risk_level} risk · {prReady ? "checks passed" : "waiting on Repo Control ladder"}</span>
+                          <div className="operator-row-actions">
+                            <button type="button" onClick={() => setActiveCabinetDrawer("repo")}>Review</button>
+                            {prUrl && <a href={prUrl} target="_blank" rel="noreferrer">PR</a>}
+                          </div>
                           {deploymentPrep?.ready && <small>Handoff ready · {deploymentPrep.required_approval_phrase ?? "approval required"}</small>}
                         </div>
                       );
@@ -3366,13 +3435,16 @@ export function Chat() {
                   <article className="operator-list-card">
                     <div className="operator-list-header">
                       <span>Runner / tasks</span>
-                      <small>read-only status</small>
+                      <small>{activeOperatorTaskCount} active</small>
                     </div>
-                    {tasks.slice(0, 4).map((task) => (
+                    {tasks.slice(0, 5).map((task) => (
                       <div key={task.id} className="operator-list-row">
-                        <strong>{task.title}</strong>
-                        <span>{getTaskStatusLabel(task.status)} · {task.progress}%</span>
+                        <div className="operator-row-title">
+                          <strong>{task.title}</strong>
+                          <span className={`operator-status-pill operator-status-pill--${task.runnerStatus ?? task.status}`}>{task.runnerStatus ?? task.status}</span>
+                        </div>
                         {task.runnerMetadata?.job_kind && <small>{getRunnerJobLabel(task.runnerMetadata.job_kind)} · {task.runnerStatus ?? "unclaimed"}</small>}
+                        {task.runnerMetadata?.approval_text && <small>Gate: {task.runnerMetadata.approval_text}</small>}
                       </div>
                     ))}
                     {!tasks.length && <p className="operator-empty-copy">No recent workspace tasks loaded.</p>}

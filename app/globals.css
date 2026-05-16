@@ -1898,6 +1898,102 @@ button:disabled {
   font-size: 0.76rem;
 }
 
+
+.operator-heading {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.operator-refresh-note {
+  display: block;
+  margin-top: 0.25rem;
+  color: rgba(72, 61, 92, 0.62);
+  font-size: 0.76rem;
+}
+
+.operator-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.85rem 0 1rem;
+}
+
+.operator-quick-actions button,
+.operator-quick-actions a,
+.operator-row-actions button,
+.operator-row-actions a {
+  border: 1px solid rgba(106, 78, 170, 0.18);
+  background: rgba(255, 255, 255, 0.74);
+  color: #4b3c73;
+  border-radius: 999px;
+  padding: 0.46rem 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(83, 65, 128, 0.08);
+}
+
+.operator-quick-actions button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.operator-card-title-row,
+.operator-row-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.operator-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.48rem;
+  background: rgba(106, 78, 170, 0.12);
+  color: #5b4585;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.operator-status-pill--healthy,
+.operator-status-pill--success,
+.operator-status-pill--ready,
+.operator-status-pill--ok,
+.operator-status-pill--completed,
+.operator-status-pill--idle {
+  background: rgba(42, 157, 111, 0.14);
+  color: #17724c;
+}
+
+.operator-status-pill--warning,
+.operator-status-pill--partial,
+.operator-status-pill--queued,
+.operator-status-pill--running,
+.operator-status-pill--approved,
+.operator-status-pill--proposed {
+  background: rgba(232, 151, 62, 0.16);
+  color: #94540f;
+}
+
+.operator-status-pill--error,
+.operator-status-pill--failed,
+.operator-status-pill--blocked,
+.operator-status-pill--missing {
+  background: rgba(220, 72, 94, 0.14);
+  color: #a52b42;
+}
+
+.operator-row-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
 .operator-safety-note {
   border: 1px solid rgba(245, 158, 11, 0.22);
   border-radius: 16px;
