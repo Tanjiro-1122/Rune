@@ -998,3 +998,20 @@ Safety boundaries:
 - No deploy, redeploy, rollback, or production mutation.
 - No runner job is queued by this handoff.
 - Actual deployment remains a separate explicit deployment-control approval flow.
+
+
+## Operator console panel
+
+Jarvis includes a read-only Operator drawer in the chat cabinet. It gives Javier a single command view for:
+
+- App health snapshot
+- Build intelligence
+- Deployment gate health
+- Recent Repo Control proposals and deployment handoff readiness
+- Recent workspace tasks and runner job status
+
+Safety boundaries:
+
+- Read-only UI panel.
+- Refreshing the console does not merge, deploy, redeploy, roll back, release, edit payments, or queue runner jobs.
+- Production movement still requires the explicit deployment-control approval phrase.

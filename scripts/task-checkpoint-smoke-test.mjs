@@ -34,6 +34,7 @@ const checks = [
   ['app health snapshot UI exists', /AppHealthSnapshotCard/.test(chatUi) && /tool-card--app-health/.test(css) && /get_app_health_snapshot/.test(chatUi) && /Read-only only/.test(chatUi)],
   ['repo control flow UI exists', /RepoControlFlowCard/.test(chatUi) && /tool-card--repo-flow/.test(css) && /run_repo_control_flow/.test(chatUi) && /no merge/.test(chatUi)],
   ['deployment handoff UI exists', /DeploymentHandoffCard/.test(chatUi) && /tool-card--deployment-handoff/.test(css) && /prepare_repo_deployment_handoff/.test(chatUi) && /Metadata-only/.test(chatUi)],
+  ['operator console UI exists', /operator-console-panel/.test(chatUi) && /refreshOperatorConsole/.test(chatUi) && /operator-summary-grid/.test(css) && /Read-only operator view/.test(chatUi)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

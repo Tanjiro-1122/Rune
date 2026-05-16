@@ -52,6 +52,7 @@ const checks = [
   ['app health snapshot tool exists', /get_app_health_snapshot/.test(route) && /getAppHealthSnapshot/.test(route) && /never commits, deploys, releases, publishes/.test(route)],
   ['repo control flow chat tool exists', /run_repo_control_flow/.test(route) && /runRepoControlFlow/.test(route) && /never merges, deploys/.test(route)],
   ['deployment handoff chat tool exists', /prepare_repo_deployment_handoff/.test(route) && /prepareRepoDeploymentHandoff/.test(route) && /never merges, deploys, redeploys/.test(route)],
+  ['operator console stays read-only', /refreshOperatorConsole/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Read-only checks only/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /does not merge, deploy/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

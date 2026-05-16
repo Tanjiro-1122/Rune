@@ -1089,9 +1089,10 @@ const PROJECT_MEMORY_OPTIONS = [
 ];
 
 
-type CabinetDrawerKey = "memory" | "health" | "repo" | "build" | "activity" | "files" | "tasks";
+type CabinetDrawerKey = "operator" | "memory" | "health" | "repo" | "build" | "activity" | "files" | "tasks";
 
 const CABINET_DRAWERS: Array<{ key: CabinetDrawerKey; label: string; hint: string }> = [
+  { key: "operator", label: "Operator", hint: "Command view" },
   { key: "memory", label: "Memory", hint: "Facts + rules" },
   { key: "health", label: "Health", hint: "Setup checks" },
   { key: "repo", label: "Repo", hint: "Approvals" },
@@ -1633,6 +1634,9 @@ export function Chat() {
   const [buildIntel, setBuildIntel] = useState<BuildIntelligenceSnapshot | null>(null);
   const [buildIntelStatus, setBuildIntelStatus] = useState("");
   const [buildIntelBusy, setBuildIntelBusy] = useState(false);
+  const [operatorHealth, setOperatorHealth] = useState<AppHealthSnapshotResult | null>(null);
+  const [operatorStatus, setOperatorStatus] = useState("");
+  const [operatorBusy, setOperatorBusy] = useState(false);
   const [repoProposals, setRepoProposals] = useState<RepoActionProposalSummary[]>([]);
   const [repoProposalStatus, setRepoProposalStatus] = useState("");
   const [repoProposalBusy, setRepoProposalBusy] = useState(false);
@@ -1643,7 +1647,7 @@ export function Chat() {
   const [deployHealthStatus, setDeployHealthStatus] = useState("");
   const [jobBusy, setJobBusy] = useState(false);
   const [jobStatus, setJobStatus] = useState("");
-  const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("memory");
+  const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("operator");
 
   const {
     messages,
@@ -1693,6 +1697,7 @@ export function Chat() {
     setActionLogStatus("");
     setBuildIntelStatus("");
     setDeployHealthStatus("");
+    setOperatorStatus("");
   }
 
   async function fetchWorkspaceData(
@@ -1790,6 +1795,31 @@ export function Chat() {
       setBuildIntelStatus(error instanceof Error ? error.message : "Build intelligence unavailable.");
     } finally {
       setBuildIntelBusy(false);
+    }
+  }
+
+
+  async function refreshOperatorConsole(nextProjectKey = selectedProjectKey) {
+    setOperatorBusy(true);
+    setOperatorStatus("");
+    try {
+      const projectForRequest = PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === nextProjectKey) ?? selectedProject;
+      const healthSearch = new URLSearchParams({ projectKey: nextProjectKey, repo: projectForRequest.repo });
+      const healthResponse = await fetch(`/api/app-health?${healthSearch.toString()}`);
+      const healthPayload = (await healthResponse.json().catch(() => ({}))) as AppHealthSnapshotResult & { error?: string };
+      if (!healthResponse.ok) throw new Error(healthPayload.error ?? "App health snapshot unavailable.");
+      setOperatorHealth(healthPayload);
+      await Promise.all([
+        refreshBuildIntelligence(nextProjectKey),
+        refreshRepoProposals(nextProjectKey),
+        refreshDeployHealth(),
+        sessionId ? refreshTasks(sessionId, workspaceId, conversationId) : Promise.resolve(),
+      ]);
+      setOperatorStatus("Operator console refreshed. Read-only checks only — no deploys, merges, releases, or runner jobs.");
+    } catch (error) {
+      setOperatorStatus(error instanceof Error ? error.message : "Operator console unavailable.");
+    } finally {
+      setOperatorBusy(false);
     }
   }
 
@@ -3255,6 +3285,106 @@ export function Chat() {
               <span>Open drawer</span>
               <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
             </div>
+
+            {activeCabinetDrawer === "operator" && (
+              <section className="operator-console-panel" data-testid="operator-console-panel">
+                <div className="drawer-section-heading">
+                  <div>
+                    <p className="drawer-eyebrow">Operator console</p>
+                    <h3>{selectedProject.label} command view</h3>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void refreshOperatorConsole(selectedProjectKey)}
+                    disabled={operatorBusy || buildIntelBusy || deployHealthBusy}
+                  >
+                    {operatorBusy ? "Refreshing…" : "Refresh console"}
+                  </button>
+                </div>
+
+                <div className="operator-summary-grid">
+                  <article className="operator-summary-card operator-summary-card--primary">
+                    <span className="operator-card-label">App health</span>
+                    <strong>{operatorHealth?.status ? operatorHealth.status.toUpperCase() : "Not checked"}</strong>
+                    <p>{operatorHealth?.summary ?? "Refresh to pull the latest read-only app health snapshot."}</p>
+                    {operatorHealth?.score !== undefined && <small>Score {operatorHealth.score}/100</small>}
+                  </article>
+
+                  <article className="operator-summary-card">
+                    <span className="operator-card-label">Build</span>
+                    <strong>{buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "Unknown"}</strong>
+                    <p>{buildIntel?.github?.latestCommit?.message?.split("\n")[0] ?? "GitHub/Vercel build signals appear here."}</p>
+                    {buildIntel?.github?.latestCommit?.sha && <small>{buildIntel.github.latestCommit.sha.slice(0, 7)}</small>}
+                  </article>
+
+                  <article className="operator-summary-card">
+                    <span className="operator-card-label">Deploy gate</span>
+                    <strong>{deployHealth?.overall ? deployHealth.overall.toUpperCase() : "Unknown"}</strong>
+                    <p>{deployHealth?.checks?.find((check) => check.status !== "ok")?.detail ?? "Deployment checks are metadata-only until explicitly approved."}</p>
+                    {deployHealth?.generatedAt && <small>{formatTimestamp(deployHealth.generatedAt)}</small>}
+                  </article>
+
+                  <article className="operator-summary-card">
+                    <span className="operator-card-label">Tasks + runner</span>
+                    <strong>{tasks.filter((task) => task.status === "queued" || task.status === "running").length} active</strong>
+                    <p>{tasks.find((task) => task.status === "queued" || task.status === "running")?.title ?? "No active queued/running tasks in this workspace."}</p>
+                    <small>{tasks.length} recent task{tasks.length === 1 ? "" : "s"}</small>
+                  </article>
+                </div>
+
+                <div className="operator-flow-strip">
+                  <span>Proposal</span>
+                  <span>Diff</span>
+                  <span>Checks</span>
+                  <span>PR</span>
+                  <span>Handoff</span>
+                  <span className="operator-flow-strip__locked">Approval required</span>
+                </div>
+
+                <div className="operator-console-lists">
+                  <article className="operator-list-card">
+                    <div className="operator-list-header">
+                      <span>Repo Control</span>
+                      <small>{repoProposals.length} proposal{repoProposals.length === 1 ? "" : "s"}</small>
+                    </div>
+                    {repoProposals.slice(0, 4).map((proposal) => {
+                      const metadata = proposal.draft_metadata ?? {};
+                      const prReady = metadata.pr_overall_ready === true;
+                      const deploymentPrep = metadata.deployment_prep as { ready?: boolean; required_approval_phrase?: string } | undefined;
+                      return (
+                        <div key={proposal.id} className="operator-list-row">
+                          <strong>{proposal.title}</strong>
+                          <span>{proposal.status} · {proposal.risk_level} risk · {prReady ? "PR ready" : "PR not ready"}</span>
+                          {deploymentPrep?.ready && <small>Handoff ready · {deploymentPrep.required_approval_phrase ?? "approval required"}</small>}
+                        </div>
+                      );
+                    })}
+                    {!repoProposals.length && <p className="operator-empty-copy">No repo proposals loaded yet. Refresh console or open Repo.</p>}
+                  </article>
+
+                  <article className="operator-list-card">
+                    <div className="operator-list-header">
+                      <span>Runner / tasks</span>
+                      <small>read-only status</small>
+                    </div>
+                    {tasks.slice(0, 4).map((task) => (
+                      <div key={task.id} className="operator-list-row">
+                        <strong>{task.title}</strong>
+                        <span>{getTaskStatusLabel(task.status)} · {task.progress}%</span>
+                        {task.runnerMetadata?.job_kind && <small>{getRunnerJobLabel(task.runnerMetadata.job_kind)} · {task.runnerStatus ?? "unclaimed"}</small>}
+                      </div>
+                    ))}
+                    {!tasks.length && <p className="operator-empty-copy">No recent workspace tasks loaded.</p>}
+                  </article>
+                </div>
+
+                <div className="operator-safety-note">
+                  Read-only operator view. This panel does not merge, deploy, redeploy, rollback, release, edit payments, or queue runner jobs.
+                </div>
+                {operatorStatus && <p className="memory-status">{operatorStatus}</p>}
+              </section>
+            )}
 
             {activeCabinetDrawer === "memory" && (
             <div className="context-panel-section memory-panel-section filing-cabinet-content">
