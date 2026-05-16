@@ -24,6 +24,7 @@ const checks = [
   ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
   ['repo ladder avoids calculator', /isRepoControlCommand/.test(chatRoute) && /withoutUuids/.test(chatRoute) && /Repo Control command detected; do not route to calculator/.test(chatRoute) && /safe repo control ladder/.test(orchestration)],
+  ['jarvis voice layer exists', /Voice and personality/.test(chatRoute) && /private AI person/.test(chatRoute) && /not a compliance dashboard/.test(chatRoute) && /honest read/.test(chatRoute) && /Personality never overrides safety/.test(chatRoute)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);
