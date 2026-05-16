@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:router": "node scripts/router-smoke-test.mjs"
+    "test:router": "node scripts/router-smoke-test.mjs",
+    "test:memory-import": "node scripts/memory-import-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
