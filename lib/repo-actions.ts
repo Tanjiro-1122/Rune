@@ -1593,7 +1593,21 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
   const statusesPassed = statuses.length ? statuses.every((status) => status.state === "success") : true;
   const vercelDeployment = "deployment" in vercel ? vercel.deployment : null;
   const vercelReady = vercelDeployment?.state ? ["READY", "ready"].includes(vercelDeployment.state) : false;
-  const overallReady = prData.state === "open" && prData.mergeable !== false && checksPassed && statusesPassed && (!vercel.configured || vercelReady || !vercelDeployment);
+  const readinessReasons = [
+    prData.state !== "open" ? `PR is ${prData.state}, not open.` : null,
+    prData.draft ? "PR is still marked as draft." : null,
+    prData.mergeable === false ? "GitHub reports the PR is not mergeable." : null,
+    checks.length && !checksComplete ? "GitHub check runs are still running." : null,
+    checks.length && checksComplete && !checksPassed ? "One or more GitHub check runs failed." : null,
+    !checks.length ? "No GitHub check runs have reported yet." : null,
+    !statusesPassed ? "One or more commit statuses failed." : null,
+    vercel.configured && vercelDeployment && !vercelReady ? `Vercel preview is ${vercelDeployment.state ?? "not ready"}.` : null,
+    vercel.configured && !vercelDeployment ? "No Vercel preview deployment was found for the PR branch yet." : null,
+  ].filter(Boolean) as string[];
+  const overallReady = prData.state === "open" && !prData.draft && prData.mergeable !== false && checksPassed && statusesPassed && (!vercel.configured || vercelReady || !vercelDeployment);
+  const readinessSummary = overallReady
+    ? "PR is ready for Javier's manual review. Jarvis did not merge or deploy anything."
+    : `PR is not ready yet: ${readinessReasons.join(" ") || "waiting for GitHub/Vercel signals."}`;
   const now = new Date().toISOString();
 
   const report = [
@@ -1603,6 +1617,7 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
     `Branch: ${prBranch}`,
     `Tracked: ${now}`,
     `Overall: ${overallReady ? "READY FOR HUMAN REVIEW" : "NEEDS REVIEW / WAITING"}`,
+    `Summary: ${readinessSummary}`,
     "",
     "Jarvis inspected the pull request, GitHub checks/statuses, and optional Vercel preview deployment. No branch, merge, deployment, or repo change was made.",
     "",
@@ -1649,6 +1664,14 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
         pr_checks_passed: checksPassed,
         pr_statuses_passed: statusesPassed,
         pr_overall_ready: overallReady,
+        pr_readiness_summary: readinessSummary,
+        pr_readiness_reasons: readinessReasons,
+        pr_check_counts: {
+          total: checks.length,
+          completed: checks.filter((check) => check.status === "completed").length,
+          passed: checks.filter((check) => ["success", "neutral", "skipped"].includes(String(check.conclusion))).length,
+          statuses: statuses.length,
+        },
         github_checks: checkSummary,
         github_statuses: statusSummary,
         vercel_preview: vercel,
@@ -1676,10 +1699,10 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
     sessionId: updated.session_id,
     workspaceId: updated.workspace_id,
     conversationId: updated.conversation_id,
-    metadata: { proposalId: updated.id, repo: slug, prUrl, prBranch, overallReady, checksPassed, statusesPassed, vercel },
+    metadata: { proposalId: updated.id, repo: slug, prUrl, prBranch, overallReady, readinessSummary, readinessReasons, checksPassed, statusesPassed, vercel },
   });
 
-  return { ok: true, proposal: updated, overallReady, prUrl, vercel };
+  return { ok: true, proposal: updated, overallReady, readinessSummary, readinessReasons, prUrl, vercel };
 }
 
 
