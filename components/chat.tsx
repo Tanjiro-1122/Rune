@@ -173,6 +173,63 @@ function CalculateCard({
 }
 
 
+type RepoControlFlowResult = {
+  success?: boolean;
+  ok?: boolean;
+  proposalId?: string;
+  mode?: string;
+  steps?: Array<{ action: string; ok: boolean; status?: "completed" | "blocked" | "skipped"; error?: string; summary?: string }>;
+  stoppedAt?: string;
+  nextAction?: string;
+  prUrl?: string;
+  branch?: string;
+  safety?: string;
+  message?: string;
+  error?: string;
+};
+
+function RepoControlFlowCard({
+  state,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  result?: RepoControlFlowResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const ok = Boolean(result?.success ?? result?.ok);
+  const failed = !isPending && !ok;
+  const steps = result?.steps ?? [];
+
+  return (
+    <div className={`tool-card tool-card--repo-flow ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🧭" : ok ? "✅" : "🛑"}</span>
+        <span className="tool-card-title">Repo Control flow</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">Proposal: {result?.proposalId ?? "pending"}</span>
+        <span className={ok ? "repo-control-status repo-control-status--safe" : "repo-control-status repo-control-status--warning"}>
+          {isPending ? "Running safe staged flow" : ok ? "Completed through allowed gates" : `Stopped safely${result?.stoppedAt ? ` at ${result.stoppedAt}` : ""}`}
+        </span>
+        {result?.message && <p className="build-intel-copy">{result.message}</p>}
+        {steps.length > 0 && (
+          <div className="repo-flow-step-list">
+            {steps.map((step, index) => (
+              <span key={`${step.action}-${index}`} className={step.ok ? "repo-flow-step repo-flow-step--ok" : "repo-flow-step repo-flow-step--blocked"}>
+                <strong>{step.ok ? "✓" : "!"} {step.action}</strong> · {step.ok ? step.summary || "completed" : step.error || "blocked"}
+              </span>
+            ))}
+          </div>
+        )}
+        {result?.prUrl && <a className="repo-control-link" href={result.prUrl} target="_blank" rel="noreferrer">Open PR</a>}
+        {result?.nextAction && <div className="repo-flow-next"><strong>Next:</strong> {result.nextAction}</div>}
+        <div className="repo-flow-boundary">Safety: {result?.safety ?? "no merge, no deploy, no production mutation"}</div>
+      </div>
+    </div>
+  );
+}
+
 type AppHealthSnapshotResult = {
   success?: boolean;
   status?: "healthy" | "warning" | "blocked";
@@ -1315,6 +1372,15 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "run_repo_control_flow") {
+    return (
+      <RepoControlFlowCard
+        state={invocation.state}
+        result={invocation.state === "result" ? (invocation.result as RepoControlFlowResult) : undefined}
       />
     );
   }

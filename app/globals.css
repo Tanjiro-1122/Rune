@@ -1703,3 +1703,42 @@ button:disabled {
   padding-top: 0.45rem;
   color: #6b5f86;
 }
+
+
+.tool-card--repo-flow {
+  border-color: rgba(79, 70, 229, 0.22);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.82), rgba(255, 255, 255, 0.92));
+}
+
+.repo-flow-step-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.repo-flow-step,
+.repo-flow-next,
+.repo-flow-boundary {
+  display: block;
+  color: #4b4268;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.repo-flow-step strong {
+  color: #4338ca;
+}
+
+.repo-flow-step--blocked,
+.repo-flow-next {
+  color: #92400e;
+}
+
+.repo-flow-next,
+.repo-flow-boundary {
+  border-top: 1px solid rgba(79, 70, 229, 0.14);
+  padding-top: 0.45rem;
+}
+
+.repo-flow-boundary {
+  color: #6b5f86;
+}

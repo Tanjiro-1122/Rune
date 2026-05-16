@@ -8,6 +8,7 @@ import {
   listRepoActionProposals,
   openRepoActionPullRequest,
   runApprovedRepoActionExecutor,
+  runRepoControlFlow,
   runTemporaryWorkspaceBuildCheck,
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
@@ -37,7 +38,7 @@ const CreateProposalSchema = z.object({
 
 const UpdateProposalSchema = z.object({
   id: z.string().min(1).max(120),
-  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check", "open_pr", "track_pr", "execute_approved"]).default("status"),
+  action: z.enum(["status", "draft_diff", "inspect_repo", "generate_diff", "sandbox_check", "temp_workspace_check", "open_pr", "track_pr", "execute_approved", "run_flow"]).default("status"),
   status: z.enum(["approved", "rejected", "blocked", "cancelled"]).optional(),
   approvalNote: z.string().max(700).nullable().optional(),
 });
@@ -144,6 +145,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: result.error ?? "Failed to run controlled executor.", steps: result.steps, stoppedAt: result.stoppedAt }, { status: 500 });
     }
     return NextResponse.json(result);
+  }
+
+
+  if (parsed.data.action === "run_flow") {
+    const result = await runRepoControlFlow({ id: parsed.data.id, openPr: true, trackPr: true });
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   }
 
   if (!parsed.data.status) {

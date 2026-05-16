@@ -32,6 +32,7 @@ const checks = [
   ['repo tree validation exists', /validateRepoActionTargets/.test(fs.readFileSync('lib/repo-targeting.ts', 'utf8')) && /repo_tree_verified/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8'))],
   ['owner summary discipline exists', /Final response discipline/.test(route) && /never dump raw tool JSON/.test(route)],
   ['controlled executor exists', /runApprovedRepoActionExecutor/.test(fs.readFileSync('lib/repo-actions.ts', 'utf8')) && /run_approved_repo_action/.test(route)],
+  ['repo control flow exists', /runRepoControlFlow/.test(repoActions) && /runApprovedRepoActionExecutor/.test(repoActions) && /approval_required_no_merge_no_deploy/.test(repoActions) && /pr_only_no_merge_no_deploy/.test(repoActions)],
   ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
   ['deployment executor gate exists', /executeDeploymentControlAction/.test(deploymentControl) && /APPROVE JARVIS REDEPLOY/.test(deploymentControl) && /cli_runner_not_enabled/.test(deploymentControl) && /execute_redeploy/.test(route)],
   ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
@@ -48,6 +49,7 @@ const checks = [
   ['google play chat tool exists', /lookup_google_play_status/.test(route) && /getGooglePlayReadOnlySummary/.test(route) && /release tracks are blocked/.test(route)],
   ['app health snapshot exists', /getAppHealthSnapshot/.test(appHealthSnapshot) && /getBuildIntelligenceSnapshot/.test(appHealthSnapshot) && /getAppStoreConnectReadOnlySummary/.test(appHealthSnapshot) && /getGooglePlayReadOnlySummary/.test(appHealthSnapshot) && /getAppHealthSnapshot/.test(appHealthRoute)],
   ['app health snapshot tool exists', /get_app_health_snapshot/.test(route) && /getAppHealthSnapshot/.test(route) && /never commits, deploys, releases, publishes/.test(route)],
+  ['repo control flow chat tool exists', /run_repo_control_flow/.test(route) && /runRepoControlFlow/.test(route) && /never merges, deploys/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

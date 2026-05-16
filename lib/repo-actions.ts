@@ -1824,6 +1824,152 @@ export async function runApprovedRepoActionExecutor(options: { id: string; openP
   };
 }
 
+
+export interface RepoControlFlowStep {
+  action: string;
+  ok: boolean;
+  status: "completed" | "blocked" | "skipped";
+  error?: string;
+  summary?: string;
+}
+
+export interface RepoControlFlowResult {
+  ok: boolean;
+  proposalId: string;
+  mode: "safe_ladder" | "approved_executor";
+  steps: RepoControlFlowStep[];
+  stoppedAt?: string;
+  nextAction: string;
+  prUrl?: string;
+  branch?: string;
+  safety: string;
+  message: string;
+}
+
+function flowStep(action: string, result: { ok?: boolean; error?: string }, summary?: string): RepoControlFlowStep {
+  const ok = Boolean(result.ok);
+  return {
+    action,
+    ok,
+    status: ok ? "completed" : "blocked",
+    error: ok ? undefined : result.error || `${action} failed.`,
+    summary: ok ? summary || "completed" : "stopped here",
+  };
+}
+
+export async function runRepoControlFlow(options: { id: string; openPr?: boolean; trackPr?: boolean } | { proposalId: string; openPr?: boolean; trackPr?: boolean }): Promise<RepoControlFlowResult> {
+  const proposalId = cleanText("id" in options ? options.id : options.proposalId, 120);
+  const openPr = options.openPr ?? true;
+  const trackPr = options.trackPr ?? true;
+  const steps: RepoControlFlowStep[] = [];
+
+  if (!proposalId) {
+    return {
+      ok: false,
+      proposalId: "",
+      mode: "safe_ladder",
+      steps,
+      stoppedAt: "input",
+      nextAction: "Provide a valid Repo Control proposal ID.",
+      safety: "no_repo_mutation_no_merge_no_deploy",
+      message: "Repo Control flow could not start because proposal ID was missing.",
+    };
+  }
+
+  const runSafeStage = async (action: "inspect_repo" | "draft_diff" | "generate_diff" | "sandbox_check" | "temp_workspace_check") => {
+    const result =
+      action === "inspect_repo"
+        ? await inspectRepoActionFiles({ id: proposalId })
+        : action === "draft_diff"
+          ? await draftRepoActionDiff({ id: proposalId })
+          : action === "generate_diff"
+            ? await generateRepoActionProposedDiff({ id: proposalId })
+            : action === "sandbox_check"
+              ? await sandboxCheckRepoActionDiff({ id: proposalId })
+              : await runTemporaryWorkspaceBuildCheck({ id: proposalId });
+    const step = flowStep(action, result, "safe stage completed");
+    steps.push(step);
+    return { result, step };
+  };
+
+  for (const action of ["inspect_repo", "draft_diff", "generate_diff", "sandbox_check", "temp_workspace_check"] as const) {
+    const { result, step } = await runSafeStage(action);
+    if (!result.ok) {
+      const nextAction = action === "generate_diff" && /OpenAI/i.test(result.error || "")
+        ? "Configure OpenAI or use the draft preview path, then rerun the flow."
+        : "Review the stopped stage, adjust the proposal or credentials, then rerun the flow.";
+      await logActionEvent({
+        eventType: "repo_action.flow_stopped",
+        summary: `Repo Control flow stopped at ${action}`,
+        status: "blocked",
+        approvalStage: "approval",
+        riskLevel: "medium",
+        metadata: { proposalId, action, error: step.error, safety: "no_merge_no_deploy" },
+      });
+      return {
+        ok: false,
+        proposalId,
+        mode: "safe_ladder",
+        steps,
+        stoppedAt: action,
+        nextAction,
+        safety: "no_repo_mutation_no_merge_no_deploy",
+        message: "Repo Control flow stopped safely before PR/deployment gates.",
+      };
+    }
+  }
+
+  const executor = await runApprovedRepoActionExecutor({ id: proposalId, openPr, trackPr });
+  const executorStep = flowStep("approved_executor", executor, executor.ok ? "approved executor completed" : "approval/PR gate blocked");
+  steps.push(executorStep);
+
+  if (!executor.ok) {
+    await logActionEvent({
+      eventType: "repo_action.flow_approval_gate",
+      summary: "Repo Control flow reached approval/PR gate",
+      status: "blocked",
+      approvalStage: "approval",
+      riskLevel: "medium",
+      metadata: { proposalId, stoppedAt: executor.stoppedAt || "approved_executor", error: executor.error, safety: "no_merge_no_deploy" },
+    });
+    return {
+      ok: false,
+      proposalId,
+      mode: "safe_ladder",
+      steps,
+      stoppedAt: executor.stoppedAt || "approved_executor",
+      nextAction: "Approve the proposal in Repo Control, then rerun this flow to open/track a PR. Jarvis still will not merge or deploy.",
+      safety: "approval_required_no_merge_no_deploy",
+      message: "Safe ladder completed, then stopped at the approval/PR gate. No merge or deployment happened.",
+    };
+  }
+
+  const prUrl = typeof executor.prUrl === "string" ? executor.prUrl : undefined;
+  const branch = "branch" in executor && typeof executor.branch === "string" ? executor.branch : undefined;
+  const executorMessage = typeof executor.message === "string" ? executor.message : undefined;
+
+  await logActionEvent({
+    eventType: "repo_action.flow_completed",
+    summary: "Repo Control flow completed through PR readiness",
+    status: "executed",
+    approvalStage: "approval",
+    riskLevel: "medium",
+    metadata: { proposalId, prUrl, branch, safety: "pr_only_no_merge_no_deploy" },
+  });
+
+  return {
+    ok: true,
+    proposalId,
+    mode: "approved_executor",
+    steps,
+    prUrl,
+    branch,
+    nextAction: "Review the PR/checks. Deployment remains a separate explicit approval step.",
+    safety: "pr_only_no_merge_no_deploy",
+    message: executorMessage || "Repo Control flow completed through PR readiness. No merge or deployment happened.",
+  };
+}
+
 export async function updateRepoActionStatus(options: {
   id: string;
   status: RepoActionStatus;

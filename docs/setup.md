@@ -948,3 +948,24 @@ Safety boundaries:
 - No repo commits, pull requests, merges, deployments, rollbacks, releases, publishing, entitlement grants, refunds, product edits, review replies, or deletes are executed.
 - Google Play release-track visibility remains blocked because it requires Play edit sessions.
 - Secrets and private keys are never returned in the snapshot.
+
+
+## One-command Repo Control flow
+
+Jarvis can run a proposal through the safe Repo Control flow with the chat tool `run_repo_control_flow` or API action `run_flow` on `/api/repo-actions`.
+
+Flow:
+
+- Inspect target repo files
+- Draft/generate proposed diff
+- Run sandbox safety check
+- Run temporary workspace build/check
+- If the proposal is approved, run the approved PR executor and track the PR
+- Stop before merge/deploy gates
+
+Safety boundaries:
+
+- It stops at approval gates when the proposal is not approved.
+- It never merges pull requests.
+- It never deploys, redeploys, rolls back, or mutates production.
+- Deployment remains a separate explicit approval flow.
