@@ -30,6 +30,7 @@ const checks = [
   ['external services UI exists', /externalServices/.test(chatUi) && /external-service-list/.test(css) && /RevenueCat, App Store Connect, and Google Play/.test(chatUi)],
   ['revenuecat lookup UI exists', /RevenueCatLookupCard/.test(chatUi) && /tool-card--revenuecat/.test(css) && /lookup_revenuecat_subscriber/.test(chatUi)],
   ['app store connect lookup UI exists', /AppStoreConnectLookupCard/.test(chatUi) && /tool-card--appstore/.test(css) && /lookup_app_store_connect_status/.test(chatUi)],
+  ['google play lookup UI exists', /GooglePlayLookupCard/.test(chatUi) && /tool-card--googleplay/.test(css) && /lookup_google_play_status/.test(chatUi) && /release tracks blocked/.test(chatUi)],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

@@ -53,9 +53,11 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
   ];
   const appStoreOptional = ["APP_STORE_CONNECT_VENDOR_NUMBER", "APP_STORE_CONNECT_APP_ID", "JARVIS_APP_STORE_CONNECT_APP_ID"];
 
-  const googlePlayRequiredAlternatives = ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS"];
+  const googlePlayRequiredAlternatives = ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "JARVIS_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "JARVIS_GOOGLE_APPLICATION_CREDENTIALS"];
+  const googlePlayPackageKeys = ["GOOGLE_PLAY_PACKAGE_NAME", "JARVIS_GOOGLE_PLAY_PACKAGE_NAME"];
   const googlePlayConfigured = configuredKeys(googlePlayRequiredAlternatives);
-  const googlePlayStatus: ExternalServiceStatus = googlePlayConfigured.length ? "configured" : "missing";
+  const googlePlayPackageConfigured = configuredKeys(googlePlayPackageKeys);
+  const googlePlayStatus: ExternalServiceStatus = googlePlayConfigured.length && googlePlayPackageConfigured.length ? "configured" : googlePlayConfigured.length || googlePlayPackageConfigured.length ? "partial" : "missing";
 
   const revenueCatStatus = statusFrom(revenueCatRequired, revenueCatOptional);
   const appStoreStatus = statusFrom(appStoreRequired, appStoreOptional);
@@ -93,10 +95,11 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
       status: googlePlayStatus,
       summary: serviceSummary("Google Play", googlePlayStatus),
       readOnly: true,
-      configuredKeys: googlePlayConfigured,
-      missingKeys: googlePlayConfigured.length ? [] : googlePlayRequiredAlternatives,
+      configuredKeys: [...googlePlayConfigured, ...googlePlayPackageConfigured],
+      missingKeys: [...(googlePlayConfigured.length ? [] : ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS"]), ...(googlePlayPackageConfigured.length ? [] : ["GOOGLE_PLAY_PACKAGE_NAME"])],
       notes: [
-        "Use for release/testing/review visibility only until mutation tools are explicitly approved.",
+        "Use for reviews/products/subscription visibility only until mutation tools are explicitly approved.",
+        "Release tracks require Google Play edit sessions and are blocked until explicitly approved.",
         "Service account JSON content/path values are never returned by this health check.",
       ],
     },

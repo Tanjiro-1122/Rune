@@ -910,3 +910,20 @@ Safety boundaries:
 - Jarvis reads app metadata, recent builds, and recent App Store versions.
 - No release, submit, metadata edit, build expiry, price change, TestFlight action, or review mutation is implemented.
 - Private key content is never returned to the UI or action log.
+
+
+## Google Play read-only visibility
+
+Jarvis can inspect limited Google Play data in read-only mode through `GET /api/google-play` when these environment variables are configured:
+
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` or `JARVIS_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- or `GOOGLE_APPLICATION_CREDENTIALS` / `JARVIS_GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_PLAY_PACKAGE_NAME` or `JARVIS_GOOGLE_PLAY_PACKAGE_NAME`
+
+Safety boundaries:
+
+- Jarvis performs the required Google OAuth token exchange, then only uses Android Publisher `GET` requests for Play data.
+- Jarvis reads reviews, subscriptions, and in-app products where permissions allow.
+- Release track visibility is intentionally blocked because Google exposes tracks through the edits API, which requires creating an edit session.
+- No edits, release-track changes, rollout changes, publishing actions, product edits, review replies, or deletions are implemented.
+- Service account JSON content/path values are never returned to the UI or action log.

@@ -42,6 +42,7 @@ const TOOL_LABELS: Record<string, string> = {
   deployment_control: "Checking deployment control",
   lookup_revenuecat_subscriber: "Checking RevenueCat subscriber",
   lookup_app_store_connect_status: "Checking App Store Connect",
+  lookup_google_play_status: "Checking Google Play",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -170,6 +171,79 @@ function CalculateCard({
   );
 }
 
+
+type GooglePlayLookupResult = {
+  success?: boolean;
+  configured?: boolean;
+  readOnly?: boolean;
+  error?: string;
+  message?: string;
+  summary?: {
+    packageName: string;
+    reviews: Array<{ reviewId: string; authorName?: string | null; lastModified?: string | null; starRating?: number | null; text?: string | null }>;
+    subscriptions: Array<{ productId: string; basePlansCount?: number | null; listingsCount?: number | null; archived?: boolean | null }>;
+    inAppProducts: Array<{ sku: string; status?: string | null; purchaseType?: string | null; defaultPrice?: string | null }>;
+    blockedCapabilities: Array<{ name: string; reason: string }>;
+  };
+};
+
+function GooglePlayLookupCard({
+  state,
+  args,
+  result,
+}: {
+  state: ToolInvocation["state"];
+  args: Record<string, unknown>;
+  result?: GooglePlayLookupResult;
+}) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const summary = result?.summary;
+  const latestReview = summary?.reviews?.[0];
+
+  return (
+    <div className={`tool-card tool-card--googleplay ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🔎" : failed ? "⚠️" : "▶️"}</span>
+        <span className="tool-card-title">Google Play read-only lookup</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">Package: {summary?.packageName || (typeof args.packageName === "string" ? args.packageName : "configured package")}</span>
+        <span className="repo-control-status repo-control-status--safe">Read-only · release tracks blocked</span>
+        {failed && <span className="tool-error">{result?.error || result?.message || "Google Play lookup failed."}</span>}
+        {summary && (
+          <>
+            <div className="memory-meta-row">
+              <span>{summary.reviews.length} recent reviews</span>
+              <span>{summary.subscriptions.length} subscriptions</span>
+              <span>{summary.inAppProducts.length} in-app products</span>
+            </div>
+            {latestReview && (
+              <div className="googleplay-mini-list">
+                <span><strong>Latest review</strong> · {latestReview.starRating ? `${latestReview.starRating}★` : "rating unknown"}{latestReview.lastModified ? ` · ${formatTimestamp(latestReview.lastModified)}` : ""}</span>
+              </div>
+            )}
+            {summary.subscriptions.length > 0 && (
+              <div className="googleplay-mini-list">
+                {summary.subscriptions.slice(0, 4).map((subscription) => (
+                  <span key={subscription.productId}><strong>{subscription.productId}</strong> · {subscription.basePlansCount ?? 0} base plans</span>
+                ))}
+              </div>
+            )}
+            {summary.blockedCapabilities.length > 0 && (
+              <div className="googleplay-blocked-list">
+                {summary.blockedCapabilities.map((blocked) => (
+                  <span key={blocked.name}><strong>{blocked.name} blocked:</strong> {blocked.reason}</span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type AppStoreConnectLookupResult = {
   success?: boolean;
@@ -1167,6 +1241,16 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
               })
             : undefined
         }
+      />
+    );
+  }
+
+  if (invocation.toolName === "lookup_google_play_status") {
+    return (
+      <GooglePlayLookupCard
+        state={invocation.state}
+        args={invocation.args}
+        result={invocation.state === "result" ? (invocation.result as GooglePlayLookupResult) : undefined}
       />
     );
   }

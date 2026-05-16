@@ -6,6 +6,8 @@ const deploymentControl = fs.readFileSync('lib/deployment-control.ts', 'utf8');
 const externalServicesHealth = fs.readFileSync('lib/external-services-health.ts', 'utf8');
 const revenueCatReadOnly = fs.readFileSync('lib/revenuecat-readonly.ts', 'utf8');
 const appStoreConnectReadOnly = fs.readFileSync('lib/app-store-connect-readonly.ts', 'utf8');
+const googlePlayReadOnly = fs.readFileSync('lib/google-play-readonly.ts', 'utf8');
+const googlePlayRoute = fs.readFileSync('app/api/google-play/route.ts', 'utf8');
 const appStoreConnectRoute = fs.readFileSync('app/api/app-store-connect/route.ts', 'utf8');
 const revenueCatRoute = fs.readFileSync('app/api/revenuecat/route.ts', 'utf8');
 const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
@@ -40,6 +42,8 @@ const checks = [
   ['revenuecat chat tool exists', /lookup_revenuecat_subscriber/.test(route) && /getRevenueCatSubscriberReadOnly/.test(route) && /never grants entitlements/.test(route)],
   ['app store connect read-only client exists', /getAppStoreConnectReadOnlySummary/.test(appStoreConnectReadOnly) && /method: \"GET\"/.test(appStoreConnectReadOnly) && !/method: \"POST\"|method: \"PATCH\"|method: \"DELETE\"|method: \"PUT\"/.test(appStoreConnectReadOnly) && /readOnly: true/.test(appStoreConnectRoute)],
   ['app store connect chat tool exists', /lookup_app_store_connect_status/.test(route) && /getAppStoreConnectReadOnlySummary/.test(route) && /never imply release/.test(route)],
+  ['google play read-only client exists', /getGooglePlayReadOnlySummary/.test(googlePlayReadOnly) && /method: \"GET\"/.test(googlePlayReadOnly) && /Release track visibility/.test(googlePlayReadOnly) && /readOnly: true/.test(googlePlayRoute)],
+  ['google play chat tool exists', /lookup_google_play_status/.test(route) && /getGooglePlayReadOnlySummary/.test(route) && /release tracks are blocked/.test(route)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

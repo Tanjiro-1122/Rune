@@ -1630,3 +1630,36 @@ button:disabled {
 .appstore-mini-list strong {
   color: #1d4ed8;
 }
+
+
+.tool-card--googleplay {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.78), rgba(255, 255, 255, 0.9));
+}
+
+.googleplay-mini-list,
+.googleplay-blocked-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.googleplay-mini-list span,
+.googleplay-blocked-list span {
+  display: block;
+  color: #45546d;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.googleplay-mini-list strong {
+  color: #15803d;
+}
+
+.googleplay-blocked-list {
+  border-top: 1px solid rgba(34, 197, 94, 0.16);
+  padding-top: 0.45rem;
+}
+
+.googleplay-blocked-list strong {
+  color: #92400e;
+}

@@ -57,6 +57,7 @@ import {
 import { executeDeploymentControlAction, inspectDeploymentControl, prepareDeploymentControlAction } from "@/lib/deployment-control";
 import { getRevenueCatSubscriberReadOnly } from "@/lib/revenuecat-readonly";
 import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-readonly";
+import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -501,6 +502,25 @@ const baseAgentTools = {
         message: result.ok
           ? "App Store Connect inspected in read-only mode. No release, submission, or metadata changes happened."
           : result.error || "App Store Connect read-only lookup failed. No release, submission, or metadata changes happened.",
+      };
+    },
+  }),
+
+
+  lookup_google_play_status: tool({
+    description:
+      "Inspect Google Play in strict read-only mode. Use when Javier asks about Android/Google Play status, reviews, subscriptions, in-app products, or Play Console readiness. This tool uses GET-only Android Publisher endpoints after OAuth token exchange. It does not open edits, change release tracks, submit builds, publish, rollout, halt releases, or mutate Google Play. Release-track visibility is explicitly blocked because Google exposes it through edit sessions.",
+    parameters: z.object({
+      packageName: z.string().min(1).max(220).optional().describe("Optional Android package name override. Omit to use the configured Jarvis package name."),
+    }),
+    execute: async ({ packageName }) => {
+      const result = await getGooglePlayReadOnlySummary(packageName);
+      return {
+        success: result.ok,
+        ...result,
+        message: result.ok
+          ? "Google Play inspected in read-only mode. No release track, publishing, product, or review changes happened."
+          : result.error || "Google Play read-only lookup failed. No release track, publishing, product, or review changes happened.",
       };
     },
   }),
@@ -1608,7 +1628,7 @@ ${plannerOutput.steps
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
-- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available. Google Play lookup is read-only only through lookup_google_play_status; never imply release-track edits, publishing, rollout, halt, product edits, or review replies are available. Google Play release tracks are blocked unless Javier approves a separate edit-session reader design.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 
