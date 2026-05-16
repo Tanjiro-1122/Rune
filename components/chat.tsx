@@ -35,6 +35,7 @@ const TOOL_LABELS: Record<string, string> = {
   execute_code: "Running a safe code check",
   listRepositoryTree: "Inspecting the repository structure",
   readRepositoryFile: "Reading the exact source file",
+  approved_app_scaffold: "Generating approved app scaffold",
   create_app_proposal: "Creating app blueprint",
   create_repo_action_proposal: "Creating a Repo Control proposal",
   run_repo_action_stage: "Running a Repo Control stage",
@@ -84,6 +85,7 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
     const stage = typeof args?.action === "string" ? args.action : result?.action;
     return stage ? REPO_STAGE_LABELS[stage] ?? `Running ${humanizeToolName(stage)}` : TOOL_LABELS[name];
   }
+  if (name === "approved_app_scaffold") return "Generating approved app scaffold";
   if (name === "create_app_proposal") return "Creating app blueprint";
   if (name === "run_repo_action_ladder") return "Running safe Repo Control ladder";
   if (name === "run_approved_repo_action") return "Running approved PR executor";
@@ -240,6 +242,7 @@ type AppCreatorToolResult = {
   safety?: string;
   nextAction?: string;
   error?: string;
+  changedFiles?: string[];
   appPlan?: {
     appName?: string;
     slug?: string;
@@ -288,6 +291,7 @@ function AppCreatorCard({
         )}
         {plan?.screens && plan.screens.length > 0 && <div className="deployment-handoff-line"><strong>Screens:</strong> {plan.screens.slice(0, 6).join(", ")}</div>}
         {plan?.dataModel && plan.dataModel.length > 0 && <div className="deployment-handoff-line"><strong>Data:</strong> {plan.dataModel.slice(0, 4).join(" · ")}</div>}
+        {result?.changedFiles && result.changedFiles.length > 0 && <div className="deployment-handoff-line"><strong>Files:</strong> {result.changedFiles.slice(0, 5).join(" · ")}</div>}
         {result?.nextAction && <div className="repo-flow-next"><strong>Next:</strong> {result.nextAction}</div>}
         <div className="repo-flow-boundary">Safety: {result?.safety ?? "blueprint only · no files, schema, PR, or deploy"}</div>
       </div>
@@ -1527,7 +1531,7 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
     );
   }
 
-  if (invocation.toolName === "create_app_proposal") {
+  if (invocation.toolName === "create_app_proposal" || invocation.toolName === "approved_app_scaffold") {
     return (
       <AppCreatorCard
         state={invocation.state}

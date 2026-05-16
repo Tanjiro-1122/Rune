@@ -1,4 +1,7 @@
-import { createRepoActionProposal, type RepoActionFileTarget, type RepoActionProposalRow, type RepoActionRisk } from "@/lib/repo-actions";
+import { createRepoActionProposal, isRepoActionProposalId, repoActionProposalIdError, type RepoActionFileTarget, type RepoActionProposalRow, type RepoActionRisk } from "@/lib/repo-actions";
+import { getSupabaseClient } from "@/lib/supabase";
+import { logError } from "@/lib/errors";
+import { logActionEvent } from "@/lib/action-events";
 
 export type AppCreatorPlatform = "web" | "mobile" | "both";
 export type AppCreatorComplexity = "simple" | "standard" | "advanced";
@@ -37,6 +40,18 @@ export interface AppCreatorResult {
   appPlan?: AppCreatorPlan;
   proposal?: RepoActionProposalRow;
   proposalId?: string;
+  error?: string;
+  message: string;
+  safety: string;
+  nextAction: string;
+}
+
+export interface AppScaffoldResult {
+  ok: boolean;
+  proposalId: string;
+  appPlan?: AppCreatorPlan;
+  proposal?: RepoActionProposalRow;
+  changedFiles?: string[];
   error?: string;
   message: string;
   safety: string;
@@ -241,13 +256,354 @@ export async function createAppCreatorProposal(input: AppCreatorInput): Promise<
     };
   }
 
+  const supabase = getSupabaseClient();
+  let proposal = proposalResult.proposal;
+  if (supabase) {
+    const metadata = {
+      ...(proposal.draft_metadata || {}),
+      app_creator: {
+        version: "1.1",
+        phase: "blueprint",
+        plan,
+        preferred_stack: cleanText(input.preferredStack, 240),
+        scaffold_ready: false,
+      },
+    };
+    const { data, error } = await supabase
+      .from("jarvis_repo_action_proposals")
+      .update({ draft_metadata: metadata, updated_at: new Date().toISOString() })
+      .eq("id", proposal.id)
+      .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+      .single();
+    if (error) {
+      logError("appCreator.createAppCreatorProposal.metadata", error);
+    } else if (data) {
+      proposal = data as RepoActionProposalRow;
+    }
+  }
+
   return {
     ok: true,
     appPlan: plan,
-    proposal: proposalResult.proposal,
-    proposalId: proposalResult.proposal.id,
+    proposal,
+    proposalId: proposal.id,
     message: "App Creator v1 created a blueprint and Repo Control proposal. No files, schema, deployment, or production systems were changed.",
     safety: plan.safety,
-    nextAction: "Review the proposal. If approved, run the controlled Repo Control flow to scaffold and verify the app.",
+    nextAction: "Review and approve the proposal. After approval, run approved_app_scaffold to generate the starter app patch.",
+  };
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 8) : [];
+}
+
+function planFromProposal(proposal: RepoActionProposalRow): AppCreatorPlan {
+  const metadata = metadataRecord(proposal.draft_metadata);
+  const appCreator = metadataRecord(metadata.app_creator);
+  const stored = metadataRecord(appCreator.plan);
+  const titleName = proposal.title.replace(/^Create app:\s*/i, "").trim();
+  const appName = cleanText(stored.appName as string | undefined, 80) || cleanText(titleName, 80) || "New App";
+  const coreFeatures = stringArray(stored.coreFeatures).length ? stringArray(stored.coreFeatures) : inferFeatures(`${proposal.summary} ${proposal.findings} ${proposal.plan}`);
+  const screens = stringArray(stored.screens).length ? stringArray(stored.screens) : inferScreens(coreFeatures);
+  const dataModel = stringArray(stored.dataModel).length ? stringArray(stored.dataModel) : inferDataModel(coreFeatures);
+  const complexity = ["simple", "standard", "advanced"].includes(String(stored.complexity)) ? stored.complexity as AppCreatorComplexity : "standard";
+  const platform = ["web", "mobile", "both"].includes(String(stored.platform)) ? stored.platform as AppCreatorPlatform : "web";
+  return {
+    appName,
+    slug: cleanText(stored.slug as string | undefined, 80) || slugify(appName),
+    platform,
+    complexity,
+    targetUsers: cleanText(stored.targetUsers as string | undefined, 180) || "Users defined in the approved App Creator proposal.",
+    coreFeatures,
+    screens,
+    dataModel,
+    repoPlan: stringArray(stored.repoPlan).length ? stringArray(stored.repoPlan) : ["Create deterministic starter scaffold.", "Run Repo Control checks.", "Open PR only after gates pass."],
+    buildPlan: stringArray(stored.buildPlan).length ? stringArray(stored.buildPlan) : ["Generate patch.", "Run sandbox/temp workspace checks.", "Open PR if approved."],
+    safety: "approved_scaffold_patch_no_merge_no_deploy",
+  };
+}
+
+function escapePatchContent(value: string) {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function fileCreateDiff(filePath: string, content: string) {
+  const normalized = escapePatchContent(content).replace(/\n?$/, "\n");
+  const lines = normalized.split("\n");
+  if (lines[lines.length - 1] === "") lines.pop();
+  return [
+    `diff --git a/${filePath} b/${filePath}`,
+    "new file mode 100644",
+    "index 0000000..1111111",
+    "--- /dev/null",
+    `+++ b/${filePath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`),
+  ].join("\n");
+}
+
+function tsArray(items: string[]) {
+  return `[${items.map((item) => JSON.stringify(item)).join(", ")}]`;
+}
+
+export function buildAppScaffoldPatch(plan: AppCreatorPlan) {
+  const base = `apps/${plan.slug}`;
+  const componentName = `${plan.slug.replace(/(^|-)([a-z])/g, (_, __, char: string) => char.toUpperCase()).replace(/[^A-Za-z0-9]/g, "")}App`;
+  const files = new Map<string, string>();
+
+  files.set(`docs/app-creator/${plan.slug}.md`, [
+    `# ${plan.appName}`,
+    "",
+    "Generated by Jarvis App Creator v1.1 after proposal approval.",
+    "",
+    `- Platform: ${plan.platform}`,
+    `- Complexity: ${plan.complexity}`,
+    `- Target users: ${plan.targetUsers}`,
+    "",
+    "## Core features",
+    ...plan.coreFeatures.map((feature) => `- ${feature}`),
+    "",
+    "## Screens",
+    ...plan.screens.map((screen) => `- ${screen}`),
+    "",
+    "## Data model draft",
+    ...plan.dataModel.map((model) => `- ${model}`),
+    "",
+    "## Safety",
+    "This scaffold is a starter patch only. It does not create production schema, merge, deploy, send messages, or create paid services.",
+  ].join("\n"));
+
+  files.set(`${base}/README.md`, [
+    `# ${plan.appName}`,
+    "",
+    "Starter app scaffold generated by Jarvis App Creator v1.1.",
+    "",
+    "## What is included",
+    "- Typed product blueprint",
+    "- Premium light UI shell",
+    "- Supabase-ready schema plan",
+    "- No production deployment or schema mutation",
+    "",
+    "## Next gates",
+    "1. Review the PR diff.",
+    "2. Run build checks.",
+    "3. Approve deployment separately if this app should go live.",
+  ].join("\n"));
+
+  files.set(`${base}/app/page.tsx`, [
+    `const features = ${tsArray(plan.coreFeatures)};`,
+    `const screens = ${tsArray(plan.screens)};`,
+    "",
+    `export default function ${componentName}() {`,
+    "  return (",
+    "    <main className=\"min-h-screen bg-[#f7f8ff] text-slate-950\">",
+    "      <section className=\"mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-10 px-6 py-12\">",
+    "        <div className=\"rounded-[2rem] border border-white/70 bg-white/80 p-8 shadow-2xl shadow-violet-200/40 backdrop-blur\">",
+    `          <p className=\"text-sm font-semibold uppercase tracking-[0.3em] text-violet-500\">${plan.platform} app scaffold</p>`,
+    `          <h1 className=\"mt-4 text-4xl font-semibold tracking-tight md:text-6xl\">${plan.appName}</h1>`,
+    `          <p className=\"mt-5 max-w-3xl text-lg leading-8 text-slate-600\">A polished starter experience for ${plan.targetUsers}</p>`,
+    "        </div>",
+    "",
+    "        <div className=\"grid gap-4 md:grid-cols-3\">",
+    "          {features.map((feature) => (",
+    "            <article key={feature} className=\"rounded-3xl border border-white/70 bg-white/75 p-6 shadow-xl shadow-slate-200/40\">",
+    "              <span className=\"text-xs font-bold uppercase tracking-[0.25em] text-violet-500\">Feature</span>",
+    "              <h2 className=\"mt-3 text-xl font-semibold\">{feature}</h2>",
+    "            </article>",
+    "          ))}",
+    "        </div>",
+    "",
+    "        <div className=\"rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-xl shadow-slate-200/40\">",
+    "          <h2 className=\"text-2xl font-semibold\">Planned screens</h2>",
+    "          <div className=\"mt-4 flex flex-wrap gap-3\">",
+    "            {screens.map((screen) => (",
+    "              <span key={screen} className=\"rounded-full bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700\">{screen}</span>",
+    "            ))}",
+    "          </div>",
+    "        </div>",
+    "      </section>",
+    "    </main>",
+    "  );",
+    "}",
+  ].join("\n"));
+
+  files.set(`${base}/lib/schema-plan.ts`, [
+    "export const schemaPlan = {",
+    `  appName: ${JSON.stringify(plan.appName)},`,
+    `  slug: ${JSON.stringify(plan.slug)},`,
+    `  entities: ${JSON.stringify(plan.dataModel, null, 2).replace(/\n/g, "\n  ")},`,
+    "  safety: \"schema_plan_only_no_database_mutation\",",
+    "} as const;",
+  ].join("\n"));
+
+  files.set(`${base}/package.json`, JSON.stringify({
+    name: plan.slug,
+    private: true,
+    version: "0.1.0",
+    scripts: { dev: "next dev", build: "next build", start: "next start" },
+    dependencies: { next: "15.5.18", react: "19.1.0", "react-dom": "19.1.0" },
+    devDependencies: { typescript: "^5" },
+  }, null, 2) + "\n");
+
+  const changedFiles = Array.from(files.keys());
+  const diff = changedFiles.map((filePath) => fileCreateDiff(filePath, files.get(filePath) || "")).join("\n");
+  return { diff, changedFiles };
+}
+
+export async function createApprovedAppScaffold(options: { proposalId: string }): Promise<AppScaffoldResult> {
+  const proposalId = cleanText(options.proposalId, 120);
+  if (!isRepoActionProposalId(proposalId)) {
+    return {
+      ok: false,
+      proposalId,
+      error: repoActionProposalIdError(proposalId),
+      message: "App scaffold did not start because the proposal ID was invalid.",
+      safety: "no_action_taken",
+      nextAction: "Use the App Creator proposal UUID from the proposal card.",
+    };
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return {
+      ok: false,
+      proposalId,
+      error: "Supabase is not configured.",
+      message: "App scaffold could not load the proposal.",
+      safety: "no_action_taken",
+      nextAction: "Configure Supabase, then rerun approved_app_scaffold.",
+    };
+  }
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .eq("id", proposalId)
+    .single();
+
+  if (fetchError || !existing) {
+    logError("appCreator.createApprovedAppScaffold.fetch", fetchError);
+    return {
+      ok: false,
+      proposalId,
+      error: fetchError?.message || "Proposal not found.",
+      message: "App scaffold could not find the proposal.",
+      safety: "no_action_taken",
+      nextAction: "Confirm the App Creator proposal ID and try again.",
+    };
+  }
+
+  const proposal = existing as RepoActionProposalRow;
+  const metadata = metadataRecord(proposal.draft_metadata);
+  const appCreator = metadataRecord(metadata.app_creator);
+  const isAppCreatorProposal = Boolean(appCreator.version) || /^Create app:/i.test(proposal.title);
+  if (!isAppCreatorProposal) {
+    return {
+      ok: false,
+      proposalId,
+      message: "This proposal is not an App Creator proposal.",
+      error: "approved_app_scaffold only works with App Creator proposals.",
+      safety: "no_action_taken",
+      nextAction: "Create an app proposal first with create_app_proposal.",
+    };
+  }
+  if (proposal.status !== "approved") {
+    return {
+      ok: false,
+      proposalId,
+      appPlan: planFromProposal(proposal),
+      message: "App scaffold stopped at the approval gate.",
+      error: "Proposal must be approved before scaffolding.",
+      safety: "approval_required_no_files_changed_no_schema_no_deploy",
+      nextAction: "Approve the App Creator proposal, then rerun approved_app_scaffold.",
+    };
+  }
+
+  const plan = planFromProposal(proposal);
+  const { diff, changedFiles } = buildAppScaffoldPatch(plan);
+  const now = new Date().toISOString();
+  const preview = [
+    `# Approved app scaffold diff — ${plan.appName}`,
+    `Repo: ${proposal.repo}`,
+    `Generated: ${now}`,
+    "",
+    "This is an approved scaffold patch. It creates starter files only. It does not merge, deploy, mutate schemas, or touch production systems.",
+    "",
+    "```diff",
+    diff,
+    "```",
+    "",
+    "Next checkpoint: run Repo Control sandbox/temp workspace checks, then PR handoff if gates pass.",
+  ].join("\n");
+
+  const updatedMetadata = {
+    ...metadata,
+    app_creator: {
+      ...appCreator,
+      version: "1.1",
+      phase: "approved_scaffold",
+      plan,
+      scaffold_ready: true,
+      scaffold_generated_at: now,
+      scaffold_changed_files: changedFiles,
+      safety: "approved_scaffold_patch_no_merge_no_deploy",
+    },
+    generated_at: now,
+    draft_type: "deterministic_app_scaffold_patch",
+    safety: "approved_scaffold_patch_no_merge_no_deploy",
+  };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .update({
+      files: changedFiles.map((filePath) => ({ path: filePath, operation: "create", note: "Generated by App Creator v1.1 approved scaffold." })),
+      diff_preview: preview,
+      draft_metadata: updatedMetadata,
+      updated_at: now,
+    })
+    .eq("id", proposalId)
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .single();
+
+  if (updateError || !updated) {
+    logError("appCreator.createApprovedAppScaffold.update", updateError);
+    return {
+      ok: false,
+      proposalId,
+      appPlan: plan,
+      changedFiles,
+      error: updateError?.message || "Unable to save scaffold patch.",
+      message: "App scaffold patch was generated but could not be saved to the proposal.",
+      safety: "no_repo_mutation_no_merge_no_deploy",
+      nextAction: "Retry approved_app_scaffold after checking Supabase.",
+    };
+  }
+
+  await logActionEvent({
+    eventType: "app_creator.scaffold_generated",
+    summary: `App Creator scaffold generated: ${plan.appName}`,
+    status: "proposed",
+    approvalStage: "approval",
+    riskLevel: proposal.risk_level,
+    projectKey: proposal.project_key,
+    sessionId: proposal.session_id,
+    workspaceId: proposal.workspace_id,
+    conversationId: proposal.conversation_id,
+    metadata: { proposalId, appName: plan.appName, slug: plan.slug, changedFiles, safety: "approved_scaffold_patch_no_merge_no_deploy" },
+  });
+
+  return {
+    ok: true,
+    proposalId,
+    appPlan: plan,
+    proposal: updated as RepoActionProposalRow,
+    changedFiles,
+    message: "App Creator v1.1 generated the approved starter-app scaffold patch. No merge, deployment, schema mutation, or production change happened.",
+    safety: "approved_scaffold_patch_no_merge_no_deploy",
+    nextAction: "Run run_repo_control_flow on this proposal to sandbox-check, temp-build-check, and open/track a PR if gates pass.",
   };
 }
