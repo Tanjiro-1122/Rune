@@ -283,3 +283,26 @@ The adapter writes:
 ```
 
 v1.11 selects the first protection strategy, `jarvis_signed_owner_proxy`, using provider `jarvis_proxy`. It records compatibility requirements: owner session required, signed short-lived preview token required, raw provider URL hidden, audit required, and revocation supported. It must not run Vercel, deploy, create a public/protected/raw provider URL, merge code, mutate schemas, write env vars, change payments, or launch to customers. Real provider-backed hosting remains blocked behind `APPROVE PROTECTED HOSTING PROVIDER`.
+
+
+## Signed owner preview token contract v1.12
+
+After v1.11 prepares the protected hosting provider adapter, Jarvis may prepare the owner preview token contract with:
+
+```txt
+npm run prepare-owner-preview-token-contract -- --proposal-id=<uuid>
+```
+
+The contract reads:
+
+```txt
+.jarvis/protected-hosting-providers/<proposal-id>.json
+```
+
+The contract writes:
+
+```txt
+.jarvis/owner-preview-token-contracts/<proposal-id>.json
+```
+
+v1.12 defines the signed owner preview token policy only. It records `tokenType: owner_preview_access`, `issuer: jarvis`, `audience: javier_only`, `strategy: jarvis_signed_owner_proxy`, `ttlSeconds: 900`, owner-session requirements, audit/revocation requirements, and required claims. It must not sign or generate tokens, create routes, create public/protected/raw provider URLs, run Vercel, deploy, merge code, mutate schemas, write env vars, change payments, or launch to customers. The next step remains blocked behind `APPROVE OWNER PREVIEW TOKEN ROUTE`.
