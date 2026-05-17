@@ -2150,6 +2150,7 @@ export function Chat() {
   const [jobBusy, setJobBusy] = useState(false);
   const [jobStatus, setJobStatus] = useState("");
   const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("operator");
+  const mobileToolsTopRef = useRef<HTMLDivElement>(null);
   const mobileActiveDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -2214,6 +2215,15 @@ export function Chat() {
         block: "start",
       });
     }, 80);
+  }
+
+  function handleBackToMobileTools() {
+    if (!isMobileToolsMode) return;
+
+    mobileToolsTopRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }
 
   const {
@@ -3945,7 +3955,7 @@ export function Chat() {
               </div>
             </div>
 
-            <div className={filingCabinetClassName} data-testid={isMobileToolsMode ? "mobile-tools-top-tiles" : "desktop-tools-drawers"} aria-label="Jarvis filing cabinet sections">
+            <div ref={mobileToolsTopRef} className={filingCabinetClassName} data-testid={isMobileToolsMode ? "mobile-tools-top-tiles" : "desktop-tools-drawers"} aria-label="Jarvis filing cabinet sections">
               {CABINET_DRAWERS.map((drawer) => (
                 <button
                   key={drawer.key}
@@ -3960,8 +3970,19 @@ export function Chat() {
             </div>
 
             <div ref={mobileActiveDrawerRef} className={filingCabinetActiveLabelClassName} data-testid="mobile-tools-active-drawer-anchor">
-              <span>Open drawer</span>
-              <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
+              <div>
+                <span>Open drawer</span>
+                <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
+              </div>
+              {isMobileToolsMode && (
+                <button
+                  type="button"
+                  className="mobile-tools-back-button"
+                  onClick={handleBackToMobileTools}
+                >
+                  Back to tools
+                </button>
+              )}
             </div>
 
             {activeCabinetDrawer === "operator" && (

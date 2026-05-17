@@ -2570,10 +2570,37 @@ button:disabled {
   }
 
   .mobile-tools-active-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     border: 1px solid rgba(106, 78, 170, 0.12);
     border-radius: 20px;
     padding: 0.62rem 0.75rem;
     background: rgba(255, 255, 255, 0.62);
+  }
+
+  .mobile-tools-active-label > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .mobile-tools-back-button {
+    flex: 0 0 auto;
+    border: 1px solid rgba(118, 87, 255, 0.18);
+    border-radius: 999px;
+    padding: 0.48rem 0.7rem;
+    background: rgba(255, 255, 255, 0.76);
+    color: #5b3fb4;
+    font-size: 0.7rem;
+    font-weight: 850;
+    letter-spacing: -0.01em;
+    box-shadow: 0 10px 22px rgba(83, 65, 128, 0.08);
+  }
+
+  .mobile-tools-back-button:active {
+    transform: translateY(1px);
   }
 
   .mobile-tools-section,
