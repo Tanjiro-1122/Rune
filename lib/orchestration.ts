@@ -47,6 +47,7 @@ export type ReasoningRoute =
   | "not_connected";
 
 
+const FROZEN_DIAGNOSTIC_PATTERN = /\b(why (are|were|did) (you )?(freeze|frozen|stuck|hang|hung|stall|stalled)|why did i lose you|why did you stop responding|why did you get stuck|why are you frozen|tool card (is|was) stuck|running .* forever|still running|response (is|was) delayed)\b/i;
 const SELF_AUDIT_PATTERN = /\b(self\s*-?\s*audit|audit yourself|system health|are you ready|check your brain|brain check|readiness report|what should we patch next)\b/i;
 const CAPABILITY_TRUTH_PATTERN = /\b(what can you actually do|what can you do|what is connected|what's connected|anything missing|what is missing|what's missing|setup missing|capabilities|capability|how far can we take you|fully set up)\b/i;
 const SENSITIVE_ACTION_PATTERN = /\b(send email|email customer|reply to customer|grant free|grant credit|free month|refund|charge|bank transfer|bill payment|move money|delete production|push to production|open pr|pull request|commit|merge)\b/i;
@@ -86,7 +87,7 @@ export function detectToolIntent(
   const lower = input.toLowerCase();
 
   // ── Brain/control-plane routing ─────────────────────────────────────────
-  if (SELF_AUDIT_PATTERN.test(lower)) return "self_audit";
+  if (SELF_AUDIT_PATTERN.test(lower) || FROZEN_DIAGNOSTIC_PATTERN.test(lower)) return "self_audit";
   if (CAPABILITY_TRUTH_PATTERN.test(lower)) return "capability_truth";
 
   // Explicit review-only Repo Control requests should route to proposal creation,
@@ -203,12 +204,14 @@ export function buildPlannerOutput(options: {
   ];
 
   if (intent === "self_audit") {
+    const isFrozenDiagnostic = FROZEN_DIAGNOSTIC_PATTERN.test(options.input.toLowerCase());
     return {
       intent,
       forcedToolName: "get_jarvis_self_audit_snapshot",
       reasoningRoute: "self_audit",
-      routingHint:
-        "- Reasoning Router: run Self-Audit Mode before answering. Report verified, partial, missing, not connected, and next patch.",
+      routingHint: isFrozenDiagnostic
+        ? "- Reasoning Router: run Self-Audit Mode before answering the freeze/stuck diagnosis. Do not guess generic load/lag. Explain only what is verified: tool call lifecycle, deployed routing rules, task/checkpoint state if visible, and what remains unverified without server logs. Name the likely product issue as diagnostic routing/lifecycle visibility unless logs prove backend load."
+        : "- Reasoning Router: run Self-Audit Mode before answering. Report verified, partial, missing, not connected, and next patch.",
       steps: baseSteps,
     };
   }
