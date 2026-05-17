@@ -51,6 +51,7 @@ const TOOL_LABELS: Record<string, string> = {
   lookup_app_store_connect_status: "Checking App Store Connect",
   lookup_google_play_status: "Checking Google Play",
   get_app_health_snapshot: "Checking app health",
+  audit_jarvis_session_fragments: "Auditing saved session fragments",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -400,6 +401,81 @@ function RepoControlFlowCard({
         )}
         {result?.nextAction && <div className="repo-flow-next"><strong>Next:</strong> {result.nextAction}</div>}
         <div className="repo-flow-boundary">Safety: {result?.safety ?? "no merge, no deploy, no production mutation"}</div>
+      </div>
+    </div>
+  );
+}
+
+
+type SessionFragmentAuditResult = {
+  success?: boolean;
+  readOnly?: boolean;
+  generatedAt?: string;
+  ownerSessionId?: string;
+  summary?: string;
+  totals?: {
+    sessions?: number;
+    fragmentedSessions?: number;
+    workspaces?: number;
+    conversations?: number;
+    messages?: number;
+    fragmentedConversations?: number;
+    fragmentedMessages?: number;
+  };
+  sessions?: Array<{
+    sessionId: string;
+    isOwnerSession?: boolean;
+    workspaceCount?: number;
+    conversationCount?: number;
+    mappedConversationCount?: number;
+    unmappedConversationCount?: number;
+    messageCount?: number;
+    firstSeenAt?: string | null;
+    lastSeenAt?: string | null;
+    sampleWorkspaceNames?: string[];
+  }>;
+  recommendedNextStep?: string;
+  safeBoundaries?: string[];
+  error?: string;
+};
+
+function SessionFragmentAuditCard({ state, result }: { state: ToolInvocation["state"]; result?: SessionFragmentAuditResult }) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const fragments = result?.totals?.fragmentedSessions ?? 0;
+
+  return (
+    <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🔎" : failed ? "🚧" : fragments > 0 ? "🧩" : "🟢"}</span>
+        <span className="tool-card-title">Jarvis session fragmentation audit</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">Mode: read-only · no message content</span>
+        <span className={fragments > 0 ? "repo-control-status repo-control-status--warning" : "repo-control-status repo-control-status--safe"}>
+          {isPending ? "Counting saved sessions" : failed ? "Audit blocked" : `${fragments} old fragment${fragments === 1 ? "" : "s"} found`}
+        </span>
+        {result?.summary && <p className="build-intel-copy">{result.summary}</p>}
+        {result?.totals && (
+          <div className="memory-meta-row">
+            <span>Sessions: {result.totals.sessions ?? 0}</span>
+            <span>Chats: {result.totals.conversations ?? 0}</span>
+            <span>Msgs: {result.totals.messages ?? 0}</span>
+            <span>Workspaces: {result.totals.workspaces ?? 0}</span>
+          </div>
+        )}
+        {(result?.sessions?.length ?? 0) > 0 && (
+          <div className="app-health-mini-list">
+            {result!.sessions!.slice(0, 6).map((session) => (
+              <span key={session.sessionId}>
+                <strong>{session.isOwnerSession ? "Owner" : "Fragment"}</strong> · {session.sessionId} · {session.conversationCount ?? 0} chats · {session.messageCount ?? 0} msgs
+              </span>
+            ))}
+          </div>
+        )}
+        {result?.recommendedNextStep && <div className="repo-flow-next"><strong>Next:</strong> {result.recommendedNextStep}</div>}
+        <div className="repo-flow-boundary">Safety: read-only counts only · no merge/update/delete/schema changes</div>
       </div>
     </div>
   );
@@ -1615,6 +1691,16 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
       <AppHealthSnapshotCard
         state={invocation.state}
         result={invocation.state === "result" ? (invocation.result as AppHealthSnapshotResult) : undefined}
+      />
+    );
+  }
+
+
+  if (invocation.toolName === "audit_jarvis_session_fragments") {
+    return (
+      <SessionFragmentAuditCard
+        state={invocation.state}
+        result={invocation.state === "result" ? (invocation.result as SessionFragmentAuditResult) : undefined}
       />
     );
   }
