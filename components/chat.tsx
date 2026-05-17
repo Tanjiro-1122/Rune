@@ -2150,6 +2150,7 @@ export function Chat() {
   const [jobBusy, setJobBusy] = useState(false);
   const [jobStatus, setJobStatus] = useState("");
   const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("operator");
+  const mobileActiveDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function updateMobileToolsMode() {
@@ -2201,6 +2202,19 @@ export function Chat() {
     : "operator-console-panel";
   const toolsSectionClassName = (baseClassName: string) =>
     isMobileToolsMode ? `${baseClassName} mobile-tools-section` : baseClassName;
+
+  function handleCabinetDrawerSelect(drawerKey: CabinetDrawerKey) {
+    setActiveCabinetDrawer(drawerKey);
+
+    if (!isMobileToolsMode) return;
+
+    window.setTimeout(() => {
+      mobileActiveDrawerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }
 
   const {
     messages,
@@ -3937,7 +3951,7 @@ export function Chat() {
                   key={drawer.key}
                   type="button"
                   className={filingCabinetTabClassName(drawer.key)}
-                  onClick={() => setActiveCabinetDrawer(drawer.key)}
+                  onClick={() => handleCabinetDrawerSelect(drawer.key)}
                 >
                   <span>{drawer.label}</span>
                   <small>{drawer.hint}</small>
@@ -3945,7 +3959,7 @@ export function Chat() {
               ))}
             </div>
 
-            <div className={filingCabinetActiveLabelClassName}>
+            <div ref={mobileActiveDrawerRef} className={filingCabinetActiveLabelClassName} data-testid="mobile-tools-active-drawer-anchor">
               <span>Open drawer</span>
               <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
             </div>
