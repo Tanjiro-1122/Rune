@@ -13,6 +13,7 @@ export interface AppHealthSnapshotOptions {
   revenueCatAppUserId?: string | null;
   appStoreAppId?: string | null;
   googlePlayPackageName?: string | null;
+  skipActionLog?: boolean;
 }
 
 export interface AppHealthSnapshot {
@@ -138,24 +139,26 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
     ],
   };
 
-  await logActionEvent({
-    eventType: "app_health.snapshot",
-    summary: `App health snapshot generated for ${projectKey}`,
-    status: status === "blocked" ? "failed" : "executed",
-    approvalStage: "findings",
-    riskLevel: "low",
-    projectKey,
-    metadata: {
-      readOnly: true,
-      status,
-      score,
-      repo: build.github.repo,
-      revenueCatChecked: Boolean(revenueCat),
-      appStoreConnectOk: appStoreConnect.ok,
-      googlePlayOk: googlePlay.ok,
-      blockers: snapshot.blockers.slice(0, 8),
-    },
-  });
+  if (!options.skipActionLog) {
+    await logActionEvent({
+      eventType: "app_health.snapshot",
+      summary: `App health snapshot generated for ${projectKey}`,
+      status: status === "blocked" ? "failed" : "executed",
+      approvalStage: "findings",
+      riskLevel: "low",
+      projectKey,
+      metadata: {
+        readOnly: true,
+        status,
+        score,
+        repo: build.github.repo,
+        revenueCatChecked: Boolean(revenueCat),
+        appStoreConnectOk: appStoreConnect.ok,
+        googlePlayOk: googlePlay.ok,
+        blockers: snapshot.blockers.slice(0, 8),
+      },
+    });
+  }
 
   return snapshot;
 }

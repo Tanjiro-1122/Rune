@@ -115,7 +115,7 @@ function overallStatus(checks: DeployHealthCheck[]): DeployHealthStatus {
   return "ok";
 }
 
-export async function getDeployHealthSnapshot(): Promise<DeployHealthSnapshot> {
+export async function getDeployHealthSnapshot(options: { skipActionLog?: boolean } = {}): Promise<DeployHealthSnapshot> {
   const checks: DeployHealthCheck[] = [];
 
   for (const env of REQUIRED_ENV) checks.push(requiredCheck(env.key, env.label));
@@ -169,19 +169,21 @@ export async function getDeployHealthSnapshot(): Promise<DeployHealthSnapshot> {
     checks,
   };
 
-  await logActionEvent({
-    eventType: "deploy_health.snapshot",
-    summary: `Deploy health checked: ${snapshot.overall}`,
-    status: snapshot.overall === "ok" ? "executed" : snapshot.overall === "warning" ? "info" : "failed",
-    approvalStage: "findings",
-    riskLevel: "low",
-    projectKey: "jarvis",
-    metadata: {
-      overall: snapshot.overall,
-      missing: checks.filter((check) => check.status === "missing" || check.status === "error").map((check) => check.key),
-      warnings: checks.filter((check) => check.status === "warning").map((check) => check.key),
-    },
-  });
+  if (!options.skipActionLog) {
+    await logActionEvent({
+      eventType: "deploy_health.snapshot",
+      summary: `Deploy health checked: ${snapshot.overall}`,
+      status: snapshot.overall === "ok" ? "executed" : snapshot.overall === "warning" ? "info" : "failed",
+      approvalStage: "findings",
+      riskLevel: "low",
+      projectKey: "jarvis",
+      metadata: {
+        overall: snapshot.overall,
+        missing: checks.filter((check) => check.status === "missing" || check.status === "error").map((check) => check.key),
+        warnings: checks.filter((check) => check.status === "warning").map((check) => check.key),
+      },
+    });
+  }
 
   return snapshot;
 }
