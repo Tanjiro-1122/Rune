@@ -11,10 +11,10 @@ function assert(condition, message) {
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
 const css = fs.readFileSync("app/globals.css", "utf8");
 
-assert(chat.includes("mobile-tools-shell"), "mobile tools shell class is attached to drawer");
-assert(chat.includes("mobile-tools-tile-board"), "mobile tools tile board class exists");
+assert(chat.includes("mobile-tools-shell"), "mobile tools shell branch exists");
+assert(chat.includes("mobile-tools-tile-board"), "mobile tools tile board class branch exists");
 assert(chat.includes('data-testid="mobile-tools-tile-board"'), "mobile tile board test id exists");
-assert(chat.includes('data-testid="mobile-tools-top-tiles"'), "top-level tool tiles test id exists");
+assert(chat.includes('"mobile-tools-top-tiles"'), "top-level mobile tool tiles test id branch exists");
 assert(chat.includes("mobile-tools-top-tile"), "top-level drawer buttons render as mobile tiles");
 assert(chat.includes("mobile-tools-top-tile--active"), "active top tile class exists");
 assert(chat.includes("mobile-tools-project-tile"), "project switchboard becomes a mobile project tile");

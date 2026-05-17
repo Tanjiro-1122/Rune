@@ -28,7 +28,8 @@
     "test:session-merge-router": "node scripts/session-merge-router-smoke-test.mjs",
     "test:operator-console-v2": "node scripts/operator-console-v2-smoke-test.mjs",
     "test:mobile-tools-drawer": "node scripts/mobile-tools-drawer-smoke-test.mjs",
-    "test:mobile-tools-tile-board": "node scripts/mobile-tools-tile-board-smoke-test.mjs"
+    "test:mobile-tools-tile-board": "node scripts/mobile-tools-tile-board-smoke-test.mjs",
+    "test:mobile-tools-autodetect": "node scripts/mobile-tools-autodetect-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

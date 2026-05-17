@@ -1489,6 +1489,18 @@ function normalizeOperatorStatus(value?: string | null) {
   return (value || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
 }
 
+function detectMobileToolsMode() {
+  if (typeof window === "undefined") return false;
+
+  const userAgent = window.navigator.userAgent || "";
+  const isMobileUserAgent = /iPhone|iPad|iPod|Android|Mobile|IEMobile|Opera Mini/i.test(userAgent);
+  const isSmallViewport = window.matchMedia("(max-width: 820px)").matches;
+  const isTouchFirst = window.matchMedia("(pointer: coarse)").matches;
+  const hasTouchPoints = window.navigator.maxTouchPoints > 1;
+
+  return isSmallViewport || isMobileUserAgent || isTouchFirst || hasTouchPoints;
+}
+
 function getOperatorNextAction(options: {
   operatorHealth: AppHealthSnapshotResult | null;
   buildIntel: BuildIntelligenceSnapshot | null;
@@ -2100,6 +2112,7 @@ export function Chat() {
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
   const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
   const [showInfoSidebar, setShowInfoSidebar] = useState(false);
+  const [isMobileToolsMode, setIsMobileToolsMode] = useState(false);
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
   const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
@@ -2137,6 +2150,57 @@ export function Chat() {
   const [jobBusy, setJobBusy] = useState(false);
   const [jobStatus, setJobStatus] = useState("");
   const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("operator");
+
+  useEffect(() => {
+    function updateMobileToolsMode() {
+      setIsMobileToolsMode(detectMobileToolsMode());
+    }
+
+    updateMobileToolsMode();
+    const viewportQuery = window.matchMedia("(max-width: 820px)");
+    const pointerQuery = window.matchMedia("(pointer: coarse)");
+    viewportQuery.addEventListener("change", updateMobileToolsMode);
+    pointerQuery.addEventListener("change", updateMobileToolsMode);
+    window.addEventListener("resize", updateMobileToolsMode);
+    window.addEventListener("orientationchange", updateMobileToolsMode);
+
+    return () => {
+      viewportQuery.removeEventListener("change", updateMobileToolsMode);
+      pointerQuery.removeEventListener("change", updateMobileToolsMode);
+      window.removeEventListener("resize", updateMobileToolsMode);
+      window.removeEventListener("orientationchange", updateMobileToolsMode);
+    };
+  }, []);
+
+  const toolsShellClassName = isMobileToolsMode
+    ? "context-sidebar context-sidebar--open mobile-tools-shell"
+    : "context-sidebar context-sidebar--open";
+  const toolsPanelClassName = isMobileToolsMode
+    ? "context-panel mobile-tools-tile-board"
+    : "context-panel";
+  const toolsTitlebarClassName = isMobileToolsMode
+    ? "glass-drawer-titlebar mobile-tools-titlebar"
+    : "glass-drawer-titlebar";
+  const projectSwitchboardClassName = isMobileToolsMode
+    ? "context-panel-section project-switchboard-section mobile-tools-project-tile"
+    : "context-panel-section project-switchboard-section";
+  const filingCabinetClassName = isMobileToolsMode
+    ? "filing-cabinet-drawers mobile-tools-top-tiles"
+    : "filing-cabinet-drawers";
+  const filingCabinetTabClassName = (drawerKey: CabinetDrawerKey) => {
+    const active = activeCabinetDrawer === drawerKey;
+    return isMobileToolsMode
+      ? `filing-cabinet-tab mobile-tools-top-tile ${active ? "filing-cabinet-tab--active mobile-tools-top-tile--active" : ""}`
+      : `filing-cabinet-tab ${active ? "filing-cabinet-tab--active" : ""}`;
+  };
+  const filingCabinetActiveLabelClassName = isMobileToolsMode
+    ? "filing-cabinet-active-label mobile-tools-active-label"
+    : "filing-cabinet-active-label";
+  const operatorConsoleClassName = isMobileToolsMode
+    ? "operator-console-panel mobile-tools-section"
+    : "operator-console-panel";
+  const toolsSectionClassName = (baseClassName: string) =>
+    isMobileToolsMode ? `${baseClassName} mobile-tools-section` : baseClassName;
 
   const {
     messages,
@@ -3812,9 +3876,9 @@ export function Chat() {
       )}
 
       {showInfoSidebar && (
-        <aside className="context-sidebar context-sidebar--open mobile-tools-shell" aria-label="Jarvis tools and controls">
-          <div className="context-panel mobile-tools-tile-board">
-            <div className="glass-drawer-titlebar mobile-tools-titlebar">
+        <aside className={toolsShellClassName} data-tools-mode={isMobileToolsMode ? "mobile" : "desktop"} aria-label="Jarvis tools and controls">
+          <div className={toolsPanelClassName}>
+            <div className={toolsTitlebarClassName}>
               <div>
                 <span>Jarvis tools</span>
                 <small>{selectedProject.label}</small>
@@ -3822,12 +3886,14 @@ export function Chat() {
               <button type="button" onClick={() => setShowInfoSidebar(false)} aria-label="Close tools">Close</button>
             </div>
 
-            <div className="mobile-tools-board-intro" data-testid="mobile-tools-tile-board">
-              <span>Mobile command board</span>
-              <strong>{selectedProject.label}</strong>
-              <p>Tap a tile to open focused tools. Each drawer stays read-only until an approval gate is required.</p>
-            </div>
-            <div className="context-panel-section project-switchboard-section mobile-tools-project-tile">
+            {isMobileToolsMode && (
+              <div className="mobile-tools-board-intro" data-testid="mobile-tools-tile-board">
+                <span>Mobile command board</span>
+                <strong>{selectedProject.label}</strong>
+                <p>Tap a tile to open focused tools. Each drawer stays read-only until an approval gate is required.</p>
+              </div>
+            )}
+            <div className={projectSwitchboardClassName}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Project switchboard</div>
@@ -3865,12 +3931,12 @@ export function Chat() {
               </div>
             </div>
 
-            <div className="filing-cabinet-drawers mobile-tools-top-tiles" data-testid="mobile-tools-top-tiles" aria-label="Jarvis filing cabinet sections">
+            <div className={filingCabinetClassName} data-testid={isMobileToolsMode ? "mobile-tools-top-tiles" : "desktop-tools-drawers"} aria-label="Jarvis filing cabinet sections">
               {CABINET_DRAWERS.map((drawer) => (
                 <button
                   key={drawer.key}
                   type="button"
-                  className={`filing-cabinet-tab mobile-tools-top-tile ${activeCabinetDrawer === drawer.key ? "filing-cabinet-tab--active mobile-tools-top-tile--active" : ""}`}
+                  className={filingCabinetTabClassName(drawer.key)}
                   onClick={() => setActiveCabinetDrawer(drawer.key)}
                 >
                   <span>{drawer.label}</span>
@@ -3879,13 +3945,13 @@ export function Chat() {
               ))}
             </div>
 
-            <div className="filing-cabinet-active-label mobile-tools-active-label">
+            <div className={filingCabinetActiveLabelClassName}>
               <span>Open drawer</span>
               <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
             </div>
 
             {activeCabinetDrawer === "operator" && (
-              <section className="operator-console-panel mobile-tools-section" data-testid="operator-console-panel">
+              <section className={operatorConsoleClassName} data-testid="operator-console-panel">
                 <div className="drawer-section-heading operator-heading">
                   <div>
                     <p className="drawer-eyebrow">Operator console</p>
@@ -4068,7 +4134,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "memory" && (
-            <div className="context-panel-section memory-panel-section filing-cabinet-content mobile-tools-section">
+            <div className={toolsSectionClassName("context-panel-section memory-panel-section filing-cabinet-content")}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Memory core</div>
@@ -4263,7 +4329,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "health" && (
-            <div className="context-panel-section deploy-health-section filing-cabinet-content mobile-tools-section">
+            <div className={toolsSectionClassName("context-panel-section deploy-health-section filing-cabinet-content")}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Deploy health</div>
@@ -4309,7 +4375,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "repo" && (
-            <div className="context-panel-section repo-control-section filing-cabinet-content mobile-tools-section">
+            <div className={toolsSectionClassName("context-panel-section repo-control-section filing-cabinet-content")}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Repo control</div>
@@ -4479,7 +4545,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "build" && (
-            <div className="context-panel-section build-intel-section filing-cabinet-content mobile-tools-section">
+            <div className={toolsSectionClassName("context-panel-section build-intel-section filing-cabinet-content")}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Build intelligence</div>
@@ -4604,7 +4670,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "activity" && (
-            <div className="context-panel-section action-log-section filing-cabinet-content mobile-tools-section">
+            <div className={toolsSectionClassName("context-panel-section action-log-section filing-cabinet-content")}>
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Activity log</div>
