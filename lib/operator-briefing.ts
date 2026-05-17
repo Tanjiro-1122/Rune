@@ -207,6 +207,36 @@ async function getMemorySummary(): Promise<OperatorBriefingMemorySummary> {
   };
 }
 
+
+function getBriefingWarningText(projects: OperatorBriefingProjectSummary[], memory: OperatorBriefingMemorySummary) {
+  return [
+    ...projects.flatMap((project) => project.warnings),
+    memory.warning,
+  ].filter(Boolean).join(" ");
+}
+
+function normalizeFinalBriefingStatus(options: {
+  overallStatus: OperatorBriefingStatus;
+  projects: OperatorBriefingProjectSummary[];
+  memory: OperatorBriefingMemorySummary;
+  deployStatus: OperatorBriefingStatus;
+}): OperatorBriefingStatus {
+  if (options.overallStatus !== "blocked") return options.overallStatus;
+  if (options.deployStatus === "blocked") return "blocked";
+  if (options.projects.some(hasHardProjectBlocker)) return "blocked";
+
+  const warningText = getBriefingWarningText(options.projects, options.memory);
+  return isIntegrationVisibilityWarning(warningText) ? "warning" : "blocked";
+}
+
+function getBriefingHeadline(overallStatus: OperatorBriefingStatus) {
+  return overallStatus === "healthy"
+    ? "Jarvis operator signals look calm."
+    : overallStatus === "warning"
+      ? "Jarvis has integration visibility or health warnings to review."
+      : "Jarvis found a blocked operator signal that needs review.";
+}
+
 function chooseRecommendedNextAction(options: {
   overallStatus: OperatorBriefingStatus;
   projects: OperatorBriefingProjectSummary[];
@@ -286,7 +316,13 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     deployStatus,
     memory.warning ? "warning" as const : "healthy" as const,
   ];
-  const overallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);
+  const computedOverallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);
+  const overallStatus = normalizeFinalBriefingStatus({
+    overallStatus: computedOverallStatus,
+    projects: projectResults,
+    memory,
+    deployStatus,
+  });
   const recommendedNextAction = chooseRecommendedNextAction({
     overallStatus,
     projects: projectResults,
@@ -300,11 +336,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     readOnly: true,
     briefingType: "daily_operator",
     overallStatus,
-    headline: overallStatus === "healthy"
-      ? "Jarvis operator signals look calm."
-      : overallStatus === "warning"
-        ? "Jarvis has integration visibility or health warnings to review."
-        : "Jarvis found a blocked operator signal that needs review.",
+    headline: getBriefingHeadline(overallStatus),
     recommendedNextAction,
     projects: projectResults,
     proposals: proposalSummaries,

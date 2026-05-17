@@ -22,7 +22,11 @@ assert(briefing.includes("isIntegrationVisibilityWarning"), "Briefing identifies
 assert(briefing.includes("hasOnlyIntegrationVisibilityWarnings"), "Briefing has an explicit soft integration visibility classifier");
 assert(briefing.includes("hasHardProjectBlocker"), "Briefing preserves real project blockers separately from visibility warnings");
 assert(briefing.includes('status === "blocked" && !hasHardBlocker ? "warning"'), "Briefing downgrades external-visibility-only blocked project signals to warning");
-assert(briefing.includes('const overallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);'), "Briefing keeps true hard blockers blocked");
+assert(briefing.includes('const computedOverallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);'), "Briefing computes hard blockers before final normalization");
+assert(briefing.includes("normalizeFinalBriefingStatus({"), "Briefing normalizes final payload status before returning");
+assert(briefing.includes("normalizeFinalBriefingStatus"), "Briefing final response normalizer exists");
+assert(briefing.includes("getBriefingHeadline(overallStatus)"), "Briefing headline is derived from final normalized status");
+assert(briefing.includes('return isIntegrationVisibilityWarning(warningText) ? "warning" : "blocked"'), "Briefing final payload downgrades external-service-only blockers to warning");
 assert(briefing.includes("integration visibility or health warnings"), "Briefing warning headline avoids blocked wording for read-only integrations");
 assert(briefing.includes("JARVIS_CANONICAL_PROJECTS.map"), "Briefing covers canonical projects");
 assert(briefing.includes("getAppHealthSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true })"), "Briefing reads app health without action logging");
