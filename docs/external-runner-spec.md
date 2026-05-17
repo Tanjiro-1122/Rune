@@ -260,3 +260,26 @@ The execution step writes:
 ```
 
 v1.10 is execution-record only. It requires the exact approval phrase `APPROVE OWNER PREVIEW HOSTING`, validates the v1.9 gate, and records that the protected owner-preview step is approved. It must not run Vercel, deploy, create a public or protected URL, merge code, mutate schemas, write env vars, change payments, or launch to customers. Real provider-backed hosting remains blocked behind a later phrase: `APPROVE PROTECTED HOSTING PROVIDER`.
+
+
+## Protected hosting provider adapter v1.11
+
+After v1.10 records protected owner-preview execution, Jarvis may prepare protected hosting provider metadata with:
+
+```txt
+npm run prepare-protected-hosting-provider -- --proposal-id=<uuid>
+```
+
+The adapter reads:
+
+```txt
+.jarvis/private-preview-executions/<proposal-id>.json
+```
+
+The adapter writes:
+
+```txt
+.jarvis/protected-hosting-providers/<proposal-id>.json
+```
+
+v1.11 selects the first protection strategy, `jarvis_signed_owner_proxy`, using provider `jarvis_proxy`. It records compatibility requirements: owner session required, signed short-lived preview token required, raw provider URL hidden, audit required, and revocation supported. It must not run Vercel, deploy, create a public/protected/raw provider URL, merge code, mutate schemas, write env vars, change payments, or launch to customers. Real provider-backed hosting remains blocked behind `APPROVE PROTECTED HOSTING PROVIDER`.
