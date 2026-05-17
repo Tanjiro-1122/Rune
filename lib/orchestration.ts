@@ -47,7 +47,7 @@ export type ReasoningRoute =
   | "not_connected";
 
 
-const FROZEN_DIAGNOSTIC_PATTERN = /\b(why (are|were|did) (you )?(freeze|frozen|stuck|hang|hung|stall|stalled)|why (you|jarvis) (were|are|got|became) (frozen|stuck|hung|stalled)|why did i lose you|lost you (there )?(for )?(a )?(second|sec|moment)|why did you stop responding|why did you get stuck|why are you frozen|tool card (is|was) stuck|running .* forever|still running|response (is|was) delayed|temporary unresponsiveness|unresponsive issue)\b/i;
+const FROZEN_DIAGNOSTIC_PATTERN = /\b(why (are|were|did) (you )?(freeze|frozen|stuck|hang|hung|stall|stalled)|why (you|jarvis) (were|are|got|became) (frozen|stuck|hung|stalled)|why did i lose you|lost you (there )?(for )?(a )?(second|sec|moment)|why did you stop responding|why did you get stuck|why are you frozen|tool card (is|was) stuck|running .* forever|still running|response (is|was) delayed|temporary unresponsiveness|unresponsive issue|it freezes?( then)? when i (put|send|type) (like )?(a )?(question mark|\?)|freezes? until i (put|send|type) (a )?(question mark|\?)|answer (only )?(appears|shows up|comes through|comes back) after i (put|send|type) (a )?(question mark|\?)|question mark.*(answer|response).*(appears|shows up|comes through|comes back)|answer.*after.*question mark)\b/i;
 const SELF_AUDIT_PATTERN = /\b(self\s*-?\s*audit|audit yourself|system health|are you ready|check your brain|brain check|readiness report|what should we patch next)\b/i;
 const CAPABILITY_TRUTH_PATTERN = /\b(what can you actually do|what can you do|what is connected|what's connected|anything missing|what is missing|what's missing|setup missing|capabilities|capability|how far can we take you|fully set up)\b/i;
 const SENSITIVE_ACTION_PATTERN = /\b(send email|email customer|reply to customer|grant free|grant credit|free month|refund|charge|bank transfer|bill payment|move money|delete production|push to production|open pr|pull request|commit|merge)\b/i;
@@ -72,7 +72,7 @@ export function needsRepositoryInspection(input: string) {
   );
 }
 
-const FROZEN_DIAGNOSTIC_FOLLOWUP_PATTERN = /\b(fix it|go ahead|yes|proceed|continue|recheck|check again|same problem|findings are correct|optimize request processing|temporary unresponsiveness issue)\b/i;
+const FROZEN_DIAGNOSTIC_FOLLOWUP_PATTERN = /^(\s*\?\s*)$|\b(fix it|go ahead|yes|proceed|continue|recheck|check again|same problem|findings are correct|optimize request processing|temporary unresponsiveness issue|question mark|answer appears|answer shows up|answer comes through)\b/i;
 
 function recentUserText(messages: UIMessage[], count = 6) {
   return messages

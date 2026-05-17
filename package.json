@@ -45,7 +45,8 @@
     "test:operator-briefing-ui": "node scripts/operator-briefing-ui-smoke-test.mjs",
     "test:self-audit-lifecycle": "node scripts/self-audit-lifecycle-smoke-test.mjs",
     "test:frozen-diagnostic-routing": "node scripts/frozen-diagnostic-routing-smoke-test.mjs",
-    "test:frozen-followup-routing": "node scripts/frozen-followup-routing-smoke-test.mjs"
+    "test:frozen-followup-routing": "node scripts/frozen-followup-routing-smoke-test.mjs",
+    "test:question-mark-freeze-routing": "node scripts/question-mark-freeze-routing-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
