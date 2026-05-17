@@ -2308,6 +2308,13 @@ export function Chat() {
     }, 80);
   }
 
+  function scrollOperatorSection(targetRef: { current: HTMLDivElement | null }) {
+    targetRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
   function handleBackToMobileTools() {
     if (!isMobileToolsMode) return;
 
@@ -2349,6 +2356,10 @@ export function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const operatorCommandRef = useRef<HTMLDivElement>(null);
+  const operatorSummaryRef = useRef<HTMLDivElement>(null);
+  const operatorProposalsRef = useRef<HTMLDivElement>(null);
+  const operatorTasksRef = useRef<HTMLDivElement>(null);
   const taskRefreshInFlightRef = useRef(false);
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
@@ -4134,7 +4145,14 @@ export function Chat() {
                   </div>
                 </article>
 
-                <div className="operator-command-grid" data-testid="operator-command-grid" aria-label="Operator Console v3 command actions">
+                <div className="operator-mini-nav" data-testid="operator-mini-nav" aria-label="Operator section shortcuts">
+                  <button type="button" onClick={() => scrollOperatorSection(operatorCommandRef)}>Command</button>
+                  <button type="button" onClick={() => scrollOperatorSection(operatorSummaryRef)}>Summary</button>
+                  <button type="button" onClick={() => scrollOperatorSection(operatorProposalsRef)}>Proposals</button>
+                  <button type="button" onClick={() => scrollOperatorSection(operatorTasksRef)}>Tasks</button>
+                </div>
+
+                <div ref={operatorCommandRef} className="operator-command-grid" data-testid="operator-command-grid" aria-label="Operator Console v3 command actions">
                   {operatorCommandCards.map((card) => (
                     <button
                       key={card.key}
@@ -4186,7 +4204,7 @@ export function Chat() {
                   )}
                 </div>
 
-                <div className="operator-summary-grid">
+                <div ref={operatorSummaryRef} className="operator-summary-grid" data-testid="operator-summary-grid">
                   <article className="operator-summary-card operator-summary-card--primary">
                     <span className="operator-card-label">App health</span>
                     <div className="operator-card-title-row">
@@ -4244,7 +4262,7 @@ export function Chat() {
                 </div>
 
                 <div className="operator-console-lists">
-                  <article className="operator-list-card">
+                  <article ref={operatorProposalsRef} className="operator-list-card" data-testid="operator-proposals-section">
                     <div className="operator-list-header">
                       <span>Repo Control</span>
                       <small>{repoProposals.length} proposal{repoProposals.length === 1 ? "" : "s"}</small>
@@ -4272,7 +4290,7 @@ export function Chat() {
                     {!repoProposals.length && <p className="operator-empty-copy">No repo proposals loaded yet. Refresh console or open Repo.</p>}
                   </article>
 
-                  <article className="operator-list-card">
+                  <article ref={operatorTasksRef} className="operator-list-card" data-testid="operator-tasks-section">
                     <div className="operator-list-header">
                       <span>Runner / tasks</span>
                       <small>{activeOperatorTaskCount} active</small>

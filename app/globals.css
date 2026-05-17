@@ -2307,6 +2307,43 @@ button:disabled {
   background: rgba(255, 241, 242, 0.78);
 }
 
+.operator-mini-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  border: 1px solid rgba(106, 78, 170, 0.12);
+  border-radius: 18px;
+  padding: 0.42rem;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 14px 34px rgba(39, 27, 64, 0.08), inset 0 1px 0 rgba(255,255,255,0.78);
+  backdrop-filter: blur(14px);
+}
+
+.operator-mini-nav button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.46rem 0.38rem;
+  color: #5f4b86;
+  background: rgba(245, 243, 255, 0.78);
+  font-size: 0.66rem;
+  font-weight: 860;
+  letter-spacing: 0.03em;
+}
+
+.operator-mini-nav button:active {
+  transform: translateY(1px);
+}
+
+.operator-command-grid,
+.operator-summary-grid,
+.operator-list-card[data-testid="operator-proposals-section"],
+.operator-list-card[data-testid="operator-tasks-section"] {
+  scroll-margin-top: 76px;
+}
+
 .operator-command-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2423,6 +2460,17 @@ button:disabled {
   .operator-control-tower-card,
   .operator-command-grid {
     grid-template-columns: 1fr;
+  }
+
+  .operator-mini-nav {
+    top: 0;
+    gap: 0.3rem;
+    padding: 0.36rem;
+  }
+
+  .operator-mini-nav button {
+    padding: 0.42rem 0.24rem;
+    font-size: 0.62rem;
   }
 }
 
