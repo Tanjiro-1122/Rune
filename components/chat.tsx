@@ -4247,7 +4247,7 @@ export function Chat() {
                 </div>
 
                 <div className="operator-signal-strip" aria-label="Operator signal summary">
-                  <span><strong>{operatorSignalCount}/5</strong> signals loaded</span>
+                  <span><strong>{operatorSignalCount}</strong> signals loaded</span>
                   <span>Health: {operatorHealth?.status ?? "not checked"}</span>
                   <span>Build: {buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "unknown"}</span>
                   <span>Deploy: {deployHealth?.overall ?? "unknown"}</span>
