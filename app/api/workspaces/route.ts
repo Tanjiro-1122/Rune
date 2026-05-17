@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createWorkspace, getWorkspaceBootstrap } from "@/lib/workspaces";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const MAX_SESSION_ID_LENGTH = 128;
 
 export async function GET(req: NextRequest) {
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const clientSessionId = req.nextUrl.searchParams.get("sessionId");
   const workspaceId = req.nextUrl.searchParams.get("workspaceId");
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
   if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
     return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
@@ -25,11 +27,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, name, description } = (await req.json()) as {
+    const { sessionId: clientSessionId, name, description } = (await req.json()) as {
       sessionId?: string;
       name?: string;
       description?: string;
     };
+
+    const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
     if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
       return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });

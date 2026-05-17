@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const MAX_UPLOAD_BYTES = Number(process.env.JARVIS_MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
 const DEFAULT_BUCKET = "jarvis-uploads";
@@ -80,7 +81,8 @@ export async function POST(req: NextRequest) {
 
   const workspaceId = cleanText(formData.get("workspaceId"), 120) || null;
   const conversationId = cleanText(formData.get("conversationId"), 120) || null;
-  const sessionId = cleanText(formData.get("sessionId"), 160) || null;
+  const clientSessionId = cleanText(formData.get("sessionId"), 160) || null;
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
   const originalName = safeFileName(file.name || `pasted-screenshot${extensionFor(file.type, file.name || "")}`);
   const ext = extensionFor(file.type, originalName);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");

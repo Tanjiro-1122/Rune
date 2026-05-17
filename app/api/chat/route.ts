@@ -19,6 +19,7 @@ import {
 import { logError } from "@/lib/errors";
 import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/lib/agent-work-loop";
 import { getOwnerMemorySection } from "@/lib/owner-memory";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { buildSupabaseMemorySection } from "@/lib/memory";
 import {
   buildPlannerOutput,
@@ -1499,8 +1500,9 @@ export async function POST(req: Request) {
     // etc.) that passthrough() preserved but Zod's inferred type doesn't
     // reflect. The cast is safe because the schema validates the required
     // structural fields and passes through everything else untouched.
-    const { messages: rawMessages, sessionId, conversationId, workspaceId, resumeTaskId } = parsed.data;
+    const { messages: rawMessages, sessionId: clientSessionId, conversationId, workspaceId, resumeTaskId } = parsed.data;
     const messages = rawMessages as unknown as UIMessage[];
+    const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
     // sessionId is required for rate-limiting and workspace access
     if (!sessionId) {

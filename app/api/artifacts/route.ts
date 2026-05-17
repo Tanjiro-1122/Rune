@@ -3,6 +3,7 @@ import { z } from "zod";
 import { saveArtifact, getConversationArtifacts } from "@/lib/db";
 import { logError } from "@/lib/errors";
 import { assertConversationAccess } from "@/lib/workspaces";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 // 200 KB is generous for text-based artifacts while keeping the endpoint safe.
 const MAX_ARTIFACT_CONTENT_LENGTH = 200_000;
@@ -23,14 +24,8 @@ const saveArtifactSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const conversationId = req.nextUrl.searchParams.get("conversationId");
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
-
-  if (!sessionId) {
-    return NextResponse.json(
-      { error: "sessionId query parameter is required." },
-      { status: 400 }
-    );
-  }
+  const clientSessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
   if (sessionId.length > MAX_SESSION_ID_LENGTH) {
     return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
@@ -83,16 +78,14 @@ export async function POST(req: NextRequest) {
   }
 
   const { conversationId, name, mimeType, content, bytes } = parsed.data;
-  const sessionId =
+  const clientSessionId =
     body &&
     typeof body === "object" &&
     typeof (body as Record<string, unknown>).sessionId === "string"
       ? ((body as Record<string, unknown>).sessionId as string)
-      : "";
+      : null;
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
-  if (!sessionId) {
-    return NextResponse.json({ error: "sessionId is required." }, { status: 400 });
-  }
   if (sessionId.length > MAX_SESSION_ID_LENGTH) {
     return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
   }

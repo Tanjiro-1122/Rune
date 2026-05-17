@@ -12,6 +12,7 @@ import {
   getWorkspaceTasks,
   updateWorkspaceTaskStep,
 } from "@/lib/tasks";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const CreateJobSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -96,6 +97,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid job request.", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  const sessionId = await resolveOwnerSessionId(req, parsed.data.sessionId ?? null);
+
   const taskId = await createQueuedWorkspaceJob({
     workspaceId: parsed.data.workspaceId,
     conversationId: parsed.data.conversationId ?? null,
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest) {
     approvalStage: "plan",
     riskLevel: "low",
     projectKey: "jarvis",
-    sessionId: parsed.data.sessionId ?? null,
+    sessionId,
     workspaceId: parsed.data.workspaceId,
     conversationId: parsed.data.conversationId ?? null,
     metadata: { taskId, intent: parsed.data.intent },
@@ -134,6 +137,7 @@ export async function PATCH(req: NextRequest) {
 
   const checkpointParsed = CheckpointJobSchema.safeParse(body);
   if (checkpointParsed.success) {
+    const sessionId = await resolveOwnerSessionId(req, checkpointParsed.data.sessionId ?? null);
     const task = await addWorkspaceTaskCheckpoint(checkpointParsed.data.taskId, {
       label: checkpointParsed.data.label,
       summary: checkpointParsed.data.summary,
@@ -151,7 +155,7 @@ export async function PATCH(req: NextRequest) {
       approvalStage: "action",
       riskLevel: "low",
       projectKey: "jarvis",
-      sessionId: checkpointParsed.data.sessionId ?? null,
+      sessionId,
       workspaceId: task.workspaceId,
       conversationId: task.conversationId,
       metadata: { taskId: task.id, nextStep: checkpointParsed.data.nextStep ?? null, blocker: checkpointParsed.data.blocker ?? null },
@@ -172,6 +176,8 @@ export async function PATCH(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid run/checkpoint request.", details: parsed.error.flatten() }, { status: 400 });
   }
+
+  const sessionId = await resolveOwnerSessionId(req, parsed.data.sessionId ?? null);
 
   const task = await claimQueuedWorkspaceTask(parsed.data.taskId);
   if (!task) {
@@ -194,7 +200,7 @@ export async function PATCH(req: NextRequest) {
       approvalStage: "complete",
       riskLevel: "low",
       projectKey: "jarvis",
-      sessionId: parsed.data.sessionId ?? null,
+      sessionId,
       workspaceId: task.workspaceId,
       conversationId: task.conversationId,
       metadata: { taskId: task.id, intent: task.intent },
@@ -211,7 +217,7 @@ export async function PATCH(req: NextRequest) {
       approvalStage: "action",
       riskLevel: "medium",
       projectKey: "jarvis",
-      sessionId: parsed.data.sessionId ?? null,
+      sessionId,
       workspaceId: task.workspaceId,
       conversationId: task.conversationId,
       metadata: { taskId: task.id, intent: task.intent },

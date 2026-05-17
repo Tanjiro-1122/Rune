@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { z } from "zod";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logActionEvent } from "@/lib/action-events";
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid file request.", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { projectFileId, workspaceId, conversationId, sessionId } = parsed.data;
+  const { projectFileId, workspaceId, conversationId, sessionId: clientSessionId } = parsed.data;
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
   try {
     let request = supabase

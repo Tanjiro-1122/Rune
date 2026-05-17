@@ -17,6 +17,7 @@ import {
   isRepoActionProposalId,
   repoActionProposalIdError,
 } from "@/lib/repo-actions";
+import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const FileTargetSchema = z.object({
   path: z.string().min(1).max(240),
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid repo action proposal.", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = await createRepoActionProposal(parsed.data);
+  const sessionId = await resolveOwnerSessionId(req, parsed.data.sessionId ?? null);
+  const result = await createRepoActionProposal({ ...parsed.data, sessionId });
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? "Failed to create proposal." }, { status: 500 });
   }
