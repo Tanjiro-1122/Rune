@@ -38,7 +38,8 @@
     "test:mobile-tools-active-status": "node scripts/mobile-tools-active-status-smoke-test.mjs",
     "test:mobile-tools-project-switchboard": "node scripts/mobile-tools-project-switchboard-smoke-test.mjs",
     "test:mobile-tools-scroll-hint": "node scripts/mobile-tools-scroll-hint-smoke-test.mjs",
-    "test:operator-console-v3": "node scripts/operator-console-v3-smoke-test.mjs"
+    "test:operator-console-v3": "node scripts/operator-console-v3-smoke-test.mjs",
+    "test:operator-console-v3-navigation": "node scripts/operator-console-v3-navigation-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

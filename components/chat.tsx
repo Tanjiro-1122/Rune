@@ -4140,7 +4140,7 @@ export function Chat() {
                       key={card.key}
                       type="button"
                       className={`operator-command-card operator-command-card--${normalizeOperatorStatus(card.tone)}`}
-                      onClick={() => setActiveCabinetDrawer(card.targetDrawer)}
+                      onClick={() => handleCabinetDrawerSelect(card.targetDrawer)}
                     >
                       <span>{card.eyebrow}</span>
                       <strong>{card.title}</strong>
