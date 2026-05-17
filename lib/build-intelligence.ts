@@ -209,7 +209,7 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
   }
 }
 
-export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null } = {}): Promise<BuildIntelligenceSnapshot> {
+export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null; skipActionLog?: boolean } = {}): Promise<BuildIntelligenceSnapshot> {
   const projectRepo = options.repo || getProjectByKey(options.projectKey)?.repo || null;
   const [github, vercel] = await Promise.all([getGitHubIntelligence(projectRepo), getVercelIntelligence()]);
   const externalServices = getExternalServicesHealth();
@@ -224,22 +224,24 @@ export async function getBuildIntelligenceSnapshot(options: { projectKey?: strin
     },
   };
 
-  await logActionEvent({
-    eventType: "intelligence.snapshot",
-    summary: `Build intelligence refreshed for ${github.repo}`,
-    status: github.error ? "failed" : "executed",
-    approvalStage: "findings",
-    riskLevel: "low",
-    projectKey: options.projectKey ?? "jarvis",
-    metadata: {
-      repo: github.repo,
-      githubConfigured: github.configured,
-      vercelConfigured: vercel.configured,
-      githubError: github.error,
-      vercelError: vercel.error,
-      externalServices: snapshot.externalServices.summary,
-    },
-  });
+  if (!options.skipActionLog) {
+    await logActionEvent({
+      eventType: "intelligence.snapshot",
+      summary: `Build intelligence refreshed for ${github.repo}`,
+      status: github.error ? "failed" : "executed",
+      approvalStage: "findings",
+      riskLevel: "low",
+      projectKey: options.projectKey ?? "jarvis",
+      metadata: {
+        repo: github.repo,
+        githubConfigured: github.configured,
+        vercelConfigured: vercel.configured,
+        githubError: github.error,
+        vercelError: vercel.error,
+        externalServices: snapshot.externalServices.summary,
+      },
+    });
+  }
 
   return snapshot;
 }
