@@ -24,7 +24,8 @@
     "test:owner-session": "node scripts/owner-session-smoke-test.mjs",
     "test:session-fragments": "node scripts/session-fragment-audit-smoke-test.mjs",
     "test:session-merge-planner": "node scripts/session-fragment-merge-planner-smoke-test.mjs",
-    "test:session-merge-executor": "node scripts/session-fragment-merge-executor-smoke-test.mjs"
+    "test:session-merge-executor": "node scripts/session-fragment-merge-executor-smoke-test.mjs",
+    "test:session-merge-router": "node scripts/session-merge-router-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

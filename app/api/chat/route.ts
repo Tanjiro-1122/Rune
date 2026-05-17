@@ -357,6 +357,12 @@ function isWebSearchIntent(input: string) {
   );
 }
 
+const JARVIS_SESSION_MERGE_APPROVAL_PHRASE = "APPROVE JARVIS SESSION MERGE";
+
+function isApprovedJarvisSessionMergeIntent(input: string) {
+  return input.includes(JARVIS_SESSION_MERGE_APPROVAL_PHRASE);
+}
+
 function getForcedToolChoice(
   input: string,
   codeExecutionAvailable: boolean
@@ -369,9 +375,13 @@ function getForcedToolChoice(
         | "get_current_datetime"
         | "analyze_github_repo"
         | "get_jarvis_capability_snapshot"
-        | "get_jarvis_self_audit_snapshot";
+        | "get_jarvis_self_audit_snapshot"
+        | "execute_jarvis_session_merge";
     }
   | null {
+  if (isApprovedJarvisSessionMergeIntent(input)) {
+    return { type: "tool", toolName: "execute_jarvis_session_merge" };
+  }
   if (isRepoControlCommand(input)) {
     return null;
   }
@@ -399,7 +409,9 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
     );
   }
 
-  if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
+  if (isApprovedJarvisSessionMergeIntent(input)) {
+    hints.push("- Strong routing signal: exact Jarvis session merge approval phrase detected, so call `execute_jarvis_session_merge` with that exact approval phrase. Do not call capability snapshot first.");
+  } else if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     hints.push(
       "- Strong routing signal: this request is execution-oriented, so use `execute_code` before giving analysis."
     );
@@ -1873,6 +1885,7 @@ ${plannerOutput.steps
 ### Private owner-console safety model
 - Jarvis is not a SaaS product for sale. Jarvis is Javier's private owner console for apps, projects, customer support, and eventually sensitive owner-only services.
 - For questions like "what can you do", "how far can we take you", or "what setup is missing", call get_jarvis_capability_snapshot before answering.
+- If Javier provides the exact phrase APPROVE JARVIS SESSION MERGE, call execute_jarvis_session_merge immediately with approvalPhrase set to that exact phrase. Do not call capability snapshot first.
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
