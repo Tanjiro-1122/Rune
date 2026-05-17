@@ -8,7 +8,7 @@ const checks = [
   ['lost you for a second wording is covered', orchestration.includes('lost you (there )?(for )?(a )?(second|sec|moment)')],
   ['frozen follow-up pattern exists', orchestration.includes('FROZEN_DIAGNOSTIC_FOLLOWUP_PATTERN')],
   ['build planner accepts recent messages', orchestration.includes('messages?: UIMessage[]') && route.includes('messages,' )],
-  ['follow-ups can force self-audit intent', orchestration.includes('? "self_audit"') && orchestration.includes('isFrozenDiagnosticFollowup(options.input, options.messages ?? [])')],
+  ['follow-ups can force lifecycle diagnostic intent', orchestration.includes('? "tool_lifecycle_diagnostic"') && orchestration.includes('isFrozenDiagnosticIntent(options.input, options.messages ?? [])')],
   ['prompt blocks fake system load claims', route.includes('"system load," "high traffic," "resource allocation,"')],
   ['prompt blocks fake metrics review claims', route.includes('Never say "I reviewed system load,"')],
   ['prompt requires actual runtime/log/code-inspection tool result', route.includes('actual runtime/log/code-inspection tool result')],
@@ -17,4 +17,4 @@ const checks = [
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);
 if (failed.length) process.exit(1);
-console.log('✅ Frozen follow-up routing smoke test passed.');
+console.log('✅ Frozen follow-up lifecycle routing smoke test passed.');

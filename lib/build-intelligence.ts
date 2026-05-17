@@ -5,6 +5,7 @@ import { logActionEvent } from "@/lib/action-events";
 import { getProjectByKey } from "@/lib/project-registry";
 
 const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
+const EXTERNAL_INTELLIGENCE_TIMEOUT_MS = 8_000;
 
 export interface GitHubIntelligence {
   configured: boolean;
@@ -79,6 +80,23 @@ function getOctokitClient() {
 function isoFromVercelTimestamp(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return new Date(value).toISOString();
+}
+
+async function withIntelligenceTimeout<T>(label: string, promise: Promise<T>, fallback: () => T): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => {
+          logError(`buildIntelligence.${label}.timeout`, new Error(`${label} intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms`));
+          resolve(fallback());
+        }, EXTERNAL_INTELLIGENCE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export async function getGitHubIntelligence(repoOverride?: string | null): Promise<GitHubIntelligence> {
@@ -211,7 +229,20 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
 
 export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null; skipActionLog?: boolean } = {}): Promise<BuildIntelligenceSnapshot> {
   const projectRepo = options.repo || getProjectByKey(options.projectKey)?.repo || null;
-  const [github, vercel] = await Promise.all([getGitHubIntelligence(projectRepo), getVercelIntelligence()]);
+  const repoSlug = getRepoSlug(projectRepo).slug;
+  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Jarvis";
+  const [github, vercel] = await Promise.all([
+    withIntelligenceTimeout("github", getGitHubIntelligence(projectRepo), () => ({
+      configured: Boolean(process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN),
+      repo: repoSlug,
+      error: `GitHub intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms; returning partial snapshot.`,
+    })),
+    withIntelligenceTimeout("vercel", getVercelIntelligence(), () => ({
+      configured: Boolean(process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN),
+      project,
+      error: `Vercel intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms; returning partial snapshot.`,
+    })),
+  ]);
   const externalServices = getExternalServicesHealth();
   const snapshot = {
     generatedAt: new Date().toISOString(),

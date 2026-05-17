@@ -24,6 +24,7 @@ export interface AgentCapabilities {
 
 export type DetectedIntent =
   | "self_audit"
+  | "tool_lifecycle_diagnostic"
   | "capability_truth"
   | "approval_required"
   | "not_connected"
@@ -86,6 +87,11 @@ function recentUserText(messages: UIMessage[], count = 6) {
         .join("\n");
     })
     .join("\n");
+}
+
+export function isFrozenDiagnosticIntent(input: string, messages: UIMessage[] = []) {
+  const lower = input.toLowerCase();
+  return FROZEN_DIAGNOSTIC_PATTERN.test(lower) || isFrozenDiagnosticFollowup(input, messages);
 }
 
 export function isFrozenDiagnosticFollowup(input: string, messages: UIMessage[]) {
@@ -190,6 +196,7 @@ export interface PlannerOutput {
     | "analyze_github_repo"
     | "get_jarvis_capability_snapshot"
     | "get_jarvis_self_audit_snapshot"
+    | "get_tool_lifecycle_diagnostic"
     | null;
   reasoningRoute: ReasoningRoute;
   routingHint: string;
@@ -201,8 +208,8 @@ export function buildPlannerOutput(options: {
   capabilities: AgentCapabilities;
   messages?: UIMessage[];
 }): PlannerOutput {
-  const intent = isFrozenDiagnosticFollowup(options.input, options.messages ?? [])
-    ? "self_audit"
+  const intent = isFrozenDiagnosticIntent(options.input, options.messages ?? [])
+    ? "tool_lifecycle_diagnostic"
     : detectToolIntent(options.input, options.capabilities);
 
   const baseSteps: PlannerStep[] = [
@@ -228,17 +235,22 @@ export function buildPlannerOutput(options: {
     },
   ];
 
+  if (intent === "tool_lifecycle_diagnostic") {
+    return {
+      intent,
+      forcedToolName: "get_tool_lifecycle_diagnostic",
+      reasoningRoute: "self_audit",
+      routingHint:
+        "- Reasoning Router: run the lightweight Tool Lifecycle Diagnostic before answering freeze/stuck/question-mark reports. Do not launch the full self-audit for this symptom. Do not guess generic load/lag. Explain verified client/tool lifecycle evidence, what remains unverified without runtime logs, and the concrete product fix path.",
+      steps: baseSteps,
+    };
+  }
   if (intent === "self_audit") {
-    const isFrozenDiagnostic =
-      FROZEN_DIAGNOSTIC_PATTERN.test(options.input.toLowerCase()) ||
-      isFrozenDiagnosticFollowup(options.input, options.messages ?? []);
     return {
       intent,
       forcedToolName: "get_jarvis_self_audit_snapshot",
       reasoningRoute: "self_audit",
-      routingHint: isFrozenDiagnostic
-        ? "- Reasoning Router: run Self-Audit Mode before answering the freeze/stuck diagnosis. Do not guess generic load/lag. Explain only what is verified: tool call lifecycle, deployed routing rules, task/checkpoint state if visible, and what remains unverified without server logs. Name the likely product issue as diagnostic routing/lifecycle visibility unless logs prove backend load."
-        : "- Reasoning Router: run Self-Audit Mode before answering. Report verified, partial, missing, not connected, and next patch.",
+      routingHint: "- Reasoning Router: run Self-Audit Mode before answering. Report verified, partial, missing, not connected, and next patch.",
       steps: baseSteps,
     };
   }

@@ -27,6 +27,7 @@ import {
   formatCodeExecutionSummary,
   getCodeExecutionGuidance,
   getLatestUserText,
+  isFrozenDiagnosticIntent,
 } from "@/lib/orchestration";
 import {
   addWorkspaceTaskCheckpoint,
@@ -45,6 +46,7 @@ import {
 } from "@/lib/project-registry";
 import { getCapabilityTruthSnapshot } from "@/lib/capability-truth";
 import { getSelfAuditSnapshot } from "@/lib/self-audit";
+import { getToolLifecycleDiagnostic } from "@/lib/tool-lifecycle-diagnostic";
 import {
   createRepoActionProposal,
   draftRepoActionDiff,
@@ -385,11 +387,15 @@ function getForcedToolChoice(
         | "analyze_github_repo"
         | "get_jarvis_capability_snapshot"
         | "get_jarvis_self_audit_snapshot"
+        | "get_tool_lifecycle_diagnostic"
         | "execute_jarvis_session_merge";
     }
   | null {
   if (isApprovedJarvisSessionMergeIntent(input)) {
     return { type: "tool", toolName: "execute_jarvis_session_merge" };
+  }
+  if (isFrozenDiagnosticIntent(input)) {
+    return { type: "tool", toolName: "get_tool_lifecycle_diagnostic" };
   }
   if (isRepoControlCommand(input)) {
     return null;
@@ -498,9 +504,18 @@ const baseAgentTools = {
   }),
 
 
+  get_tool_lifecycle_diagnostic: tool({
+    description:
+      "Run a fast, no-network diagnostic for Jarvis freeze/stuck/question-mark delayed-answer symptoms. Use this instead of full self-audit when Javier reports that Jarvis froze, got stuck, or only answered after sending a question mark.",
+    parameters: z.object({
+      symptom: z.string().max(240).optional().default("freeze/stuck/question-mark delayed answer"),
+    }),
+    execute: async ({ symptom }) => getToolLifecycleDiagnostic(symptom),
+  }),
+
   get_jarvis_self_audit_snapshot: tool({
     description:
-      "Run Jarvis Self-Audit Mode. Returns a structured, non-secret report covering identity, project map, capability truth, deploy/config health, codebase signals, safety gates, not-connected integrations, and the recommended next patch. Use this for self-audits, system health checks, and 'are you ready' questions.",
+      "Run Jarvis Self-Audit Mode. Returns a structured, non-secret report covering identity, project map, capability truth, deploy/config health, codebase signals, safety gates, not-connected integrations, and the recommended next patch. Use this for explicit self-audits, system health checks, and 'are you ready' questions. Do not use for freeze/stuck/question-mark delayed-answer symptoms; use get_tool_lifecycle_diagnostic instead.",
     parameters: z.object({
       scope: z.enum(["jarvis-brain", "full-owner-console"]).optional().default("jarvis-brain"),
     }),
@@ -1905,6 +1920,7 @@ ${plannerOutput.steps
 - Jarvis is not a SaaS product for sale. Jarvis is Javier's private owner console for apps, projects, customer support, and eventually sensitive owner-only services.
 - For questions like "what can you do", "how far can we take you", or "what setup is missing", call get_jarvis_capability_snapshot before answering.
 - If Javier provides the exact phrase APPROVE JARVIS SESSION MERGE, call execute_jarvis_session_merge immediately with approvalPhrase set to that exact phrase. Do not call capability snapshot first.
+- For freeze/stuck/question-mark delayed-answer reports, call get_tool_lifecycle_diagnostic before answering. Do not call full self-audit for those symptoms unless Javier explicitly asks for a full self-audit.
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
@@ -1936,7 +1952,7 @@ ${plannerOutput.steps
 - For self-audits and capability comparisons, do not just list buckets. Give Javier the honest read first, then 3 compact sections max: current strength, remaining gap, next move.
 - Self-audit answer quality rule: never say "all capabilities are verified" if any setup/integration/configuration gaps exist. Separate verified strengths from missing/not-connected items, rank gaps by product impact, and state whether the self-audit tool completed, partially completed, or failed.
 - If a self-audit/tool card appeared delayed or stuck, explain the lifecycle plainly: tool call started, result/summary rendering lagged, and the next product fix is task lifecycle visibility — not a fake backend outage unless logs prove one.
-- Frozen/stuck diagnostic rule: when Javier asks why Jarvis froze, got stuck, stopped responding, was lost for a second, says the answer appears only after sending a question mark, or asks follow-ups like "?," "fix it," "go ahead," "recheck," or "did you find the same problem" in that context, do not answer with generic claims like "temporary processing delay," "the system was busy," "system load," "high traffic," "resource allocation," "caching opportunities," "excessive logging," or "backend lag" unless a real log/tool result proves it. State the exact verified evidence, then the most likely unverified cause, then the concrete patch path.
+- Frozen/stuck diagnostic rule: when Javier asks why Jarvis froze, got stuck, stopped responding, was lost for a second, says the answer appears only after sending a question mark, or asks follow-ups like "?," "fix it," "go ahead," "recheck," or "did you find the same problem" in that context, use the lightweight tool lifecycle diagnostic. Do not answer with generic claims like "temporary processing delay," "the system was busy," "system load," "high traffic," "resource allocation," "caching opportunities," "excessive logging," or "backend lag" unless a real log/tool result proves it. State the exact verified evidence, then the most likely unverified cause, then the concrete patch path.
 - Never say "I reviewed system load," "I reviewed performance metrics," "I confirmed high traffic," or "I analyzed current request handling" unless an actual runtime/log/code-inspection tool result appears in the current answer context. If no such tool ran, say the claim is unverified and propose the safe inspection path.
 - Prefer phrases like "Short answer," "My honest read," "Here's what matters," and "The next clean move is..." when they fit naturally.
 - Avoid ending with "If you need anything else" or "please let me know." End with a specific suggested next action.

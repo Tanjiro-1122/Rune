@@ -32,6 +32,7 @@ const TOOL_LABELS: Record<string, string> = {
   analyze_github_repo: "Inspecting GitHub repository",
   get_jarvis_capability_snapshot: "Checking Jarvis capabilities",
   get_jarvis_self_audit_snapshot: "Running Jarvis self-audit",
+  get_tool_lifecycle_diagnostic: "Checking Jarvis response lifecycle",
   execute_code: "Running a safe code check",
   listRepositoryTree: "Inspecting the repository structure",
   readRepositoryFile: "Reading the exact source file",
@@ -112,6 +113,7 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
 const LONG_FORM_DIAGNOSTIC_TOOLS = new Set([
   "get_jarvis_self_audit_snapshot",
   "get_jarvis_capability_snapshot",
+  "get_tool_lifecycle_diagnostic",
 ]);
 
 function isLongFormDiagnosticTool(name: string) {
@@ -2052,6 +2054,7 @@ function ToolCallCard({
   const isPending =
     invocation.state === "partial-call" || invocation.state === "call";
   const showAnswerFollows = isPending && assistantHasText && isLongFormDiagnosticTool(invocation.toolName);
+  const showLifecycleFallback = isPending && invocation.toolName === "get_tool_lifecycle_diagnostic";
 
   if (
     invocation.toolName === "create_task_plan" &&
@@ -2275,15 +2278,19 @@ function ToolCallCard({
 
   // Generic fallback card
   return (
-    <div className={`tool-card ${isPending ? "tool-card--pending" : ""} ${showAnswerFollows ? "tool-card--answer-follows" : ""}`}>
+    <div className={`tool-card ${isPending && !showLifecycleFallback ? "tool-card--pending" : ""} ${showAnswerFollows || showLifecycleFallback ? "tool-card--answer-follows" : ""}`}>
       <div className="tool-card-header">
-        <span className="tool-card-icon">{showAnswerFollows ? "✅" : isPending ? "⚙️" : "✅"}</span>
-        <span className="tool-card-title">{showAnswerFollows ? `${label} — answer follows` : label}</span>
-        {isPending && !showAnswerFollows && <span className="tool-spinner" />}
+        <span className="tool-card-icon">{showAnswerFollows || showLifecycleFallback ? "✅" : isPending ? "⚙️" : "✅"}</span>
+        <span className="tool-card-title">{showAnswerFollows || showLifecycleFallback ? `${label} — answer follows` : label}</span>
+        {isPending && !showAnswerFollows && !showLifecycleFallback && <span className="tool-spinner" />}
       </div>
-      {showAnswerFollows && (
+      {(showAnswerFollows || showLifecycleFallback) && (
         <div className="tool-card-body">
-          <p className="tool-card-note">Jarvis finished the diagnostic tool call and is summarizing the result below.</p>
+          <p className="tool-card-note">
+            {showLifecycleFallback
+              ? "Jarvis is using the lightweight response-lifecycle diagnostic instead of the full self-audit, so this card will not spin indefinitely."
+              : "Jarvis finished the diagnostic tool call and is summarizing the result below."}
+          </p>
         </div>
       )}
     </div>
@@ -3985,7 +3992,7 @@ export function Chat() {
                             ? ((invocation.result as { proposalId?: string }).proposalId as string)
                             : "";
                       const capabilityDedupeKey =
-                        invocation.toolName === "get_jarvis_capability_snapshot" || invocation.toolName === "get_jarvis_self_audit_snapshot"
+                        invocation.toolName === "get_jarvis_capability_snapshot" || invocation.toolName === "get_jarvis_self_audit_snapshot" || invocation.toolName === "get_tool_lifecycle_diagnostic"
                           ? invocation.toolName
                           : "";
                       const toolSignature = capabilityDedupeKey || `${invocation.toolName}:${stageKey}:${proposalKey}:${invocation.state === "result" ? JSON.stringify(invocation.result ?? {}) : invocation.state}`;
