@@ -75,7 +75,19 @@ function normalizeBriefingStatus(value?: string | null): OperatorBriefingStatus 
 
 function isIntegrationVisibilityWarning(value?: string | null) {
   const text = (value || "").toLowerCase();
-  return text.includes("external service readiness") || text.includes("read-only credentials") || text.includes("visibility") || text.includes("missing configuration");
+  return text.includes("external service readiness")
+    || text.includes("read-only credentials")
+    || text.includes("visibility")
+    || text.includes("missing configuration")
+    || text.includes("not configured yet");
+}
+
+function hasOnlyIntegrationVisibilityWarnings(warnings: string[]) {
+  return warnings.length > 0 && warnings.every(isIntegrationVisibilityWarning);
+}
+
+function hasHardProjectBlocker(project: OperatorBriefingProjectSummary) {
+  return normalizeBriefingStatus(project.healthStatus) === "blocked" && !hasOnlyIntegrationVisibilityWarnings(project.warnings);
 }
 
 function combineStatuses(statuses: OperatorBriefingStatus[]): OperatorBriefingStatus {
@@ -100,14 +112,14 @@ function summarizeProject(
     ...(build.github.error ? [`GitHub visibility: ${build.github.error}`] : []),
     ...(build.vercel.error ? [`Vercel visibility: ${build.vercel.error}`] : []),
   ].slice(0, 6);
-  const hasOnlyIntegrationVisibilityWarnings = warnings.length > 0 && warnings.every(isIntegrationVisibilityWarning);
+  const externalVisibilityOnly = hasOnlyIntegrationVisibilityWarnings(warnings);
 
   return {
     key: project.key,
     label: project.label,
     repo: project.repo,
     safetyLevel: project.safetyLevel,
-    healthStatus: hasOnlyIntegrationVisibilityWarnings && health.status === "blocked" ? "warning" : health.status,
+    healthStatus: externalVisibilityOnly && health.status === "blocked" ? "warning" : health.status,
     healthScore: typeof health.score === "number" ? health.score : null,
     buildStatus: getBuildRunStatus(build),
     latestCommit: build.github.latestCommit?.sha?.slice(0, 7) || null,
@@ -266,12 +278,15 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
   );
 
   const proposalSummaries = proposals.slice(0, 8).map(summarizeProposal);
+  const deployStatus = normalizeBriefingStatus(deployResult?.overall);
+  const projectStatuses = projectResults.map((project) => normalizeBriefingStatus(project.healthStatus));
+  const hasHardBlocker = projectResults.some(hasHardProjectBlocker) || deployStatus === "blocked";
   const statusSignals = [
-    ...projectResults.map((project) => normalizeBriefingStatus(project.healthStatus)),
-    normalizeBriefingStatus(deployResult?.overall),
+    ...projectStatuses.map((status) => status === "blocked" && !hasHardBlocker ? "warning" as const : status),
+    deployStatus,
     memory.warning ? "warning" as const : "healthy" as const,
   ];
-  const overallStatus = combineStatuses(statusSignals);
+  const overallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);
   const recommendedNextAction = chooseRecommendedNextAction({
     overallStatus,
     projects: projectResults,
