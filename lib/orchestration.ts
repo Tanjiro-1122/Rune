@@ -47,7 +47,7 @@ export type ReasoningRoute =
   | "not_connected";
 
 
-const FROZEN_DIAGNOSTIC_PATTERN = /\b(why (are|were|did) (you )?(freeze|frozen|stuck|hang|hung|stall|stalled)|why did i lose you|why did you stop responding|why did you get stuck|why are you frozen|tool card (is|was) stuck|running .* forever|still running|response (is|was) delayed)\b/i;
+const FROZEN_DIAGNOSTIC_PATTERN = /\b(why (are|were|did) (you )?(freeze|frozen|stuck|hang|hung|stall|stalled)|why (you|jarvis) (were|are|got|became) (frozen|stuck|hung|stalled)|why did i lose you|lost you (there )?(for )?(a )?(second|sec|moment)|why did you stop responding|why did you get stuck|why are you frozen|tool card (is|was) stuck|running .* forever|still running|response (is|was) delayed|temporary unresponsiveness|unresponsive issue)\b/i;
 const SELF_AUDIT_PATTERN = /\b(self\s*-?\s*audit|audit yourself|system health|are you ready|check your brain|brain check|readiness report|what should we patch next)\b/i;
 const CAPABILITY_TRUTH_PATTERN = /\b(what can you actually do|what can you do|what is connected|what's connected|anything missing|what is missing|what's missing|setup missing|capabilities|capability|how far can we take you|fully set up)\b/i;
 const SENSITIVE_ACTION_PATTERN = /\b(send email|email customer|reply to customer|grant free|grant credit|free month|refund|charge|bank transfer|bill payment|move money|delete production|push to production|open pr|pull request|commit|merge)\b/i;
@@ -70,6 +70,28 @@ export function needsRepositoryInspection(input: string) {
     /\b(error|bug|broken|not working|fails|failed|issue|problem)\b/i.test(lower) ||
     (/\b(inspect|review|audit|look at|check)\b/i.test(lower) && REPO_SCOPE_PATTERN.test(lower))
   );
+}
+
+const FROZEN_DIAGNOSTIC_FOLLOWUP_PATTERN = /\b(fix it|go ahead|yes|proceed|continue|recheck|check again|same problem|findings are correct|optimize request processing|temporary unresponsiveness issue)\b/i;
+
+function recentUserText(messages: UIMessage[], count = 6) {
+  return messages
+    .filter((message) => message.role === "user")
+    .slice(-count)
+    .map((message) => {
+      if (typeof message.content === "string") return message.content;
+      return (message.parts ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => (part as { type: "text"; text: string }).text)
+        .join("\n");
+    })
+    .join("\n");
+}
+
+export function isFrozenDiagnosticFollowup(input: string, messages: UIMessage[]) {
+  const lower = input.toLowerCase();
+  if (!FROZEN_DIAGNOSTIC_FOLLOWUP_PATTERN.test(lower)) return false;
+  return FROZEN_DIAGNOSTIC_PATTERN.test(recentUserText(messages).toLowerCase());
 }
 
 /**
@@ -177,8 +199,11 @@ export interface PlannerOutput {
 export function buildPlannerOutput(options: {
   input: string;
   capabilities: AgentCapabilities;
+  messages?: UIMessage[];
 }): PlannerOutput {
-  const intent = detectToolIntent(options.input, options.capabilities);
+  const intent = isFrozenDiagnosticFollowup(options.input, options.messages ?? [])
+    ? "self_audit"
+    : detectToolIntent(options.input, options.capabilities);
 
   const baseSteps: PlannerStep[] = [
     {
@@ -204,7 +229,9 @@ export function buildPlannerOutput(options: {
   ];
 
   if (intent === "self_audit") {
-    const isFrozenDiagnostic = FROZEN_DIAGNOSTIC_PATTERN.test(options.input.toLowerCase());
+    const isFrozenDiagnostic =
+      FROZEN_DIAGNOSTIC_PATTERN.test(options.input.toLowerCase()) ||
+      isFrozenDiagnosticFollowup(options.input, options.messages ?? []);
     return {
       intent,
       forcedToolName: "get_jarvis_self_audit_snapshot",
