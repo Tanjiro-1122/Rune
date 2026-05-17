@@ -19,6 +19,10 @@ assert(briefing.includes('briefingType: "daily_operator"'), "Briefing returns da
 assert(briefing.includes("readOnly: true"), "Briefing explicitly returns readOnly true");
 assert(briefing.includes('if (["warning", "partial", "missing", "proposed", "queued", "running"].includes(normalized)) return "warning"'), "Briefing treats missing read-only visibility as warning, not blocked");
 assert(briefing.includes("isIntegrationVisibilityWarning"), "Briefing identifies integration visibility warnings separately");
+assert(briefing.includes("hasOnlyIntegrationVisibilityWarnings"), "Briefing has an explicit soft integration visibility classifier");
+assert(briefing.includes("hasHardProjectBlocker"), "Briefing preserves real project blockers separately from visibility warnings");
+assert(briefing.includes('status === "blocked" && !hasHardBlocker ? "warning"'), "Briefing downgrades external-visibility-only blocked project signals to warning");
+assert(briefing.includes('const overallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);'), "Briefing keeps true hard blockers blocked");
 assert(briefing.includes("integration visibility or health warnings"), "Briefing warning headline avoids blocked wording for read-only integrations");
 assert(briefing.includes("JARVIS_CANONICAL_PROJECTS.map"), "Briefing covers canonical projects");
 assert(briefing.includes("getAppHealthSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true })"), "Briefing reads app health without action logging");
