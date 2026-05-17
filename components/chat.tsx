@@ -52,6 +52,7 @@ const TOOL_LABELS: Record<string, string> = {
   lookup_google_play_status: "Checking Google Play",
   get_app_health_snapshot: "Checking app health",
   audit_jarvis_session_fragments: "Auditing saved session fragments",
+  plan_jarvis_fragmented_session_merge: "Planning session merge dry-run",
   commitChangesDirectly: "Writing approved code changes",
 };
 
@@ -476,6 +477,80 @@ function SessionFragmentAuditCard({ state, result }: { state: ToolInvocation["st
         )}
         {result?.recommendedNextStep && <div className="repo-flow-next"><strong>Next:</strong> {result.recommendedNextStep}</div>}
         <div className="repo-flow-boundary">Safety: read-only counts only · no merge/update/delete/schema changes</div>
+      </div>
+    </div>
+  );
+}
+
+
+type SessionFragmentMergePlanResult = {
+  success?: boolean;
+  dryRun?: boolean;
+  readOnly?: boolean;
+  generatedAt?: string;
+  ownerSessionId?: string;
+  summary?: string;
+  sourceSessionIds?: string[];
+  proposedChanges?: {
+    conversationsToReassign?: number;
+    workspaceMembershipsToAttach?: number;
+    workspaceOwnersToNormalize?: number;
+    messagesMadeVisibleViaConversationMove?: number;
+    conversationWorkspaceLinksPreserved?: number;
+    messageRowsUpdatedDirectly?: number;
+    messageContentRead?: boolean;
+  };
+  sessions?: Array<{
+    sessionId: string;
+    conversationCount?: number;
+    messageCount?: number;
+    workspaceCount?: number;
+  }>;
+  approvalRequired?: {
+    required?: boolean;
+    phrase?: string;
+    reason?: string;
+  };
+  executionBoundary?: string;
+  safeBoundaries?: string[];
+  nextStep?: string;
+  error?: string;
+};
+
+function SessionFragmentMergePlanCard({ state, result }: { state: ToolInvocation["state"]; result?: SessionFragmentMergePlanResult }) {
+  const isPending = state === "partial-call" || state === "call";
+  const failed = !isPending && result?.success === false;
+  const change = result?.proposedChanges;
+
+  return (
+    <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{isPending ? "🧭" : failed ? "🚧" : "🧩"}</span>
+        <span className="tool-card-title">Jarvis fragmented session merge plan</span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      <div className="tool-card-body tool-card-body--stacked">
+        <span className="repo-control-meta">Mode: planner-only dry run · no Supabase changes</span>
+        <span className="repo-control-status repo-control-status--warning">
+          {isPending ? "Preparing dry-run plan" : failed ? "Plan blocked" : `Approval required: ${result?.approvalRequired?.phrase ?? "separate approval"}`}
+        </span>
+        {result?.summary && <p className="build-intel-copy">{result.summary}</p>}
+        {change && (
+          <div className="memory-meta-row">
+            <span>Chats: {change.conversationsToReassign ?? 0}</span>
+            <span>Msgs visible: {change.messagesMadeVisibleViaConversationMove ?? 0}</span>
+            <span>Workspaces: {change.workspaceOwnersToNormalize ?? 0}</span>
+            <span>Direct msg edits: {change.messageRowsUpdatedDirectly ?? 0}</span>
+          </div>
+        )}
+        {(result?.sourceSessionIds?.length ?? 0) > 0 && (
+          <div className="app-health-mini-list">
+            {result!.sourceSessionIds!.slice(0, 6).map((sessionId) => <span key={sessionId}><strong>Source</strong> · {sessionId}</span>)}
+          </div>
+        )}
+        {result?.approvalRequired?.reason && <p className="build-intel-copy">{result.approvalRequired.reason}</p>}
+        {result?.nextStep && <div className="repo-flow-next"><strong>Next:</strong> {result.nextStep}</div>}
+        <div className="repo-flow-boundary">Safety: planner only · no merge/update/delete/insert/upsert/RPC/schema changes</div>
       </div>
     </div>
   );
@@ -1701,6 +1776,16 @@ function ToolCallCard({ invocation }: { invocation: ToolInvocation }) {
       <SessionFragmentAuditCard
         state={invocation.state}
         result={invocation.state === "result" ? (invocation.result as SessionFragmentAuditResult) : undefined}
+      />
+    );
+  }
+
+
+  if (invocation.toolName === "plan_jarvis_fragmented_session_merge") {
+    return (
+      <SessionFragmentMergePlanCard
+        state={invocation.state}
+        result={invocation.state === "result" ? (invocation.result as SessionFragmentMergePlanResult) : undefined}
       />
     );
   }

@@ -22,7 +22,8 @@
     "prepare-owner-preview-token-contract": "node scripts/prepare-owner-preview-token-contract.mjs",
     "prepare-owner-preview-token-route": "node scripts/prepare-owner-preview-token-route.mjs",
     "test:owner-session": "node scripts/owner-session-smoke-test.mjs",
-    "test:session-fragments": "node scripts/session-fragment-audit-smoke-test.mjs"
+    "test:session-fragments": "node scripts/session-fragment-audit-smoke-test.mjs",
+    "test:session-merge-planner": "node scripts/session-fragment-merge-planner-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

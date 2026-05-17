@@ -194,3 +194,127 @@ export async function auditJarvisSessionFragments(): Promise<SessionFragmentAudi
     limits: { maxConversations: MAX_CONVERSATIONS, maxMessages: MAX_MESSAGES, maxWorkspaces: MAX_WORKSPACES },
   };
 }
+
+
+export type SessionFragmentMergePlanResult = {
+  success: boolean;
+  dryRun: true;
+  readOnly: true;
+  generatedAt: string;
+  ownerSessionId: string;
+  summary: string;
+  sourceSessionIds: string[];
+  proposedChanges: {
+    conversationsToReassign: number;
+    workspaceMembershipsToAttach: number;
+    workspaceOwnersToNormalize: number;
+    messagesMadeVisibleViaConversationMove: number;
+    conversationWorkspaceLinksPreserved: number;
+    messageRowsUpdatedDirectly: 0;
+    messageContentRead: false;
+  };
+  sessions: SessionFragmentSummary[];
+  approvalRequired: {
+    required: true;
+    phrase: "APPROVE JARVIS SESSION MERGE";
+    reason: string;
+  };
+  executionBoundary: string;
+  safeBoundaries: string[];
+  nextStep: string;
+  error?: string;
+};
+
+function blockedMergePlan(error: string): SessionFragmentMergePlanResult {
+  return {
+    success: false,
+    dryRun: true,
+    readOnly: true,
+    generatedAt: new Date().toISOString(),
+    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    summary: error,
+    sourceSessionIds: [],
+    proposedChanges: {
+      conversationsToReassign: 0,
+      workspaceMembershipsToAttach: 0,
+      workspaceOwnersToNormalize: 0,
+      messagesMadeVisibleViaConversationMove: 0,
+      conversationWorkspaceLinksPreserved: 0,
+      messageRowsUpdatedDirectly: 0,
+      messageContentRead: false,
+    },
+    sessions: [],
+    approvalRequired: {
+      required: true,
+      phrase: "APPROVE JARVIS SESSION MERGE",
+      reason: "A separate approval is required before any Supabase rows are changed.",
+    },
+    executionBoundary: "Planner only. No merge executor is implemented by this tool.",
+    safeBoundaries: [
+      "Read-only Supabase select queries only.",
+      "No message content is returned or read.",
+      "No merge, update, delete, insert, upsert, RPC, or schema mutation is performed.",
+      "This tool cannot execute the merge; it only prepares the plan.",
+    ],
+    nextStep: "Fix the audit blocker, then rerun the planner.",
+    error,
+  };
+}
+
+/**
+ * Planner-only dry run for consolidating old browser-local Jarvis sessions.
+ *
+ * This does not execute the merge. It translates the read-only audit into a
+ * human approval plan for a future, separate executor.
+ */
+export async function planJarvisSessionFragmentMerge(): Promise<SessionFragmentMergePlanResult> {
+  const audit = await auditJarvisSessionFragments();
+  if (!audit.success) return blockedMergePlan(audit.error ?? audit.summary);
+
+  const fragments = audit.sessions.filter((session) => !session.isOwnerSession);
+  const sourceSessionIds = fragments.map((session) => session.sessionId);
+  const conversationsToReassign = fragments.reduce((total, session) => total + session.conversationCount, 0);
+  const workspaceOwnersToNormalize = fragments.reduce((total, session) => total + session.workspaceCount, 0);
+  const messagesMadeVisibleViaConversationMove = fragments.reduce((total, session) => total + session.messageCount, 0);
+  const conversationWorkspaceLinksPreserved = fragments.reduce((total, session) => total + session.mappedConversationCount, 0);
+
+  const summary = fragments.length === 0
+    ? "No fragmented browser-local sessions need merging."
+    : `Dry-run plan prepared: ${fragments.length} old browser-local session${fragments.length === 1 ? "" : "s"} would be consolidated into ${JARVIS_OWNER_SESSION_ID}, making ${conversationsToReassign} conversation${conversationsToReassign === 1 ? "" : "s"} and ${messagesMadeVisibleViaConversationMove} message record${messagesMadeVisibleViaConversationMove === 1 ? "" : "s"} visible from the owner session.`;
+
+  return {
+    success: true,
+    dryRun: true,
+    readOnly: true,
+    generatedAt: new Date().toISOString(),
+    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    summary,
+    sourceSessionIds,
+    proposedChanges: {
+      conversationsToReassign,
+      workspaceMembershipsToAttach: workspaceOwnersToNormalize,
+      workspaceOwnersToNormalize,
+      messagesMadeVisibleViaConversationMove,
+      conversationWorkspaceLinksPreserved,
+      messageRowsUpdatedDirectly: 0,
+      messageContentRead: false,
+    },
+    sessions: fragments,
+    approvalRequired: {
+      required: true,
+      phrase: "APPROVE JARVIS SESSION MERGE",
+      reason: "The real merge would reassign existing conversation/workspace ownership metadata to owner:javier, so it must be a separate explicitly approved action.",
+    },
+    executionBoundary: "Planner only. No merge executor is implemented by this tool.",
+    safeBoundaries: [
+      "Read-only Supabase select queries only.",
+      "No message content is returned or read.",
+      "No merge, update, delete, insert, upsert, RPC, or schema mutation is performed.",
+      "Messages are not edited directly in the proposed design; they become visible through conversation ownership consolidation.",
+      "A future executor must require the exact approval phrase before any Supabase mutation.",
+    ],
+    nextStep: fragments.length > 0
+      ? "Review this dry-run plan. If it looks right, approve a separate merge executor using the required approval phrase."
+      : "No merge executor is needed unless new fragments appear later.",
+  };
+}
