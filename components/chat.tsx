@@ -1539,6 +1539,43 @@ function normalizeOperatorStatus(value?: string | null) {
   return (value || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
 }
 
+
+function isExternalServiceVisibilityOnlyText(value?: string | null) {
+  const text = (value || "").toLowerCase();
+  return text.includes("external service readiness")
+    || text.includes("read-only credentials")
+    || text.includes("visibility")
+    || text.includes("missing configuration")
+    || text.includes("not configured yet");
+}
+
+function normalizeBriefingForDisplay(briefing: OperatorBriefingSnapshot | null): OperatorBriefingSnapshot | null {
+  if (!briefing || briefing.overallStatus !== "blocked") return briefing;
+
+  const warningText = [
+    briefing.headline,
+    briefing.recommendedNextAction?.title,
+    briefing.recommendedNextAction?.detail,
+    ...briefing.projects.flatMap((project) => project.warnings ?? []),
+    briefing.memory?.warning,
+  ].filter(Boolean).join(" ");
+
+  const hasDeployBlocker = briefing.projects.some((project) => normalizeOperatorStatus(project.deploySignal) === "blocked");
+  const hasHardProjectBlocker = briefing.projects.some((project) => {
+    const status = normalizeOperatorStatus(project.healthStatus);
+    const projectWarnings = (project.warnings ?? []).join(" ");
+    return status === "blocked" && !isExternalServiceVisibilityOnlyText(projectWarnings);
+  });
+
+  if (hasDeployBlocker || hasHardProjectBlocker || !isExternalServiceVisibilityOnlyText(warningText)) return briefing;
+
+  return {
+    ...briefing,
+    overallStatus: "warning",
+    headline: "Jarvis has integration visibility or health warnings to review.",
+  };
+}
+
 function detectMobileToolsMode() {
   if (typeof window === "undefined") return false;
 
@@ -2430,7 +2467,8 @@ export function Chat() {
     (typeof latestRepoHandoff?.pr_url === "string" ? latestRepoHandoff.pr_url : "");
 
   const operatorHealthStatus = normalizeOperatorStatus(operatorHealth?.status);
-  const operatorBriefingOverallStatus = normalizeOperatorStatus(operatorBriefing?.overallStatus);
+  const displayedOperatorBriefing = normalizeBriefingForDisplay(operatorBriefing);
+  const operatorBriefingOverallStatus = normalizeOperatorStatus(displayedOperatorBriefing?.overallStatus);
   const operatorBuildStatus = normalizeOperatorStatus(buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status);
   const operatorDeployStatus = normalizeOperatorStatus(deployHealth?.overall);
   const operatorNextAction = getOperatorNextAction({
@@ -4280,21 +4318,21 @@ export function Chat() {
                   <article className="operator-summary-card operator-summary-card--primary operator-briefing-card" data-testid="operator-briefing-card">
                     <span className="operator-card-label">Today’s Briefing</span>
                     <div className="operator-card-title-row">
-                      <strong>{operatorBriefing?.headline ?? "Daily briefing not loaded"}</strong>
-                      {operatorBriefing?.overallStatus && <span className={`operator-status-pill operator-status-pill--${operatorBriefingOverallStatus}`}>{operatorBriefing.overallStatus}</span>}
+                      <strong>{displayedOperatorBriefing?.headline ?? "Daily briefing not loaded"}</strong>
+                      {displayedOperatorBriefing?.overallStatus && <span className={`operator-status-pill operator-status-pill--${operatorBriefingOverallStatus}`}>{displayedOperatorBriefing.overallStatus}</span>}
                     </div>
-                    <p>{operatorBriefing?.recommendedNextAction.detail ?? "Refresh the control tower to load the read-only Daily Operator Briefing."}</p>
-                    {operatorBriefing ? (
+                    <p>{displayedOperatorBriefing?.recommendedNextAction.detail ?? "Refresh the control tower to load the read-only Daily Operator Briefing."}</p>
+                    {displayedOperatorBriefing ? (
                       <div className="operator-briefing-meta" aria-label="Daily Operator Briefing summary">
-                        <span>{operatorBriefing.projects.length} projects</span>
-                        <span>{operatorBriefing.proposals.length} proposals</span>
-                        <span>{operatorBriefing.tasks.length} tasks</span>
-                        <span>{operatorBriefing.memory.agentMemoriesReachable && operatorBriefing.memory.agentMemoryEventsReachable ? "Memory reachable" : "Memory warning"}</span>
+                        <span>{displayedOperatorBriefing.projects.length} projects</span>
+                        <span>{displayedOperatorBriefing.proposals.length} proposals</span>
+                        <span>{displayedOperatorBriefing.tasks.length} tasks</span>
+                        <span>{displayedOperatorBriefing.memory.agentMemoriesReachable && displayedOperatorBriefing.memory.agentMemoryEventsReachable ? "Memory reachable" : "Memory warning"}</span>
                       </div>
                     ) : (
                       <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>Load briefing</button>
                     )}
-                    {operatorBriefing?.recommendedNextAction && <small>Next: {operatorBriefing.recommendedNextAction.title}</small>}
+                    {displayedOperatorBriefing?.recommendedNextAction && <small>Next: {displayedOperatorBriefing.recommendedNextAction.title}</small>}
                     {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
                     {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}
                   </article>
