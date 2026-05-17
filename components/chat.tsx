@@ -3973,7 +3973,9 @@ export function Chat() {
               <div>
                 <span>Open drawer</span>
                 <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
+                {isMobileToolsMode && <small>Read-only controls</small>}
               </div>
+              {isMobileToolsMode && <b className="mobile-tools-active-badge">No mutations</b>}
               {isMobileToolsMode && (
                 <button
                   type="button"

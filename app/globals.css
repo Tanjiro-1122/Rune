@@ -2572,15 +2572,18 @@ button:disabled {
   }
 
   .mobile-tools-active-label {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     scroll-margin-top: 96px;
-    border: 1px solid rgba(106, 78, 170, 0.12);
-    border-radius: 20px;
-    padding: 0.62rem 0.75rem;
-    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(118, 87, 255, 0.2);
+    border-radius: 22px;
+    padding: 0.72rem 0.78rem;
+    background:
+      radial-gradient(circle at top left, rgba(221, 214, 254, 0.52), transparent 44%),
+      rgba(255, 255, 255, 0.74);
+    box-shadow: 0 16px 34px rgba(83, 65, 128, 0.08), inset 0 1px 0 rgba(255,255,255,0.78);
   }
 
   .mobile-tools-active-label > div {
@@ -2589,8 +2592,44 @@ button:disabled {
     min-width: 0;
   }
 
+  .mobile-tools-active-label span {
+    color: #7f6a9f;
+    font-size: 0.66rem;
+    font-weight: 820;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .mobile-tools-active-label strong {
+    color: #21112f;
+    font-size: 1rem;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+
+  .mobile-tools-active-label small {
+    color: #7c6b9a;
+    font-size: 0.68rem;
+    font-weight: 720;
+    line-height: 1.2;
+  }
+
+  .mobile-tools-active-badge {
+    justify-self: end;
+    border-radius: 999px;
+    padding: 0.26rem 0.52rem;
+    background: rgba(218, 241, 255, 0.88);
+    color: #075985;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
   .mobile-tools-back-button {
-    flex: 0 0 auto;
+    grid-column: 1 / -1;
+    justify-self: stretch;
     border: 1px solid rgba(118, 87, 255, 0.18);
     border-radius: 999px;
     padding: 0.48rem 0.7rem;
@@ -2599,6 +2638,7 @@ button:disabled {
     font-size: 0.7rem;
     font-weight: 850;
     letter-spacing: -0.01em;
+    text-align: center;
     box-shadow: 0 10px 22px rgba(83, 65, 128, 0.08);
   }
 

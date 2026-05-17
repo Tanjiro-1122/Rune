@@ -25,7 +25,7 @@ assert(chat.includes("ref={mobileToolsTopRef}"), "top tile grid is scroll target
 assert(css.includes(".mobile-tools-back-button"), "Back to tools CSS exists");
 assert(css.includes("justify-content: space-between"), "active drawer label spaces title and button");
 assert(css.includes("border-radius: 999px"), "Back to tools button is pill shaped");
-assert(css.includes("flex: 0 0 auto"), "Back to tools button does not squeeze label");
+assert(css.includes("grid-column: 1 / -1"), "Back to tools button spans full active label width and does not squeeze label");
 
 for (const forbidden of ["execute_redeploy", "execute_rollback", "run_approved_repo_action(", "commitChangesDirectly("]) {
   assert(!chat.includes(`onClick={() => ${forbidden}`), `Back to tools polish does not wire direct mutating click for ${forbidden}`);
