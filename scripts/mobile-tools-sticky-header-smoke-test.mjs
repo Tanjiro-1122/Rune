@@ -20,7 +20,7 @@ assert(css.includes("z-index: 24 !important"), "mobile sticky titlebar stays abo
 assert(css.includes("margin: -12px -12px 8px !important"), "mobile titlebar reserves space below sticky header");
 assert(css.includes("background: rgba(255, 255, 255, 0.94) !important"), "mobile titlebar background is opaque enough over content");
 assert(css.includes("box-shadow: 0 14px 28px"), "mobile titlebar has separation shadow");
-assert(css.includes("scroll-padding-top: 88px"), "mobile tile board has scroll padding for sticky header");
+assert(css.includes("scroll-padding-top: 96px"), "mobile tile board has scroll padding for sticky header");
 assert(css.includes(".mobile-tools-titlebar::after"), "mobile titlebar fade spacer exists");
 assert(css.includes("pointer-events: none"), "titlebar fade spacer does not block taps");
 
