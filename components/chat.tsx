@@ -1409,6 +1409,8 @@ const PROJECT_SWITCHBOARD_OPTIONS = [
     subtitle: "Private AI workspace",
     repo: "Tanjiro-1122/Jarvis",
     accent: "#7dd3fc",
+    safetyLabel: "Owner-console",
+    safetyTone: "owner",
   },
   {
     key: "unfiltr",
@@ -1416,6 +1418,8 @@ const PROJECT_SWITCHBOARD_OPTIONS = [
     subtitle: "AI companion app",
     repo: "Tanjiro-1122/UniltrbyJavierbackup",
     accent: "#c084fc",
+    safetyLabel: "Sensitive production",
+    safetyTone: "sensitive",
   },
   {
     key: "swh",
@@ -1423,6 +1427,8 @@ const PROJECT_SWITCHBOARD_OPTIONS = [
     subtitle: "SportsWager Helper",
     repo: "Tanjiro-1122/swhmobile",
     accent: "#34d399",
+    safetyLabel: "Production app",
+    safetyTone: "production",
   },
   {
     key: "unfiltr-family",
@@ -1430,6 +1436,8 @@ const PROJECT_SWITCHBOARD_OPTIONS = [
     subtitle: "Elderly-care companion",
     repo: "Tanjiro-1122/UnfiltrFamily",
     accent: "#fbbf24",
+    safetyLabel: "Sensitive production",
+    safetyTone: "sensitive",
   },
 ] as const;
 
@@ -1475,6 +1483,83 @@ function formatTimestamp(value: string) {
   } catch {
     return value;
   }
+}
+
+function normalizeOperatorStatus(value?: string | null) {
+  return (value || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
+}
+
+function getOperatorNextAction(options: {
+  operatorHealth: AppHealthSnapshotResult | null;
+  buildIntel: BuildIntelligenceSnapshot | null;
+  deployHealth: DeployHealthSnapshot | null;
+  latestRepoProposal: RepoActionProposalSummary | null;
+  latestRepoPrReady: boolean;
+  activeTaskCount: number;
+  operatorLastRefreshedAt: string | null;
+}) {
+  if (!options.operatorLastRefreshedAt) {
+    return {
+      title: "Refresh the control tower",
+      detail: "Pull the latest read-only health, build, deploy, repo, and runner signals for this project.",
+      tone: "ready",
+      actionLabel: "Refresh console",
+    };
+  }
+
+  if (options.latestRepoPrReady) {
+    return {
+      title: "Review PR handoff",
+      detail: "A Repo Control proposal has passed checks and is ready for an approval-gated handoff review.",
+      tone: "warning",
+      actionLabel: "Open Repo Control",
+    };
+  }
+
+  const healthStatus = normalizeOperatorStatus(options.operatorHealth?.status);
+  if (["warning", "partial", "missing", "error", "blocked", "unhealthy"].includes(healthStatus)) {
+    return {
+      title: "Review health warnings",
+      detail: options.operatorHealth?.summary ?? "The latest app health snapshot needs attention before bigger changes.",
+      tone: healthStatus === "error" || healthStatus === "blocked" ? "error" : "warning",
+      actionLabel: "Run health snapshot",
+    };
+  }
+
+  const deployStatus = normalizeOperatorStatus(options.deployHealth?.overall);
+  if (["warning", "partial", "missing", "error", "blocked"].includes(deployStatus)) {
+    return {
+      title: "Check deployment visibility",
+      detail: options.deployHealth?.checks?.find((check) => normalizeOperatorStatus(check.status) !== "ok")?.detail ?? "Some deployment diagnostics need configuration or review.",
+      tone: deployStatus === "error" || deployStatus === "blocked" ? "error" : "warning",
+      actionLabel: "Check deploy health",
+    };
+  }
+
+  if (options.activeTaskCount > 0) {
+    return {
+      title: "Monitor active runner work",
+      detail: `${options.activeTaskCount} queued or running task${options.activeTaskCount === 1 ? "" : "s"} should finish before starting another execution path.`,
+      tone: "warning",
+      actionLabel: "View runner jobs",
+    };
+  }
+
+  if (options.latestRepoProposal) {
+    return {
+      title: "Review latest proposal",
+      detail: `${options.latestRepoProposal.title} is the newest Repo Control item for this project.`,
+      tone: "ready",
+      actionLabel: "Open Repo Control",
+    };
+  }
+
+  return {
+    title: "Project looks stable",
+    detail: "No active runner jobs or urgent proposal handoffs are loaded. Next best move is a focused feature proposal.",
+    tone: "healthy",
+    actionLabel: "Draft proposal",
+  };
 }
 
 function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary | CodeExecutionArtifact) {
@@ -2101,6 +2186,25 @@ export function Chat() {
   const latestRepoPrUrl =
     (typeof latestRepoProposalMetadata.pr_url === "string" ? latestRepoProposalMetadata.pr_url : "") ||
     (typeof latestRepoHandoff?.pr_url === "string" ? latestRepoHandoff.pr_url : "");
+
+  const operatorHealthStatus = normalizeOperatorStatus(operatorHealth?.status);
+  const operatorBuildStatus = normalizeOperatorStatus(buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status);
+  const operatorDeployStatus = normalizeOperatorStatus(deployHealth?.overall);
+  const operatorNextAction = getOperatorNextAction({
+    operatorHealth,
+    buildIntel,
+    deployHealth,
+    latestRepoProposal,
+    latestRepoPrReady,
+    activeTaskCount: activeOperatorTaskCount,
+    operatorLastRefreshedAt,
+  });
+  const operatorReadinessLabel = operatorHealth?.status
+    ? operatorHealth.status.toUpperCase()
+    : operatorLastRefreshedAt
+      ? "Snapshot pending"
+      : "Not refreshed";
+  const operatorSignalCount = [operatorHealth, buildIntel, deployHealth, repoProposals.length > 0, tasks.length > 0].filter(Boolean).length;
 
   function selectProject(projectKey: (typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]) {
     setSelectedProjectKey(projectKey);
@@ -3738,14 +3842,20 @@ export function Chat() {
                   >
                     <span>{project.label}</span>
                     <small>{project.subtitle}</small>
+                    <em>{project.repo}</em>
+                    <b className={`project-safety-badge project-safety-badge--${project.safetyTone}`}>{project.safetyLabel}</b>
                   </button>
                 ))}
               </div>
 
               <div className="project-switchboard-current">
-                <span>Active</span>
+                <span>Active project</span>
                 <strong>{selectedProject.label}</strong>
                 <small>{selectedProject.repo}</small>
+                <div className="project-current-meta">
+                  <b className={`project-safety-badge project-safety-badge--${selectedProject.safetyTone}`}>{selectedProject.safetyLabel}</b>
+                  <b className="project-safety-badge project-safety-badge--read-only">Read-only console</b>
+                </div>
               </div>
             </div>
 
@@ -3790,15 +3900,47 @@ export function Chat() {
                   </button>
                 </div>
 
+                <article className="operator-control-tower-card" data-testid="operator-control-tower-card">
+                  <div className="operator-control-tower-main">
+                    <span className="operator-card-label">Control Tower v2</span>
+                    <h4>{selectedProject.label}</h4>
+                    <p>{selectedProject.repo}</p>
+                    <div className="operator-control-tower-badges">
+                      <span className={`operator-status-pill operator-status-pill--${operatorHealthStatus}`}>{operatorReadinessLabel}</span>
+                      <span className={`project-safety-badge project-safety-badge--${selectedProject.safetyTone}`}>{selectedProject.safetyLabel}</span>
+                      <span className="project-safety-badge project-safety-badge--read-only">No mutations</span>
+                    </div>
+                  </div>
+                  <div className={`operator-next-action operator-next-action--${operatorNextAction.tone}`}>
+                    <span>Recommended next action</span>
+                    <strong>{operatorNextAction.title}</strong>
+                    <p>{operatorNextAction.detail}</p>
+                    <small>{operatorNextAction.actionLabel}</small>
+                  </div>
+                </article>
+
+                <div className="operator-signal-strip" aria-label="Operator signal summary">
+                  <span><strong>{operatorSignalCount}/5</strong> signals loaded</span>
+                  <span>Health: {operatorHealth?.status ?? "not checked"}</span>
+                  <span>Build: {buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "unknown"}</span>
+                  <span>Deploy: {deployHealth?.overall ?? "unknown"}</span>
+                </div>
+
                 <div className="operator-quick-actions" aria-label="Operator quick actions">
                   <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>
-                    Refresh health
+                    Refresh control tower
                   </button>
                   <button type="button" onClick={() => setActiveCabinetDrawer("repo")}>
                     Open Repo Control
                   </button>
+                  <button type="button" onClick={() => setActiveCabinetDrawer("build")}>
+                    Check build intelligence
+                  </button>
                   <button type="button" onClick={() => setActiveCabinetDrawer("tasks")}>
                     View runner jobs
+                  </button>
+                  <button type="button" onClick={() => setActiveCabinetDrawer("repo")}>
+                    Draft proposal
                   </button>
                   {latestRepoPrUrl ? (
                     <a href={latestRepoPrUrl} target="_blank" rel="noreferrer">Open latest PR</a>
@@ -3812,7 +3954,7 @@ export function Chat() {
                     <span className="operator-card-label">App health</span>
                     <div className="operator-card-title-row">
                       <strong>{operatorHealth?.status ? operatorHealth.status.toUpperCase() : "Not checked"}</strong>
-                      {operatorHealth?.status && <span className={`operator-status-pill operator-status-pill--${operatorHealth.status}`}>{operatorHealth.status}</span>}
+                      {operatorHealth?.status && <span className={`operator-status-pill operator-status-pill--${operatorHealthStatus}`}>{operatorHealth.status}</span>}
                     </div>
                     <p>{operatorHealth?.summary ?? "Refresh to pull the latest read-only app health snapshot."}</p>
                     {operatorHealth?.score !== undefined && <small>Score {operatorHealth.score}/100</small>}
@@ -3823,7 +3965,7 @@ export function Chat() {
                     <div className="operator-card-title-row">
                       <strong>{buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status ?? "Unknown"}</strong>
                       {buildIntel?.github?.latestWorkflowRun?.status && (
-                        <span className={`operator-status-pill operator-status-pill--${buildIntel.github.latestWorkflowRun.conclusion ?? buildIntel.github.latestWorkflowRun.status}`}>
+                        <span className={`operator-status-pill operator-status-pill--${operatorBuildStatus}`}>
                           {buildIntel.github.latestWorkflowRun.conclusion ?? buildIntel.github.latestWorkflowRun.status}
                         </span>
                       )}
@@ -3836,7 +3978,7 @@ export function Chat() {
                     <span className="operator-card-label">Deploy gate</span>
                     <div className="operator-card-title-row">
                       <strong>{deployHealth?.overall ? deployHealth.overall.toUpperCase() : "Unknown"}</strong>
-                      {deployHealth?.overall && <span className={`operator-status-pill operator-status-pill--${deployHealth.overall}`}>{deployHealth.overall}</span>}
+                      {deployHealth?.overall && <span className={`operator-status-pill operator-status-pill--${operatorDeployStatus}`}>{deployHealth.overall}</span>}
                     </div>
                     <p>{deployHealth?.checks?.find((check) => check.status !== "ok")?.detail ?? "Deployment checks are metadata-only until explicitly approved."}</p>
                     {deployHealth?.generatedAt && <small>{formatTimestamp(deployHealth.generatedAt)}</small>}

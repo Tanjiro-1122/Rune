@@ -2146,3 +2146,192 @@ button:disabled {
 .tool-card--app-creator .tool-card-icon {
   filter: drop-shadow(0 8px 18px rgba(118, 87, 255, 0.22));
 }
+
+
+/* Operator Console v2 — premium read-only control tower */
+.project-switchboard-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(100, 116, 166, 0.16);
+}
+
+.project-switchboard-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--project-accent, #8b5cf6);
+  opacity: 0.72;
+}
+
+.project-switchboard-card em {
+  display: block;
+  margin-top: 0.45rem;
+  color: rgba(82, 72, 105, 0.66);
+  font-size: 0.64rem;
+  font-style: normal;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.project-safety-badge,
+.project-current-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.project-current-meta {
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+}
+
+.project-safety-badge {
+  width: fit-content;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  padding: 0.22rem 0.52rem;
+  background: rgba(106, 78, 170, 0.12);
+  color: #5b4585;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.project-safety-badge--owner,
+.project-safety-badge--read-only {
+  background: rgba(14, 165, 233, 0.12);
+  color: #075985;
+}
+
+.project-safety-badge--production {
+  background: rgba(42, 157, 111, 0.13);
+  color: #166534;
+}
+
+.project-safety-badge--sensitive {
+  background: rgba(232, 151, 62, 0.16);
+  color: #92400e;
+}
+
+.operator-control-tower-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.82fr);
+  gap: 0.85rem;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  border-radius: 24px;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(196, 181, 253, 0.28), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 246, 255, 0.76));
+  box-shadow: 0 22px 54px rgba(39, 27, 64, 0.08);
+}
+
+.operator-control-tower-main h4 {
+  margin: 0;
+  color: #21112f;
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+}
+
+.operator-control-tower-main p,
+.operator-next-action p {
+  margin: 0.22rem 0 0;
+  color: #6b5f86;
+  font-size: 0.76rem;
+  line-height: 1.38;
+}
+
+.operator-control-tower-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.78rem;
+}
+
+.operator-control-tower-badges .project-safety-badge {
+  margin-top: 0;
+}
+
+.operator-next-action {
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  border-radius: 20px;
+  padding: 0.82rem;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.operator-next-action span {
+  display: block;
+  color: #7c6b9a;
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.operator-next-action strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: #25153a;
+  font-size: 0.92rem;
+}
+
+.operator-next-action small {
+  display: inline-flex;
+  margin-top: 0.62rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  background: rgba(106, 78, 170, 0.1);
+  color: #5b4585;
+  font-size: 0.66rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
+
+.operator-next-action--healthy {
+  border-color: rgba(42, 157, 111, 0.18);
+  background: rgba(240, 253, 244, 0.76);
+}
+
+.operator-next-action--warning {
+  border-color: rgba(232, 151, 62, 0.24);
+  background: rgba(255, 251, 235, 0.78);
+}
+
+.operator-next-action--error {
+  border-color: rgba(220, 72, 94, 0.2);
+  background: rgba(255, 241, 242, 0.78);
+}
+
+.operator-signal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  border: 1px solid rgba(106, 78, 170, 0.12);
+  border-radius: 18px;
+  padding: 0.52rem;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.operator-signal-strip span {
+  border-radius: 999px;
+  padding: 0.34rem 0.56rem;
+  background: rgba(245, 243, 255, 0.78);
+  color: #5b4585;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.operator-signal-strip strong {
+  color: #321250;
+}
+
+@media (max-width: 760px) {
+  .operator-control-tower-card {
+    grid-template-columns: 1fr;
+  }
+}
