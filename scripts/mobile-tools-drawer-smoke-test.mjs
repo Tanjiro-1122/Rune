@@ -12,7 +12,8 @@ const css = fs.readFileSync("app/globals.css", "utf8");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
 
 assert(chat.includes('className="drawer-backdrop tools-drawer-backdrop"'), "tools drawer backdrop is rendered");
-assert(chat.includes('className="context-sidebar context-sidebar--open"'), "open tools drawer sidebar is rendered");
+assert(chat.includes('context-sidebar context-sidebar--open'), "open tools drawer sidebar is rendered");
+assert(chat.includes('mobile-tools-shell'), "open tools drawer includes mobile shell class");
 assert(css.includes("Mobile Tools drawer hard visibility fix"), "mobile visibility fix block exists");
 assert(css.includes(".drawer-backdrop.tools-drawer-backdrop"), "mobile backdrop selector is explicit");
 assert(css.includes("z-index: 5000 !important"), "mobile backdrop is forced above page");

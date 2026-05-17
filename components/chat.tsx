@@ -3812,16 +3812,22 @@ export function Chat() {
       )}
 
       {showInfoSidebar && (
-        <aside className="context-sidebar context-sidebar--open" aria-label="Jarvis tools and controls">
-          <div className="context-panel">
-            <div className="glass-drawer-titlebar">
+        <aside className="context-sidebar context-sidebar--open mobile-tools-shell" aria-label="Jarvis tools and controls">
+          <div className="context-panel mobile-tools-tile-board">
+            <div className="glass-drawer-titlebar mobile-tools-titlebar">
               <div>
                 <span>Jarvis tools</span>
                 <small>{selectedProject.label}</small>
               </div>
               <button type="button" onClick={() => setShowInfoSidebar(false)} aria-label="Close tools">Close</button>
             </div>
-            <div className="context-panel-section project-switchboard-section">
+
+            <div className="mobile-tools-board-intro" data-testid="mobile-tools-tile-board">
+              <span>Mobile command board</span>
+              <strong>{selectedProject.label}</strong>
+              <p>Tap a tile to open focused tools. Each drawer stays read-only until an approval gate is required.</p>
+            </div>
+            <div className="context-panel-section project-switchboard-section mobile-tools-project-tile">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Project switchboard</div>
@@ -3859,12 +3865,12 @@ export function Chat() {
               </div>
             </div>
 
-            <div className="filing-cabinet-drawers" aria-label="Jarvis filing cabinet sections">
+            <div className="filing-cabinet-drawers mobile-tools-top-tiles" data-testid="mobile-tools-top-tiles" aria-label="Jarvis filing cabinet sections">
               {CABINET_DRAWERS.map((drawer) => (
                 <button
                   key={drawer.key}
                   type="button"
-                  className={`filing-cabinet-tab ${activeCabinetDrawer === drawer.key ? "filing-cabinet-tab--active" : ""}`}
+                  className={`filing-cabinet-tab mobile-tools-top-tile ${activeCabinetDrawer === drawer.key ? "filing-cabinet-tab--active mobile-tools-top-tile--active" : ""}`}
                   onClick={() => setActiveCabinetDrawer(drawer.key)}
                 >
                   <span>{drawer.label}</span>
@@ -3873,13 +3879,13 @@ export function Chat() {
               ))}
             </div>
 
-            <div className="filing-cabinet-active-label">
+            <div className="filing-cabinet-active-label mobile-tools-active-label">
               <span>Open drawer</span>
               <strong>{CABINET_DRAWERS.find((drawer) => drawer.key === activeCabinetDrawer)?.label}</strong>
             </div>
 
             {activeCabinetDrawer === "operator" && (
-              <section className="operator-console-panel" data-testid="operator-console-panel">
+              <section className="operator-console-panel mobile-tools-section" data-testid="operator-console-panel">
                 <div className="drawer-section-heading operator-heading">
                   <div>
                     <p className="drawer-eyebrow">Operator console</p>
@@ -4062,7 +4068,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "memory" && (
-            <div className="context-panel-section memory-panel-section filing-cabinet-content">
+            <div className="context-panel-section memory-panel-section filing-cabinet-content mobile-tools-section">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Memory core</div>
@@ -4257,7 +4263,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "health" && (
-            <div className="context-panel-section deploy-health-section filing-cabinet-content">
+            <div className="context-panel-section deploy-health-section filing-cabinet-content mobile-tools-section">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Deploy health</div>
@@ -4303,7 +4309,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "repo" && (
-            <div className="context-panel-section repo-control-section filing-cabinet-content">
+            <div className="context-panel-section repo-control-section filing-cabinet-content mobile-tools-section">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Repo control</div>
@@ -4473,7 +4479,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "build" && (
-            <div className="context-panel-section build-intel-section filing-cabinet-content">
+            <div className="context-panel-section build-intel-section filing-cabinet-content mobile-tools-section">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Build intelligence</div>
@@ -4598,7 +4604,7 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "activity" && (
-            <div className="context-panel-section action-log-section filing-cabinet-content">
+            <div className="context-panel-section action-log-section filing-cabinet-content mobile-tools-section">
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Activity log</div>

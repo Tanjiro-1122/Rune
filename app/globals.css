@@ -2383,3 +2383,232 @@ button:disabled {
     -webkit-transform: translateZ(0);
   }
 }
+
+
+/* Mobile Tools tile board — phone-first nested tiles, desktop unchanged */
+.mobile-tools-board-intro {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .context-sidebar.context-sidebar--open.mobile-tools-shell {
+    padding: 12px !important;
+    border-radius: 30px !important;
+    background:
+      radial-gradient(circle at top right, rgba(196, 181, 253, 0.42), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 247, 255, 0.9)) !important;
+  }
+
+  .mobile-tools-tile-board {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 12px !important;
+    padding: 0 2px 4px !important;
+  }
+
+  .mobile-tools-titlebar {
+    margin: -12px -12px 0 !important;
+    padding: 14px 14px 12px !important;
+    border-radius: 30px 30px 20px 20px;
+    background: rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .mobile-tools-titlebar span {
+    font-size: 17px;
+  }
+
+  .mobile-tools-board-intro {
+    display: grid;
+    gap: 0.25rem;
+    border: 1px solid rgba(124, 58, 237, 0.14);
+    border-radius: 24px;
+    padding: 0.9rem;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(245, 243, 255, 0.78));
+    box-shadow: 0 18px 44px rgba(39, 27, 64, 0.08);
+  }
+
+  .mobile-tools-board-intro span {
+    color: #7c6b9a;
+    font-size: 0.66rem;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mobile-tools-board-intro strong {
+    color: #21112f;
+    font-size: 1.12rem;
+    letter-spacing: -0.035em;
+  }
+
+  .mobile-tools-board-intro p {
+    margin: 0;
+    color: #6b5f86;
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .mobile-tools-project-tile {
+    border-radius: 24px !important;
+    padding: 12px !important;
+    background: rgba(255, 255, 255, 0.66) !important;
+  }
+
+  .mobile-tools-project-tile .context-panel-header {
+    margin-bottom: 0.25rem;
+  }
+
+  .mobile-tools-project-tile .side-section-copy {
+    display: none;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card {
+    min-height: 104px;
+    border-radius: 20px;
+    padding: 12px 10px 10px 13px;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card em {
+    display: none;
+  }
+
+  .mobile-tools-project-tile .project-safety-badge {
+    font-size: 0.55rem;
+    padding: 0.2rem 0.42rem;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-current {
+    display: none;
+  }
+
+  .mobile-tools-top-tiles {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .mobile-tools-top-tile {
+    min-height: 82px;
+    width: 100%;
+    border: 1px solid rgba(106, 78, 170, 0.14) !important;
+    border-radius: 22px !important;
+    padding: 12px !important;
+    background: rgba(255, 255, 255, 0.7) !important;
+    color: #2f1745 !important;
+    box-shadow: 0 16px 34px rgba(83, 65, 128, 0.08), inset 0 1px 0 rgba(255,255,255,0.75);
+  }
+
+  .mobile-tools-top-tile span {
+    color: #25153a;
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  .mobile-tools-top-tile small {
+    margin-top: 0.3rem;
+    color: #7c6b9a;
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .mobile-tools-top-tile--active {
+    border-color: rgba(118, 87, 255, 0.42) !important;
+    background: linear-gradient(135deg, rgba(237, 242, 255, 0.96), rgba(255,255,255,0.82)) !important;
+    box-shadow: 0 18px 42px rgba(118, 87, 255, 0.16);
+  }
+
+  .mobile-tools-active-label {
+    border: 1px solid rgba(106, 78, 170, 0.12);
+    border-radius: 20px;
+    padding: 0.62rem 0.75rem;
+    background: rgba(255, 255, 255, 0.62);
+  }
+
+  .mobile-tools-section,
+  .operator-console-panel.mobile-tools-section {
+    display: grid;
+    gap: 12px;
+    border: 1px solid rgba(106, 78, 170, 0.12);
+    border-radius: 26px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.66);
+    box-shadow: 0 18px 44px rgba(39, 27, 64, 0.06);
+  }
+
+  .mobile-tools-section .context-panel-header,
+  .mobile-tools-section .drawer-section-heading {
+    border: 1px solid rgba(106, 78, 170, 0.1);
+    border-radius: 20px;
+    padding: 0.72rem;
+    background: rgba(255, 255, 255, 0.62);
+  }
+
+  .mobile-tools-section .operator-summary-grid,
+  .mobile-tools-section .operator-console-lists,
+  .mobile-tools-section .build-intel-grid,
+  .mobile-tools-section .repo-proposal-list,
+  .mobile-tools-section .deploy-health-list,
+  .mobile-tools-section .action-event-list,
+  .mobile-tools-section .memory-list,
+  .mobile-tools-section .document-list,
+  .mobile-tools-section .artifact-list,
+  .mobile-tools-section .saved-artifact-list,
+  .mobile-tools-section .task-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .mobile-tools-section .operator-summary-card,
+  .mobile-tools-section .operator-list-card,
+  .mobile-tools-section .repo-proposal-card,
+  .mobile-tools-section .deploy-health-check,
+  .mobile-tools-section .deploy-health-summary,
+  .mobile-tools-section .action-event-card,
+  .mobile-tools-section .memory-card,
+  .mobile-tools-section .document-card,
+  .mobile-tools-section .artifact-card,
+  .mobile-tools-section .saved-artifact-item,
+  .mobile-tools-section .task-card,
+  .mobile-tools-section .context-empty {
+    border-radius: 20px !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: 0 14px 32px rgba(83, 65, 128, 0.07);
+  }
+
+  .mobile-tools-section .operator-control-tower-card {
+    border-radius: 22px;
+  }
+
+  .mobile-tools-section .operator-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+  }
+
+  .mobile-tools-section .operator-quick-actions button,
+  .mobile-tools-section .operator-quick-actions a,
+  .mobile-tools-section .operator-row-actions button,
+  .mobile-tools-section .operator-row-actions a {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    text-align: center;
+  }
+}
