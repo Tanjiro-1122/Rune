@@ -68,9 +68,14 @@ export interface OperatorBriefing {
 
 function normalizeBriefingStatus(value?: string | null): OperatorBriefingStatus {
   const normalized = (value || "").toLowerCase();
-  if (["blocked", "error", "failed", "failure", "missing"].includes(normalized)) return "blocked";
-  if (["warning", "partial", "proposed", "queued", "running"].includes(normalized)) return "warning";
+  if (["blocked", "error", "failed", "failure"].includes(normalized)) return "blocked";
+  if (["warning", "partial", "missing", "proposed", "queued", "running"].includes(normalized)) return "warning";
   return "healthy";
+}
+
+function isIntegrationVisibilityWarning(value?: string | null) {
+  const text = (value || "").toLowerCase();
+  return text.includes("external service readiness") || text.includes("read-only credentials") || text.includes("visibility") || text.includes("missing configuration");
 }
 
 function combineStatuses(statuses: OperatorBriefingStatus[]): OperatorBriefingStatus {
@@ -95,13 +100,14 @@ function summarizeProject(
     ...(build.github.error ? [`GitHub visibility: ${build.github.error}`] : []),
     ...(build.vercel.error ? [`Vercel visibility: ${build.vercel.error}`] : []),
   ].slice(0, 6);
+  const hasOnlyIntegrationVisibilityWarnings = warnings.length > 0 && warnings.every(isIntegrationVisibilityWarning);
 
   return {
     key: project.key,
     label: project.label,
     repo: project.repo,
     safetyLevel: project.safetyLevel,
-    healthStatus: health.status,
+    healthStatus: hasOnlyIntegrationVisibilityWarnings && health.status === "blocked" ? "warning" : health.status,
     healthScore: typeof health.score === "number" ? health.score : null,
     buildStatus: getBuildRunStatus(build),
     latestCommit: build.github.latestCommit?.sha?.slice(0, 7) || null,
@@ -282,7 +288,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     headline: overallStatus === "healthy"
       ? "Jarvis operator signals look calm."
       : overallStatus === "warning"
-        ? "Jarvis has operator warnings to review, but no action was taken."
+        ? "Jarvis has integration visibility or health warnings to review."
         : "Jarvis found a blocked operator signal that needs review.",
     recommendedNextAction,
     projects: projectResults,

@@ -24,6 +24,8 @@ assert(chat.includes("operatorBriefing.proposals.length"), "Operator briefing su
 assert(chat.includes("operatorBriefing.tasks.length"), "Operator briefing summarizes task count");
 assert(chat.includes("operatorBriefing.memory.agentMemoriesReachable"), "Operator briefing surfaces memory reachability");
 assert(chat.includes("selectedBriefingProject"), "Operator briefing project-specific warning summary exists");
+assert(chat.includes("<strong>{operatorSignalCount}</strong> signals loaded"), "Operator signal count avoids stale denominator");
+assert(!chat.includes("operatorSignalCount}/5"), "Operator signal count does not hardcode five signals");
 
 assert(css.includes(".operator-briefing-card"), "Operator briefing card CSS exists");
 assert(css.includes(".operator-briefing-meta"), "Operator briefing metadata CSS exists");
