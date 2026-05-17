@@ -57,3 +57,15 @@ const checks = [
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);
 if (failed.length) process.exit(1);
+
+
+const diagnosticChecks = [
+  ['operator diagnostic intent guard exists', chatRoute.includes('function isOperatorDiagnosticIntent')],
+  ['operator diagnostic regex uses safe word boundaries', chatRoute.includes('\\b(operator console|today') && !chatRoute.includes('/\u0008')],
+  ['operator diagnostic routing avoids datetime misroute', chatRoute.includes('Do not call the datetime tool just because the product label contains Today’s Briefing')],
+  ['datetime intent ignores operator diagnostic questions', chatRoute.includes('if (isOperatorDiagnosticIntent(input)) return false;')],
+  ['forced tool choice does not force tools for operator diagnostics', chatRoute.includes('if (isOperatorDiagnosticIntent(input)) {\n    return null;\n  }')],
+];
+const diagnosticFailed = diagnosticChecks.filter(([, ok]) => !ok);
+for (const [name, ok] of diagnosticChecks) console.log(`${ok ? '✅' : '❌'} ${name}`);
+if (diagnosticFailed.length) process.exit(1);

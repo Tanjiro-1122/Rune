@@ -329,7 +329,16 @@ function isCalculationIntent(input: string) {
   return (explicitMath || conversationalMath) && hasMathExpression(input);
 }
 
+
+function isOperatorDiagnosticIntent(input: string) {
+  if (!input.trim()) return false;
+  const mentionsOperatorSurface = /\b(operator console|today[’']?s briefing|daily briefing|app health|control tower|briefing card|health warning|build signal|deploy gate)\b/i.test(input);
+  const mentionsStatusMismatch = /\b(blocked|warning|error|status|badge|headline|mismatch|why|wrong|still showing|render|code path|fix)\b/i.test(input);
+  return mentionsOperatorSurface && mentionsStatusMismatch;
+}
+
 function isDatetimeIntent(input: string) {
+  if (isOperatorDiagnosticIntent(input)) return false;
   return /\b(date|time|day of the week|what day|today|tomorrow|current time)\b/i.test(
     input
   );
@@ -348,7 +357,7 @@ function isGitHubAnalysisIntent(input: string) {
 
 function isWebSearchIntent(input: string) {
   if (!input.trim()) return false;
-  if (isGitHubAnalysisIntent(input) || isCalculationIntent(input) || isDatetimeIntent(input)) {
+  if (isGitHubAnalysisIntent(input) || isCalculationIntent(input) || isDatetimeIntent(input) || isOperatorDiagnosticIntent(input)) {
     return false;
   }
 
@@ -385,6 +394,9 @@ function getForcedToolChoice(
   if (isRepoControlCommand(input)) {
     return null;
   }
+  if (isOperatorDiagnosticIntent(input)) {
+    return null;
+  }
   if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     return { type: "tool", toolName: "execute_code" };
   }
@@ -406,6 +418,12 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
   if (isRepoControlCommand(input)) {
     hints.push(
       "- Legacy router guard: Repo Control command detected; do not route to calculator because proposal IDs contain hyphens/numbers. Prefer the matching Repo Control tool."
+    );
+  }
+
+  if (isOperatorDiagnosticIntent(input)) {
+    hints.push(
+      "- Operator diagnostic request detected: answer by reasoning over the Operator Console/App Health/Briefing mismatch. Do not call the datetime tool just because the product label contains Today’s Briefing. If a code path is likely, name the likely frontend/backend path and preserve PR-only/no-mutation safety boundaries."
     );
   }
 
