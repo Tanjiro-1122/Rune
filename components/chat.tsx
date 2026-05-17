@@ -1402,6 +1402,56 @@ interface DeployHealthSnapshot {
   }>;
 }
 
+interface OperatorBriefingSnapshot {
+  generatedAt: string;
+  readOnly: true;
+  briefingType: "daily_operator";
+  overallStatus: "healthy" | "warning" | "blocked";
+  headline: string;
+  recommendedNextAction: {
+    title: string;
+    detail: string;
+    target: "health" | "repo" | "memory" | "tasks" | "none";
+  };
+  projects: Array<{
+    key: string;
+    label: string;
+    repo: string;
+    safetyLevel: string;
+    healthStatus: string;
+    healthScore: number | null;
+    buildStatus: string;
+    latestCommit: string | null;
+    deploySignal: string;
+    warnings: string[];
+  }>;
+  proposals: Array<{
+    id: string;
+    title: string;
+    status: string;
+    riskLevel: string;
+    projectKey: string | null;
+    repo: string | null;
+    updatedAt: string;
+    nextStep: string;
+  }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: string;
+    runnerStatus: string | null;
+    updatedAt: string;
+  }>;
+  memory: {
+    supabaseConfigured: boolean;
+    agentMemoriesReachable: boolean;
+    agentMemoryEventsReachable: boolean;
+    ownerMemorySource: "env" | "not_configured";
+    warning: string | null;
+  };
+  safetyNotice: string[];
+}
+
 const PROJECT_SWITCHBOARD_OPTIONS = [
   {
     key: "jarvis",
@@ -2227,6 +2277,8 @@ export function Chat() {
   const [buildIntelStatus, setBuildIntelStatus] = useState("");
   const [buildIntelBusy, setBuildIntelBusy] = useState(false);
   const [operatorHealth, setOperatorHealth] = useState<AppHealthSnapshotResult | null>(null);
+  const [operatorBriefing, setOperatorBriefing] = useState<OperatorBriefingSnapshot | null>(null);
+  const [operatorBriefingStatus, setOperatorBriefingStatus] = useState("");
   const [operatorStatus, setOperatorStatus] = useState("");
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [operatorLastRefreshedAt, setOperatorLastRefreshedAt] = useState<string | null>(null);
@@ -2378,6 +2430,7 @@ export function Chat() {
     (typeof latestRepoHandoff?.pr_url === "string" ? latestRepoHandoff.pr_url : "");
 
   const operatorHealthStatus = normalizeOperatorStatus(operatorHealth?.status);
+  const operatorBriefingOverallStatus = normalizeOperatorStatus(operatorBriefing?.overallStatus);
   const operatorBuildStatus = normalizeOperatorStatus(buildIntel?.github?.latestWorkflowRun?.conclusion ?? buildIntel?.github?.latestWorkflowRun?.status);
   const operatorDeployStatus = normalizeOperatorStatus(deployHealth?.overall);
   const operatorNextAction = getOperatorNextAction({
@@ -2403,7 +2456,8 @@ export function Chat() {
     : operatorLastRefreshedAt
       ? "Snapshot pending"
       : "Not refreshed";
-  const operatorSignalCount = [operatorHealth, buildIntel, deployHealth, repoProposals.length > 0, tasks.length > 0].filter(Boolean).length;
+  const operatorSignalCount = [operatorHealth, operatorBriefing, buildIntel, deployHealth, repoProposals.length > 0, tasks.length > 0].filter(Boolean).length;
+  const selectedBriefingProject = operatorBriefing?.projects.find((project) => project.key === selectedProjectKey || (selectedProjectKey === "unfiltr-family" && project.key === "family"));
 
   function selectProject(projectKey: (typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]) {
     setSelectedProjectKey(projectKey);
@@ -2413,6 +2467,7 @@ export function Chat() {
     setBuildIntelStatus("");
     setDeployHealthStatus("");
     setOperatorStatus("");
+    setOperatorBriefingStatus("");
   }
 
   async function fetchWorkspaceData(
@@ -2514,13 +2569,30 @@ export function Chat() {
   }
 
 
+  async function refreshOperatorBriefing() {
+    setOperatorBriefingStatus("");
+    const response = await fetch("/api/operator-briefing");
+    const payload = (await response.json().catch(() => ({}))) as OperatorBriefingSnapshot & { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "Daily Operator Briefing unavailable.");
+    setOperatorBriefing(payload);
+    return payload;
+  }
+
+
   async function refreshOperatorConsole(nextProjectKey = selectedProjectKey) {
     setOperatorBusy(true);
     setOperatorStatus("");
+    setOperatorBriefingStatus("");
     try {
       const projectForRequest = PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === nextProjectKey) ?? selectedProject;
       const healthSearch = new URLSearchParams({ projectKey: nextProjectKey, repo: projectForRequest.repo });
-      const healthResponse = await fetch(`/api/app-health?${healthSearch.toString()}`);
+      const [healthResponse] = await Promise.all([
+        fetch(`/api/app-health?${healthSearch.toString()}`),
+        refreshOperatorBriefing().catch((error) => {
+          setOperatorBriefingStatus(error instanceof Error ? error.message : "Daily Operator Briefing unavailable.");
+          return null;
+        }),
+      ]);
       const healthPayload = (await healthResponse.json().catch(() => ({}))) as AppHealthSnapshotResult & { error?: string };
       if (!healthResponse.ok) throw new Error(healthPayload.error ?? "App health snapshot unavailable.");
       setOperatorHealth(healthPayload);
@@ -4205,6 +4277,28 @@ export function Chat() {
                 </div>
 
                 <div ref={operatorSummaryRef} className="operator-summary-grid" data-testid="operator-summary-grid">
+                  <article className="operator-summary-card operator-summary-card--primary operator-briefing-card" data-testid="operator-briefing-card">
+                    <span className="operator-card-label">Today’s Briefing</span>
+                    <div className="operator-card-title-row">
+                      <strong>{operatorBriefing?.headline ?? "Daily briefing not loaded"}</strong>
+                      {operatorBriefing?.overallStatus && <span className={`operator-status-pill operator-status-pill--${operatorBriefingOverallStatus}`}>{operatorBriefing.overallStatus}</span>}
+                    </div>
+                    <p>{operatorBriefing?.recommendedNextAction.detail ?? "Refresh the control tower to load the read-only Daily Operator Briefing."}</p>
+                    {operatorBriefing ? (
+                      <div className="operator-briefing-meta" aria-label="Daily Operator Briefing summary">
+                        <span>{operatorBriefing.projects.length} projects</span>
+                        <span>{operatorBriefing.proposals.length} proposals</span>
+                        <span>{operatorBriefing.tasks.length} tasks</span>
+                        <span>{operatorBriefing.memory.agentMemoriesReachable && operatorBriefing.memory.agentMemoryEventsReachable ? "Memory reachable" : "Memory warning"}</span>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>Load briefing</button>
+                    )}
+                    {operatorBriefing?.recommendedNextAction && <small>Next: {operatorBriefing.recommendedNextAction.title}</small>}
+                    {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
+                    {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}
+                  </article>
+
                   <article className="operator-summary-card operator-summary-card--primary">
                     <span className="operator-card-label">App health</span>
                     <div className="operator-card-title-row">
