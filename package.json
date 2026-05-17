@@ -30,7 +30,8 @@
     "test:mobile-tools-drawer": "node scripts/mobile-tools-drawer-smoke-test.mjs",
     "test:mobile-tools-tile-board": "node scripts/mobile-tools-tile-board-smoke-test.mjs",
     "test:mobile-tools-autodetect": "node scripts/mobile-tools-autodetect-smoke-test.mjs",
-    "test:mobile-tools-typography": "node scripts/mobile-tools-typography-smoke-test.mjs"
+    "test:mobile-tools-typography": "node scripts/mobile-tools-typography-smoke-test.mjs",
+    "test:mobile-tools-sticky-header": "node scripts/mobile-tools-sticky-header-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

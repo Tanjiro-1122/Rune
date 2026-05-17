@@ -2404,19 +2404,37 @@ button:disabled {
     grid-template-columns: 1fr;
     align-content: start;
     gap: 12px !important;
-    padding: 0 2px 4px !important;
+    padding: 0 2px 16px !important;
+    scroll-padding-top: 88px;
   }
 
   .mobile-tools-titlebar {
-    margin: -12px -12px 0 !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 24 !important;
+    margin: -12px -12px 8px !important;
     padding: 14px 14px 12px !important;
     border-radius: 30px 30px 20px 20px;
-    background: rgba(255, 255, 255, 0.88) !important;
+    border-bottom: 1px solid rgba(106, 78, 170, 0.1);
+    background: rgba(255, 255, 255, 0.94) !important;
+    box-shadow: 0 14px 28px rgba(39, 27, 64, 0.08);
   }
 
   .mobile-tools-titlebar span {
     font-size: 17px;
   }
+
+  .mobile-tools-titlebar::after {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: -9px;
+    height: 9px;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0));
+  }
+
 
   .mobile-tools-board-intro {
     display: grid;
