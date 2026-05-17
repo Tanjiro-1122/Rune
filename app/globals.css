@@ -2499,9 +2499,44 @@ button:disabled {
     display: none;
   }
 
+  .mobile-tools-project-tile .context-panel-header {
+    padding: 0.62rem 0.68rem;
+  }
+
+  .mobile-tools-project-tile .side-section-copy {
+    display: none;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-grid {
+    gap: 8px;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card {
+    min-height: 58px;
+    border-radius: 18px;
+    padding: 0.62rem 0.66rem;
+    background: rgba(255, 255, 255, 0.66);
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card span {
+    font-size: 0.78rem;
+    line-height: 1.05;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card small {
+    margin-top: 2px;
+    font-size: 0.62rem;
+    line-height: 1.18;
+  }
+
+  .mobile-tools-project-tile .project-switchboard-card em {
+    display: none;
+  }
+
   .mobile-tools-project-tile .project-safety-badge {
-    font-size: 0.55rem;
-    padding: 0.2rem 0.42rem;
+    margin-top: 6px;
+    font-size: 0.52rem;
+    padding: 0.18rem 0.38rem;
   }
 
   .mobile-tools-project-tile .project-switchboard-current {

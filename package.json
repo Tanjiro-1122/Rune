@@ -35,7 +35,8 @@
     "test:mobile-tools-active-drawer-jump": "node scripts/mobile-tools-active-drawer-jump-smoke-test.mjs",
     "test:mobile-tools-back-to-tools": "node scripts/mobile-tools-back-to-tools-smoke-test.mjs",
     "test:mobile-tools-scroll-offset": "node scripts/mobile-tools-scroll-offset-smoke-test.mjs",
-    "test:mobile-tools-active-status": "node scripts/mobile-tools-active-status-smoke-test.mjs"
+    "test:mobile-tools-active-status": "node scripts/mobile-tools-active-status-smoke-test.mjs",
+    "test:mobile-tools-project-switchboard": "node scripts/mobile-tools-project-switchboard-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
