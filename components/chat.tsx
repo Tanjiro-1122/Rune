@@ -858,6 +858,7 @@ export function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const operatorCommandRef = useRef<HTMLDivElement>(null);
   const operatorSummaryRef = useRef<HTMLDivElement>(null);
   const operatorProposalsRef = useRef<HTMLDivElement>(null);
@@ -1762,12 +1763,29 @@ export function Chat() {
   const isLoading = (isChatRequestInFlight && !isStreamFinalizing && !isStreamStalled) || isUploadingAttachment;
   const showBusyStatus = isChatRequestInFlight || isUploadingAttachment;
 
-  // Scroll to bottom when a response finishes or a new message is added.
+  // Scroll to bottom — fires during streaming AND on completion.
+  // Uses container scrollTop so it works reliably in overflow containers.
+  const userIsNearBottomRef = useRef(true);
   useEffect(() => {
-    if (status === "ready" || status === "error") {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    // Track whether user has manually scrolled up
+    function onScroll() {
+      const threshold = 120;
+      userIsNearBottomRef.current =
+        container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     }
-  }, [status, messages.length]);
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!userIsNearBottomRef.current) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages, status]);
 
   async function recoverStalledChatStream(reason: "watchdog" | "secondary") {
     if (!sessionId || !workspaceId || streamStallRecoveryInFlightRef.current) return;
@@ -2410,7 +2428,7 @@ export function Chat() {
           )}
         </div>
 
-        <div className="messages" data-builder-active={historyLoaded && messages.length === 0 ? "true" : undefined}>
+        <div className="messages" ref={messagesContainerRef} data-builder-active={historyLoaded && messages.length === 0 ? "true" : undefined}>
           {!historyLoaded ? (
             <div className="empty-state">
               <p>Loading workspace…</p>
