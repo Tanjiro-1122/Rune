@@ -72,6 +72,12 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
     const stage = typeof args?.action === "string" ? args.action : result?.action;
     return stage ? REPO_STAGE_LABELS[stage] ?? `Running ${humanizeToolName(stage)}` : TOOL_LABELS[name];
   }
+  if (name === "build_app") {
+    const stg = typeof args?.stage === "string" ? args.stage : "plan";
+    const labels: Record<string, string> = { plan: "Planning app", scaffold: "Scaffolding app", deploy: "Deploying app", status: "Checking pipeline" };
+    return labels[stg] ?? "Building app";
+  }
+  if (name === "get_app_intelligence") return "Fetching app intelligence";
   if (name === "queue_private_app_creator_deploy") return "Queueing private deploy";
   if (name === "prepare_app_creator_preview_handoff") return "Preparing preview handoff";
   if (name === "preview_app_creator_proposal") return "Previewing app proposal";
@@ -1626,6 +1632,139 @@ export function ToolCallCard({
               ? "Rune is using the lightweight response-lifecycle diagnostic instead of the full self-audit, so this card will not spin indefinitely."
               : "Rune finished the diagnostic tool call and is summarizing the result below."}
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── Build App Pipeline Card ───────────────────────────────────────────────
+
+interface BuildAppResult {
+  ok?: boolean;
+  stage?: string;
+  status?: string;
+  proposalId?: string;
+  appName?: string;
+  plan?: {
+    appName?: string;
+    platform?: string;
+    complexity?: string;
+    targetUsers?: string;
+    coreFeatures?: string[];
+    screens?: string[];
+    dataModel?: string[];
+  };
+  prUrl?: string;
+  prNumber?: number;
+  previewUrl?: string;
+  changedFiles?: string[];
+  message?: string;
+  nextAction?: string;
+  error?: string;
+}
+
+function BuildAppPipelineCard({
+  state,
+  args,
+  result,
+}: {
+  state: string;
+  args?: Record<string, unknown>;
+  result?: BuildAppResult;
+}) {
+  const stage = (result?.stage ?? args?.stage ?? "plan") as string;
+  const status = result?.status ?? (state === "result" ? "done" : "running");
+  const isPending = state !== "result";
+
+  const stageLabel: Record<string, string> = {
+    plan: "Planning app",
+    scaffold: "Scaffolding files",
+    deploy: "Deploying app",
+    status: "Pipeline status",
+  };
+  const statusColor: Record<string, string> = {
+    planned: "#7c3aed",
+    scaffolded: "#2563eb",
+    pr_open: "#2563eb",
+    deploying: "#d97706",
+    deployed: "#16a34a",
+    failed: "#dc2626",
+    awaiting_approval: "#d97706",
+  };
+  const color = statusColor[status] ?? "#6b7280";
+  const icon = isPending ? "⚙️" : result?.ok ? "✅" : "❌";
+
+  return (
+    <div className="tool-card" style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="tool-card-header">
+        <span className="tool-card-icon">{icon}</span>
+        <span className="tool-card-title">
+          {stageLabel[stage] ?? "App Creator Pipeline"}
+          {!isPending && result?.appName ? ` — ${result.appName}` : ""}
+        </span>
+        {isPending && <span className="tool-spinner" />}
+      </div>
+      {!isPending && result && (
+        <div className="tool-card-body" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
+          {result.status && (
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ color, fontWeight: 600 }}>{result.status.replace(/_/g, " ").toUpperCase()}</span>
+              {result.proposalId && (
+                <span style={{ color: "#6b7280", marginLeft: 8, fontSize: "0.75rem" }}>
+                  ID: {result.proposalId.slice(0, 8)}…
+                </span>
+              )}
+            </div>
+          )}
+          {result.plan && (
+            <div style={{ marginTop: 6 }}>
+              {result.plan.coreFeatures?.length ? (
+                <div style={{ marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>Features: </span>
+                  {result.plan.coreFeatures.slice(0, 4).join(", ")}
+                  {result.plan.coreFeatures.length > 4 ? ` +${result.plan.coreFeatures.length - 4} more` : ""}
+                </div>
+              ) : null}
+              {result.plan.screens?.length ? (
+                <div style={{ marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>Screens: </span>
+                  {result.plan.screens.slice(0, 4).join(", ")}
+                  {result.plan.screens.length > 4 ? ` +${result.plan.screens.length - 4} more` : ""}
+                </div>
+              ) : null}
+              {result.plan.platform && (
+                <div>
+                  <span style={{ fontWeight: 500 }}>Platform: </span>
+                  {result.plan.platform} · <span style={{ fontWeight: 500 }}>Complexity: </span>{result.plan.complexity}
+                </div>
+              )}
+            </div>
+          )}
+          {result.prUrl && (
+            <div style={{ marginTop: 6 }}>
+              <a href={result.prUrl} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#2563eb", textDecoration: "underline" }}>
+                View PR {result.prNumber ? `#${result.prNumber}` : ""}
+              </a>
+            </div>
+          )}
+          {result.changedFiles?.length ? (
+            <div style={{ marginTop: 4, color: "#6b7280", fontSize: "0.75rem" }}>
+              {result.changedFiles.length} file{result.changedFiles.length !== 1 ? "s" : ""} generated
+            </div>
+          ) : null}
+          {result.nextAction && (
+            <div style={{ marginTop: 6, color: "#6b7280", fontSize: "0.78rem", fontStyle: "italic" }}>
+              Next: {result.nextAction}
+            </div>
+          )}
+          {result.error && (
+            <div style={{ marginTop: 6, color: "#dc2626", fontSize: "0.78rem" }}>
+              Error: {result.error}
+            </div>
+          )}
         </div>
       )}
     </div>
