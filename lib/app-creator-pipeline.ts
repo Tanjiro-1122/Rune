@@ -332,7 +332,7 @@ async function stageDeploy(
     };
   }
 
-  const previewUrl = handoff.preview?.scaffoldReady
+  const previewUrl = handoff.previewHandoff?.ready
     ? `https://mrruneai.vercel.app`
     : undefined;
 
