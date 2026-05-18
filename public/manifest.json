@@ -1,6 +1,6 @@
 {
-  "name": "Jarvis — Private Workspace",
-  "short_name": "Jarvis",
+  "name": "Rune \u2014 Private Workspace",
+  "short_name": "Rune",
   "description": "Javier's private AI workspace.",
   "start_url": "/",
   "scope": "/",
@@ -8,7 +8,10 @@
   "orientation": "portrait-primary",
   "background_color": "#0a0f1e",
   "theme_color": "#0a0f1e",
-  "categories": ["productivity", "utilities"],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icons/icon.svg",

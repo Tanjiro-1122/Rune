@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <main className="page">
       <header className="hero">
-        <h1>Jarvis</h1>
+        <h1>Rune</h1>
         <span className="hero-divider" aria-hidden="true">·</span>
         <p>Sign in to continue</p>
       </header>

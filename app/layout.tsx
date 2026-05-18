@@ -2,13 +2,13 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Jarvis",
-  applicationName: "Jarvis",
+  title: "Rune",
+  applicationName: "Rune",
   description: "Javier's private AI workspace.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Jarvis",
+    title: "Rune",
     statusBarStyle: "black-translucent",
   },
   icons: {
@@ -41,7 +41,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Jarvis" />
+        <meta name="apple-mobile-web-app-title" content="Rune" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body>
@@ -55,11 +55,11 @@ export default function RootLayout({
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(function(reg) {
-        console.log('[Jarvis PWA] service worker registered', reg.scope);
-        window.__jarvisSwReg = reg;
+        console.log('[Rune PWA] service worker registered', reg.scope);
+        window.__runeSwReg = reg;
       })
       .catch(function(err) {
-        console.warn('[Jarvis PWA] service worker registration failed', err);
+        console.warn('[Rune PWA] service worker registration failed', err);
       });
   });
 })();

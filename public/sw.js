@@ -1,7 +1,7 @@
-// Jarvis Service Worker v1
+// Rune Service Worker v1
 // Handles push notifications and basic offline caching
 
-const CACHE_NAME = 'jarvis-v1';
+const CACHE_NAME = 'rune-v1';
 const OFFLINE_URL = '/';
 
 // Install — cache the shell
@@ -38,7 +38,7 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification received
 self.addEventListener('push', (event) => {
-  let data = { title: 'Jarvis', body: 'You have a new briefing.', url: '/' };
+  let data = { title: 'Rune', body: 'You have a new briefing.', url: '/' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {}
@@ -48,14 +48,14 @@ self.addEventListener('push', (event) => {
       body: data.body,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: 'jarvis-briefing',
+      tag: 'rune-briefing',
       renotify: true,
       data: { url: data.url || '/' },
     })
   );
 });
 
-// Notification click — open Jarvis
+// Notification click — open Rune
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
