@@ -1878,10 +1878,17 @@ export async function POST(req: Request) {
       })
       .passthrough();
 
+    // Accept real UUIDs, null, undefined, OR local-prefixed IDs (local-workspace-* / local-conversation-*)
+    // Local IDs are stripped to undefined so they don't get forwarded to Supabase but don't cause a 400.
     const OptionalUuidSchema = z
-      .union([z.string().uuid(), z.null()])
+      .union([z.string().uuid(), z.string().startsWith("local-"), z.null()])
       .optional()
-      .transform((value) => value ?? undefined);
+      .transform((value) => {
+        if (!value) return undefined;
+        // strip local IDs — they are ephemeral client-side tokens, not DB IDs
+        if (value.startsWith("local-")) return undefined;
+        return value;
+      });
 
     const ChatBodySchema = z.object({
       messages: z.array(MessageSchema).min(1),
