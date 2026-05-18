@@ -1679,6 +1679,88 @@ function getAgentTools({
         return result;
       },
     }),
+
+    save_memory: tool({
+      description:
+        "Save or update a memory to Rune's Supabase long-term memory store. Use this when Javier shares a decision, preference, project fact, rule, or any context worth remembering across sessions. Always save proactively — do not wait to be asked.",
+      parameters: z.object({
+        title: z.string().describe("Short unique title for this memory (max 180 chars)."),
+        content: z.string().describe("Full memory content to store."),
+        kind: z
+          .enum(["identity", "owner", "project", "rule", "workflow", "decision", "safety", "note"])
+          .optional()
+          .default("note")
+          .describe("Memory kind. Use 'decision' for choices made, 'rule' for standing instructions, 'project' for project facts, 'owner' for Javier preferences."),
+        project_key: z
+          .string()
+          .optional()
+          .default("global")
+          .describe("Project scope: 'global', 'rune', 'unfiltr', 'swh', 'unfiltr-family', or other project key."),
+        tags: z
+          .array(z.string())
+          .optional()
+          .default([])
+          .describe("Optional tags to help retrieval."),
+        priority: z
+          .number()
+          .min(1)
+          .max(10)
+          .optional()
+          .default(5)
+          .describe("Priority 1-10. Use 9-10 for critical rules/safety, 7-8 for key project facts, 5-6 for general notes."),
+      }),
+      execute: async ({ title, content, kind, project_key, tags, priority }) => {
+        const { upsertMemory } = await import("@/lib/memory");
+        const result = await upsertMemory({ title, content, kind, project_key, tags, priority, source: "rune-chat" });
+        if (!result.ok) return { saved: false, error: result.error };
+        return { saved: true, title, project_key, kind, priority };
+      },
+    }),
+
+    list_memories: tool({
+      description:
+        "List active memories from Rune's Supabase long-term memory store. Use this when Javier asks what Rune remembers, wants to inspect memory, or when you need to check existing memories before saving a new one.",
+      parameters: z.object({
+        query: z.string().optional().describe("Optional search query to filter relevant memories."),
+        project_key: z.string().optional().describe("Filter by project: 'global', 'rune', 'unfiltr', 'swh', etc."),
+      }),
+      execute: async ({ query, project_key }) => {
+        const { listActiveMemories } = await import("@/lib/memory");
+        const memories = await listActiveMemories({ query, projectKey: project_key, limit: 30 });
+        return {
+          count: memories.length,
+          memories: memories.map((m) => ({
+            title: m.title,
+            kind: m.kind,
+            project_key: m.project_key,
+            priority: m.priority,
+            content: m.content.slice(0, 300),
+            updated_at: m.updated_at,
+          })),
+        };
+      },
+    }),
+
+    forget_memory: tool({
+      description:
+        "Deactivate (soft-delete) a memory from Rune's Supabase long-term memory store by title. Use when Javier says to forget something, a fact is outdated, or a rule no longer applies. This does not permanently delete — it sets is_active to false.",
+      parameters: z.object({
+        title: z.string().describe("Exact title of the memory to deactivate."),
+        project_key: z.string().optional().default("global").describe("Project scope of the memory."),
+      }),
+      execute: async ({ title, project_key }) => {
+        const { getSupabaseClient } = await import("@/lib/supabase");
+        const supabase = getSupabaseClient();
+        if (!supabase) return { ok: false, error: "Supabase not configured." };
+        const { error } = await supabase
+          .from("agent_memories")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("title", title)
+          .eq("project_key", project_key ?? "global");
+        if (error) return { ok: false, error: error.message };
+        return { ok: true, forgotten: title };
+      },
+    }),
   };
 }
 
