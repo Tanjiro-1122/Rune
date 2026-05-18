@@ -1,4 +1,4 @@
-import { streamText, UIMessage, convertToCoreMessages, tool }
+import { streamText, UIMessage, convertToCoreMessages, tool } 
 
         proposeHandsAction: {
           description:
@@ -18,13 +18,7 @@ import { streamText, UIMessage, convertToCoreMessages, tool }
           }),
           execute: async ({ actionType, title, findings, plan, riskLevel, projectKey, rollbackNote }) => {
             const result = await proposeAction({
-              actionType,
-              title,
-              findings,
-              plan,
-              riskLevel,
-              projectKey,
-              rollbackNote,
+              actionType, title, findings, plan, riskLevel, projectKey, rollbackNote,
               sessionId: sessionId ?? null,
               workspaceId: workspaceId ?? null,
               conversationId: conversationId ?? null,
@@ -74,15 +68,12 @@ import { streamText, UIMessage, convertToCoreMessages, tool }
               riskLevel: p.risk_level,
               gatePhrase: p.gate_phrase,
               createdAt: p.created_at,
-              approvedAt: p.approved_at,
-              executedAt: p.executed_at,
               resultSummary: p.result_summary,
             }));
           },
         },
- from "ai";
+from "ai";
 import { openai } from "@ai-sdk/openai";
-import { proposeAction, approveProposal, getHandsProposal, listHandsProposals } from "@/lib/hands";
 import { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import {
