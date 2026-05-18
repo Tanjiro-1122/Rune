@@ -302,7 +302,7 @@ export async function createAppCreatorProposal(input: AppCreatorInput): Promise<
       error: "App idea is required.",
       message: "App Creator could not start because no app idea was provided.",
       safety: "no_action_taken",
-      nextAction: "Describe the app Javier wants Jarvis to create.",
+      nextAction: "Describe the app Javier wants Rune to create.",
     };
   }
 
@@ -326,7 +326,7 @@ export async function createAppCreatorProposal(input: AppCreatorInput): Promise<
     ].join("\n"),
     plan: blueprint,
     repo: input.repo || "Tanjiro-1122/Rune",
-    projectKey: input.projectKey || "jarvis",
+    projectKey: input.projectKey || "rune",
     riskLevel: riskForComplexity(plan.complexity),
     files,
     diffPreview: blueprint,
