@@ -402,7 +402,7 @@ function getDefaultWorkspaceId(workspaces: WorkspaceRow[]) {
 }
 
 function getSchemaNotice(message: string) {
-  return `Jarvis workspace tables are not available yet (${message}). Run the updated SQL from the README to enable persistent workspaces, indexed files, and saved artifacts.`;
+  return `Rune workspace tables are not available yet (${message}). Run the updated SQL from the README to enable persistent workspaces, indexed files, and saved artifacts.`;
 }
 
 function sanitizeText(input: string, maxChars = MAX_STORED_TEXT_CHARS) {
