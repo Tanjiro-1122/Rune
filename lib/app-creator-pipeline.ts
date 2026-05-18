@@ -252,7 +252,7 @@ async function stageScaffold(proposalId: string): Promise<PipelineRun> {
     };
   }
 
-  // Now bridge to PR
+  // Now bridge to PR — open a GitHub PR from the scaffold patch
   const bridge = await runAppCreatorScaffoldBridge({ proposalId, openPr: true, trackPr: true });
   const prUrl = bridge.prUrl ?? (result.proposal?.draft_metadata?.prUrl as string | undefined) ?? null;
   const prNumber = prUrl ? parseInt(prUrl.split("/").pop() ?? "0") : undefined;
