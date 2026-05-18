@@ -1,4 +1,5 @@
-export type ExternalServiceStatus = "configured" | "partial" | "missing";
+export type ExternalServiceStatus = "configured" | "partial" | "missing" | "not_applicable";
+export type ProjectPlatform = "ios" | "android" | "web";
 
 export interface ExternalServiceCheck {
   key: "revenuecat" | "app_store_connect" | "google_play";
@@ -33,10 +34,20 @@ function statusFrom(required: string[], optional: string[] = []): ExternalServic
 function serviceSummary(label: string, status: ExternalServiceStatus) {
   if (status === "configured") return `${label} read-only credentials appear configured.`;
   if (status === "partial") return `${label} has partial configuration; read-only inspection may be limited.`;
+  if (status === "not_applicable") return `${label} is not applicable for this project's platform(s).`;
   return `${label} is not configured yet.`;
 }
 
-export function getExternalServicesHealth(): ExternalServiceCheck[] {
+export interface ExternalServicesHealthOptions {
+  /** Platforms this project runs on. If ["ios"] only, Google Play check is skipped. */
+  platforms?: ProjectPlatform[];
+}
+
+export function getExternalServicesHealth(options: ExternalServicesHealthOptions = {}): ExternalServiceCheck[] {
+  const platforms = options.platforms ?? [];
+  const isIosOnly = platforms.length > 0 && platforms.every((p) => p === "ios");
+  const hasAndroid = platforms.length === 0 || platforms.includes("android");
+
   const revenueCatRequired = [process.env.REVENUECAT_SECRET_KEY ? "REVENUECAT_SECRET_KEY" : process.env.JARVIS_REVENUECAT_API_KEY ? "JARVIS_REVENUECAT_API_KEY" : "REVENUECAT_API_KEY"];
   const revenueCatOptional = [
     "REVENUECAT_PROJECT_ID",
@@ -53,14 +64,26 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
   ];
   const appStoreOptional = ["APP_STORE_CONNECT_VENDOR_NUMBER", "APP_STORE_CONNECT_APP_ID", "JARVIS_APP_STORE_CONNECT_APP_ID"];
 
-  const googlePlayRequiredAlternatives = ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "JARVIS_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "JARVIS_GOOGLE_APPLICATION_CREDENTIALS"];
-  const googlePlayPackageKeys = ["GOOGLE_PLAY_PACKAGE_NAME", "JARVIS_GOOGLE_PLAY_PACKAGE_NAME"];
-  const googlePlayConfigured = configuredKeys(googlePlayRequiredAlternatives);
-  const googlePlayPackageConfigured = configuredKeys(googlePlayPackageKeys);
-  const googlePlayStatus: ExternalServiceStatus = googlePlayConfigured.length && googlePlayPackageConfigured.length ? "configured" : googlePlayConfigured.length || googlePlayPackageConfigured.length ? "partial" : "missing";
-
   const revenueCatStatus = statusFrom(revenueCatRequired, revenueCatOptional);
   const appStoreStatus = statusFrom(appStoreRequired, appStoreOptional);
+
+  // Google Play — skip entirely for iOS-only projects
+  let googlePlayStatus: ExternalServiceStatus = "not_applicable";
+  let googlePlayConfiguredKeys: string[] = [];
+  let googlePlayMissingKeys: string[] = [];
+
+  if (hasAndroid) {
+    const googlePlayRequiredAlternatives = ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "JARVIS_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "JARVIS_GOOGLE_APPLICATION_CREDENTIALS"];
+    const googlePlayPackageKeys = ["GOOGLE_PLAY_PACKAGE_NAME", "JARVIS_GOOGLE_PLAY_PACKAGE_NAME"];
+    const gpConfigured = configuredKeys(googlePlayRequiredAlternatives);
+    const gpPackageConfigured = configuredKeys(googlePlayPackageKeys);
+    googlePlayStatus = gpConfigured.length && gpPackageConfigured.length ? "configured" : gpConfigured.length || gpPackageConfigured.length ? "partial" : "missing";
+    googlePlayConfiguredKeys = [...gpConfigured, ...gpPackageConfigured];
+    googlePlayMissingKeys = [
+      ...(gpConfigured.length ? [] : ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS"]),
+      ...(gpPackageConfigured.length ? [] : ["GOOGLE_PLAY_PACKAGE_NAME"]),
+    ];
+  }
 
   return [
     {
@@ -95,13 +118,15 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
       status: googlePlayStatus,
       summary: serviceSummary("Google Play", googlePlayStatus),
       readOnly: true,
-      configuredKeys: [...googlePlayConfigured, ...googlePlayPackageConfigured],
-      missingKeys: [...(googlePlayConfigured.length ? [] : ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS"]), ...(googlePlayPackageConfigured.length ? [] : ["GOOGLE_PLAY_PACKAGE_NAME"])],
-      notes: [
-        "Use for reviews/products/subscription visibility only until mutation tools are explicitly approved.",
-        "Release tracks require Google Play edit sessions and are blocked until explicitly approved.",
-        "Service account JSON content/path values are never returned by this health check.",
-      ],
+      configuredKeys: googlePlayConfiguredKeys,
+      missingKeys: googlePlayMissingKeys,
+      notes: isIosOnly
+        ? ["Project is iOS-only — Google Play check skipped by design."]
+        : [
+            "Use for reviews/products/subscription visibility only until mutation tools are explicitly approved.",
+            "Release tracks require Google Play edit sessions and are blocked until explicitly approved.",
+            "Service account JSON content/path values are never returned by this health check.",
+          ],
     },
   ];
 }
@@ -109,7 +134,7 @@ export function getExternalServicesHealth(): ExternalServiceCheck[] {
 export function summarizeExternalServicesHealth(checks = getExternalServicesHealth()) {
   const configured = checks.filter((check) => check.status === "configured").length;
   const partial = checks.filter((check) => check.status === "partial").length;
+  // not_applicable does not count as missing
   const missing = checks.filter((check) => check.status === "missing").length;
   return { configured, partial, missing, total: checks.length };
 }
-

@@ -2,6 +2,8 @@ import { getBuildIntelligenceSnapshot, type BuildIntelligenceSnapshot } from "@/
 import { getRevenueCatSubscriberReadOnly, type RevenueCatReadOnlyResult } from "@/lib/revenuecat-readonly";
 import { getAppStoreConnectReadOnlySummary, type AppStoreConnectReadOnlyResult } from "@/lib/app-store-connect-readonly";
 import { getGooglePlayReadOnlySummary, type GooglePlayReadOnlyResult } from "@/lib/google-play-readonly";
+import { getExternalServicesHealth, summarizeExternalServicesHealth, type ProjectPlatform } from "@/lib/external-services-health";
+import { getProjectByKey } from "@/lib/project-registry";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 
@@ -64,6 +66,11 @@ function addServiceSignal(findings: string[], blockers: string[], label: string,
 
 export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {}): Promise<AppHealthSnapshot> {
   const projectKey = options.projectKey || "unfiltr";
+
+  // Resolve platform flags from project registry
+  const registryProject = getProjectByKey(projectKey);
+  const platforms: ProjectPlatform[] = (registryProject?.platforms ?? []) as ProjectPlatform[];
+
   const [buildResult, revenueCatResult, appStoreResult, googlePlayResult] = await Promise.allSettled([
     getBuildIntelligenceSnapshot({ projectKey, repo: options.repo }),
     options.revenueCatAppUserId ? getRevenueCatSubscriberReadOnly(options.revenueCatAppUserId) : Promise.resolve(undefined),
@@ -100,10 +107,20 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
   else findings.push("RevenueCat subscriber: skipped because no app user ID was provided.");
 
   addServiceSignal(findings, blockers, "App Store Connect", appStoreConnect);
-  addServiceSignal(findings, blockers, "Google Play", googlePlay);
 
-  const externalMissing = build.externalServices.summary.missing;
-  const externalPartial = build.externalServices.summary.partial;
+  // Only flag Google Play if this project has Android presence
+  const isIosOnly = platforms.length > 0 && platforms.every((p) => p === "ios");
+  if (isIosOnly) {
+    findings.push("Google Play: not applicable — project is iOS-only.");
+  } else {
+    addServiceSignal(findings, blockers, "Google Play", googlePlay);
+  }
+
+  // External services check — pass platforms so Google Play missing keys are not counted for iOS-only
+  const externalChecks = getExternalServicesHealth({ platforms });
+  const externalSummary = summarizeExternalServicesHealth(externalChecks);
+  const externalMissing = externalSummary.missing;
+  const externalPartial = externalSummary.partial;
   if (externalMissing > 0) warnings.push(`${externalMissing} external service readiness check(s) are missing configuration.`);
   if (externalPartial > 0) warnings.push(`${externalPartial} external service readiness check(s) are partially configured.`);
 
@@ -151,10 +168,11 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
         readOnly: true,
         status,
         score,
+        platforms,
         repo: build.github.repo,
         revenueCatChecked: Boolean(revenueCat),
         appStoreConnectOk: appStoreConnect.ok,
-        googlePlayOk: googlePlay.ok,
+        googlePlayOk: isIosOnly ? null : googlePlay.ok,
         blockers: snapshot.blockers.slice(0, 8),
       },
     });

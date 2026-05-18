@@ -1,4 +1,5 @@
 export type RuneProjectKey = "rune" | "unfiltr" | "swh" | "family";
+export type ProjectPlatform = "ios" | "android" | "web";
 
 export type JarvisProject = {
   key: RuneProjectKey;
@@ -8,6 +9,8 @@ export type JarvisProject = {
   description: string;
   safetyLevel: "owner-console" | "production-app" | "sensitive-production-app";
   aliases: string[];
+  /** Platforms this project is actually deployed on. Empty means unknown/all. */
+  platforms: ProjectPlatform[];
 };
 
 export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
@@ -19,6 +22,7 @@ export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
     description:
       "Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
     safetyLevel: "owner-console",
+    platforms: ["web"],
     aliases: ["jarvis", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console"],
   },
   {
@@ -27,8 +31,9 @@ export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
     canonicalName: "Unfiltr by Javier",
     repo: "Tanjiro-1122/UniltrbyJavierbackup",
     description:
-      "AI companion and mental wellness app. Production changes affect real users and must be handled behind approval gates.",
+      "AI companion and mental wellness app. iOS-only — no Android/Google Play presence. Production changes affect real users and must be handled behind approval gates.",
     safetyLevel: "sensitive-production-app",
+    platforms: ["ios"],
     aliases: ["unfiltr", "unfiltr by javier", "main app", "ai companion", "mental wellness app"],
   },
   {
@@ -39,6 +44,7 @@ export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
     description:
       "SportsWager Helper mobile/web project. Production changes require repo review and approval before execution.",
     safetyLevel: "production-app",
+    platforms: ["android", "web"],
     aliases: ["swh", "sportswager helper", "sports wager helper", "sports app"],
   },
   {
@@ -49,6 +55,7 @@ export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
     description:
       "Separate elderly-care companion platform. Treat as a distinct production project from Unfiltr by Javier.",
     safetyLevel: "sensitive-production-app",
+    platforms: [],
     aliases: ["family", "unfiltr family", "elderly care", "elderly-care companion", "family app"],
   },
 ];
@@ -150,8 +157,8 @@ export function resolveCanonicalRepo(input: string | null | undefined, textHint?
 export function buildProjectRegistryPromptSection() {
   const projectLines = RUNE_CANONICAL_PROJECTS.map(
     (project) =>
-      `- ${project.label}: repo \`${project.repo}\`; ${project.description} Safety: ${project.safetyLevel}.`
+      `- ${project.label}: repo \`${project.repo}\`; ${project.description} Safety: ${project.safetyLevel}. Platforms: ${project.platforms.length ? project.platforms.join(", ") : "unknown"}.`
   ).join("\n");
 
-  return `## Canonical Project Registry\n${projectLines}\n\n## Brain Grounding Rules\n- If Javier asks about "your repo", "your own repo", "Jarvis code", "this app", or "read yourself", use \`${RUNE_DEFAULT_REPO}\`. Never guess \`javierhuertas/jarvis\` or invent owner/repo names.\n- If Javier mentions Unfiltr, use \`Tanjiro-1122/UniltrbyJavierbackup\`.\n- If Javier mentions SWH or SportsWager Helper, use \`Tanjiro-1122/swhmobile\`.\n- If Javier mentions Unfiltr Family or elderly-care companion, use \`Tanjiro-1122/UnfiltrFamily\`.\n- If the requested project is not in this registry, ask for the repo slug instead of guessing.\n- Be capability-accurate: separate what is verified, partially wired, requires env/schema setup, and not connected yet.\n\n## Real Capability Snapshot\nCurrently real/wired foundations:\n${JARVIS_REAL_CAPABILITIES.map((item) => `- ${item}`).join("\n")}\n\nNot connected yet:\n${JARVIS_NOT_CONNECTED_YET.map((item) => `- ${item}`).join("\n")}\n\nActions requiring explicit Javier approval before execution:\n${JARVIS_APPROVAL_REQUIRED_ACTIONS.map((item) => `- ${item}`).join("\n")}`;
+  return `## Canonical Project Registry\n${projectLines}\n\n## Brain Grounding Rules\n- If Javier asks about "your repo", "your own repo", "Jarvis code", "this app", or "read yourself", use \`${RUNE_DEFAULT_REPO}\`. Never guess \`javierhuertas/jarvis\` or invent owner/repo names.\n- If Javier mentions Unfiltr, use \`Tanjiro-1122/UniltrbyJavierbackup\`.\n- If Javier mentions SWH or SportsWager Helper, use \`Tanjiro-1122/swhmobile\`.\n- If Javier mentions Unfiltr Family or elderly-care companion, use \`Tanjiro-1122/UnfiltrFamily\`.\n- Unfiltr is iOS-only — never expect Google Play credentials for Unfiltr.\n- If the requested project is not in this registry, ask for the repo slug instead of guessing.\n- Be capability-accurate: separate what is verified, partially wired, requires env/schema setup, and not connected yet.\n\n## Real Capability Snapshot\nCurrently real/wired foundations:\n${JARVIS_REAL_CAPABILITIES.map((item) => `- ${item}`).join("\n")}\n\nNot connected yet:\n${JARVIS_NOT_CONNECTED_YET.map((item) => `- ${item}`).join("\n")}\n\nActions requiring explicit Javier approval before execution:\n${JARVIS_APPROVAL_REQUIRED_ACTIONS.map((item) => `- ${item}`).join("\n")}`;
 }
