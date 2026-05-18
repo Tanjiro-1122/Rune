@@ -4,9 +4,9 @@ import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 
-const MAX_UPLOAD_BYTES = Number(process.env.JARVIS_MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
-const DEFAULT_BUCKET = "jarvis-uploads";
-const SIGNED_URL_SECONDS = Number(process.env.JARVIS_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
+const MAX_UPLOAD_BYTES = Number(process.env.RUNE_MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
+const DEFAULT_BUCKET = "rune-uploads";
+const SIGNED_URL_SECONDS = Number(process.env.RUNE_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
 const SAFE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 function cleanText(value: unknown, maxChars = 500) {
@@ -52,7 +52,7 @@ async function ensureBucket(bucket: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const bucket = process.env.JARVIS_UPLOAD_BUCKET || DEFAULT_BUCKET;
+  const bucket = process.env.RUNE_UPLOAD_BUCKET || DEFAULT_BUCKET;
   const configured = await ensureBucket(bucket);
   if (!configured.ok || !configured.supabase) {
     return NextResponse.json(
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
       status: "info",
       approvalStage: "none",
       riskLevel: "low",
-      projectKey: "jarvis",
+      projectKey: "rune",
       sessionId,
       workspaceId,
       conversationId,

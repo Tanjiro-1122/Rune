@@ -41,7 +41,7 @@ export async function queueCliRunnerJob(options: {
       status: "blocked",
       approvalStage: "approval",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       workspaceId,
       conversationId: options.conversationId ?? null,
       metadata: { kind: options.kind, reason_blocked: "command_prefix_not_allowlisted", commandPreview: command.slice(0, 160) },
@@ -82,7 +82,7 @@ export async function queueCliRunnerJob(options: {
     status: "approved",
     approvalStage: "action",
     riskLevel: options.riskLevel || "high",
-    projectKey: "jarvis",
+    projectKey: "rune",
     workspaceId,
     conversationId: options.conversationId ?? null,
     metadata: { taskId, kind: options.kind, commandPreview: command.slice(0, 220), executionMode: "queued_only_no_local_execution" },
@@ -94,6 +94,6 @@ export async function queueCliRunnerJob(options: {
     task: await getWorkspaceTask(taskId),
     command,
     safety: "queued_only_no_local_execution",
-    message: "CLI runner job was queued for an external approved runner. Jarvis did not execute the command in the web runtime.",
+    message: "CLI runner job was queued for an external approved runner. Rune did not execute the command in the web runtime.",
   };
 }

@@ -25,9 +25,9 @@ const TOOL_LABELS: Record<string, string> = {
   listRepositoryTree: "Listing GitHub repository files",
   get_current_datetime: "Checking date and time",
   calculate: "Calculating",
-  get_jarvis_capability_snapshot: "Checking Jarvis capabilities",
-  get_jarvis_self_audit_snapshot: "Running Jarvis self-audit",
-  get_tool_lifecycle_diagnostic: "Checking Jarvis response lifecycle",
+  get_rune_capability_snapshot: "Checking Rune capabilities",
+  get_rune_self_audit_snapshot: "Running Rune self-audit",
+  get_tool_lifecycle_diagnostic: "Checking Rune response lifecycle",
   inspect_deployment_control: "Checking deployment control",
   prepare_deployment_control_action: "Preparing deployment approval",
   execute_deployment_control_action: "Running approved deployment action",
@@ -89,8 +89,8 @@ function getToolDisplayLabel(name: string, args?: Record<string, unknown>, resul
 }
 
 const LONG_FORM_DIAGNOSTIC_TOOLS = new Set([
-  "get_jarvis_self_audit_snapshot",
-  "get_jarvis_capability_snapshot",
+  "get_rune_self_audit_snapshot",
+  "get_rune_capability_snapshot",
   "get_tool_lifecycle_diagnostic",
 ]);
 
@@ -439,7 +439,7 @@ function SessionFragmentAuditCard({ state, result }: { state: ToolInvocation["st
     <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
       <div className="tool-card-header">
         <span className="tool-card-icon">{isPending ? "🔎" : failed ? "🚧" : fragments > 0 ? "🧩" : "🟢"}</span>
-        <span className="tool-card-title">Jarvis session fragmentation audit</span>
+        <span className="tool-card-title">Rune session fragmentation audit</span>
         {isPending && <span className="tool-spinner" />}
       </div>
       <div className="tool-card-body tool-card-body--stacked">
@@ -516,7 +516,7 @@ function SessionFragmentMergePlanCard({ state, result }: { state: ToolInvocation
     <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
       <div className="tool-card-header">
         <span className="tool-card-icon">{isPending ? "🧭" : failed ? "🚧" : "🧩"}</span>
-        <span className="tool-card-title">Jarvis fragmented session merge plan</span>
+        <span className="tool-card-title">Rune fragmented session merge plan</span>
         {isPending && <span className="tool-spinner" />}
       </div>
       <div className="tool-card-body tool-card-body--stacked">
@@ -579,7 +579,7 @@ function SessionFragmentMergeExecutionCard({ state, result }: { state: ToolInvoc
     <div className={`tool-card tool-card--app-health ${isPending ? "tool-card--pending" : ""} ${failed ? "tool-card--failed" : ""}`}>
       <div className="tool-card-header">
         <span className="tool-card-icon">{isPending ? "🔐" : failed ? "🚧" : result?.executed ? "✅" : "🟢"}</span>
-        <span className="tool-card-title">Jarvis approved session merge</span>
+        <span className="tool-card-title">Rune approved session merge</span>
         {isPending && <span className="tool-spinner" />}
       </div>
       <div className="tool-card-body tool-card-body--stacked">
@@ -1464,7 +1464,7 @@ export function ToolCallCard({
   }
 
 
-  if (invocation.toolName === "audit_jarvis_session_fragments") {
+  if (invocation.toolName === "audit_rune_session_fragments") {
     return (
       <SessionFragmentAuditCard
         state={invocation.state}
@@ -1474,7 +1474,7 @@ export function ToolCallCard({
   }
 
 
-  if (invocation.toolName === "plan_jarvis_fragmented_session_merge") {
+  if (invocation.toolName === "plan_rune_fragmented_session_merge") {
     return (
       <SessionFragmentMergePlanCard
         state={invocation.state}
@@ -1484,7 +1484,7 @@ export function ToolCallCard({
   }
 
 
-  if (invocation.toolName === "execute_jarvis_session_merge") {
+  if (invocation.toolName === "execute_rune_session_merge") {
     return (
       <SessionFragmentMergeExecutionCard
         state={invocation.state}
@@ -1623,8 +1623,8 @@ export function ToolCallCard({
         <div className="tool-card-body">
           <p className="tool-card-note">
             {showLifecycleFallback
-              ? "Jarvis is using the lightweight response-lifecycle diagnostic instead of the full self-audit, so this card will not spin indefinitely."
-              : "Jarvis finished the diagnostic tool call and is summarizing the result below."}
+              ? "Rune is using the lightweight response-lifecycle diagnostic instead of the full self-audit, so this card will not spin indefinitely."
+              : "Rune finished the diagnostic tool call and is summarizing the result below."}
           </p>
         </div>
       )}

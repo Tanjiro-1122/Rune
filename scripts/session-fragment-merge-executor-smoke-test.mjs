@@ -16,8 +16,8 @@ const executorStart = lib.indexOf("export type SessionFragmentMergeExecutionResu
 assert(executorStart > 0, "merge executor result type exists");
 const executor = lib.slice(executorStart);
 
-assert(executor.includes("executeJarvisSessionFragmentMerge"), "merge executor function exists");
-assert(executor.includes('approvalPhrase !== "APPROVE JARVIS SESSION MERGE"'), "executor requires exact approval phrase");
+assert(executor.includes("executeRuneSessionFragmentMerge"), "merge executor function exists");
+assert(executor.includes('approvalPhrase !== "APPROVE RUNE SESSION MERGE"'), "executor requires exact approval phrase");
 assert(executor.includes("Blocked: exact approval phrase was not provided."), "wrong phrase is blocked before mutations");
 assert(executor.includes('from("conversations")'), "executor can update conversation ownership metadata");
 assert(executor.includes('from("workspaces")'), "executor can update workspace ownership metadata");
@@ -33,9 +33,9 @@ assert(executor.includes("schemaMutationsPerformed: 0"), "executor reports zero 
 assert(!executor.includes('.delete('), "executor contains no delete calls");
 assert(!executor.includes('rpc('), "executor contains no RPC calls");
 
-assert(chat.includes("execute_jarvis_session_merge"), "chat exposes approved merge executor tool");
+assert(chat.includes("execute_rune_session_merge"), "chat exposes approved merge executor tool");
 assert(chat.includes("approvalPhrase: z.string"), "chat tool requires explicit approval phrase parameter");
-assert(chat.includes("Must exactly equal APPROVE JARVIS SESSION MERGE"), "tool schema documents exact phrase");
+assert(chat.includes("Must exactly equal APPROVE RUNE SESSION MERGE"), "tool schema documents exact phrase");
 assert(chat.includes("must never read message content, update message rows, delete rows, mutate schema"), "system prompt states executor boundaries");
 
 assert(ui.includes("SessionFragmentMergeExecutionCard"), "execution UI card exists");

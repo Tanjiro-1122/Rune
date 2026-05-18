@@ -1,5 +1,5 @@
 /**
- * Jarvis application error types and utilities.
+ * Rune application error types and utilities.
  * Provides consistent error handling across API routes and services.
  */
 
@@ -53,8 +53,8 @@ export function logError(context: string, err: unknown): void {
       ? { cause: String(err.cause) }
       : undefined;
   if (extra) {
-    console.error(`[Jarvis:${context}] ${code}: ${msg}`, extra);
+    console.error(`[Rune:${context}] ${code}: ${msg}`, extra);
   } else {
-    console.error(`[Jarvis:${context}] ${code}: ${msg}`);
+    console.error(`[Rune:${context}] ${code}: ${msg}`);
   }
 }

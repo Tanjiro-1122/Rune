@@ -6,7 +6,7 @@ This document records the Brain phase foundation for Jarvis as Javier's private 
 
 1. **Brain Patch 1 — Project Registry**
    - Canonical projects: Jarvis, Unfiltr, SWH, Unfiltr Family.
-   - Default self-repo: `Tanjiro-1122/Jarvis`.
+   - Default self-repo: `Tanjiro-1122/Rune`.
    - Prevents guessed repo names.
 
 2. **Brain Patch 2 — Capability Truth Layer**

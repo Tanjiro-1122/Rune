@@ -21,7 +21,7 @@ import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/
 import { getOwnerMemorySection } from "@/lib/owner-memory";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { buildSupabaseMemorySection } from "@/lib/memory";
-import { auditJarvisSessionFragments, planJarvisSessionFragmentMerge, executeJarvisSessionFragmentMerge } from "@/lib/session-fragment-audit";
+import { auditRuneSessionFragments, planRuneSessionFragmentMerge, executeRuneSessionFragmentMerge } from "@/lib/session-fragment-audit";
 import {
   buildPlannerOutput,
   formatCodeExecutionSummary,
@@ -38,7 +38,7 @@ import {
   updateWorkspaceTaskStep,
 } from "@/lib/tasks";
 import {
-  JARVIS_DEFAULT_REPO,
+  RUNE_DEFAULT_REPO,
   buildProjectRegistryPromptSection,
   inferProjectFromText,
   resolveCanonicalRepo,
@@ -111,7 +111,7 @@ async function withChatFinishTimeout<T>(
 const chatRateWindow = new Map<string, number[]>();
 
 function getMaxChatRequestsPerMinute() {
-  const raw = process.env.JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE;
+  const raw = process.env.RUNE_CHAT_MAX_REQUESTS_PER_MINUTE;
   if (!raw) return 20;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return 20;
@@ -137,14 +137,14 @@ function cleanupRateWindow(now: number) {
 const MAX_TASK_SUMMARY_LENGTH = 240;
 
 function getGithubToken() {
-  return process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  return process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
 }
 
 function getOctokitClient() {
   const githubToken = getGithubToken();
   return new Octokit({
     ...(githubToken ? { auth: githubToken } : {}),
-    userAgent: "Jarvis-Super-Agent/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
+    userAgent: "Rune-Super-Agent/1.0 (+https://github.com/Tanjiro-1122/Rune)",
   });
 }
 
@@ -436,7 +436,7 @@ function isGitHubSourceInspectionIntent(input: string) {
   const trimmed = input.trim();
   if (!trimmed) return false;
   const asksForSource = /\b(source|code|file|files|filename|filenames|implementation|exact|snippet|snippets|read|inspect|search|grep|find)\b/i.test(trimmed);
-  const mentionsRepoSurface = /\b(github|repo|repository|jarvis|source file|codebase|sendMessage|useChat|AbortController|streaming|Task running|pendingTasks|runningTasks|taskComplete|streamComplete)\b/i.test(trimmed);
+  const mentionsRepoSurface = /\b(github|repo|repository|rune|source file|codebase|sendMessage|useChat|AbortController|streaming|Task running|pendingTasks|runningTasks|taskComplete|streamComplete)\b/i.test(trimmed);
   const asksAgainstFakePaths = /\b(no summaries|actual code|actual snippets|filenames only|complete source|exact implementation|do not guess|don't guess|no placeholder|placeholder path)\b/i.test(trimmed);
   return asksForSource && (mentionsRepoSurface || asksAgainstFakePaths);
 }
@@ -452,10 +452,10 @@ function isWebSearchIntent(input: string) {
   );
 }
 
-const JARVIS_SESSION_MERGE_APPROVAL_PHRASE = "APPROVE JARVIS SESSION MERGE";
+const RUNE_SESSION_MERGE_APPROVAL_PHRASE = "APPROVE RUNE SESSION MERGE";
 
-function isApprovedJarvisSessionMergeIntent(input: string) {
-  return input.includes(JARVIS_SESSION_MERGE_APPROVAL_PHRASE);
+function isApprovedRuneSessionMergeIntent(input: string) {
+  return input.includes(RUNE_SESSION_MERGE_APPROVAL_PHRASE);
 }
 
 function getForcedToolChoice(
@@ -469,14 +469,14 @@ function getForcedToolChoice(
         | "calculate"
         | "get_current_datetime"
         | "analyze_github_repo"
-        | "get_jarvis_capability_snapshot"
-        | "get_jarvis_self_audit_snapshot"
+        | "get_rune_capability_snapshot"
+        | "get_rune_self_audit_snapshot"
         | "get_tool_lifecycle_diagnostic"
-        | "execute_jarvis_session_merge";
+        | "execute_rune_session_merge";
     }
   | null {
-  if (isApprovedJarvisSessionMergeIntent(input)) {
-    return { type: "tool", toolName: "execute_jarvis_session_merge" };
+  if (isApprovedRuneSessionMergeIntent(input)) {
+    return { type: "tool", toolName: "execute_rune_session_merge" };
   }
   if (isFrozenDiagnosticIntent(input)) {
     return { type: "tool", toolName: "get_tool_lifecycle_diagnostic" };
@@ -517,8 +517,8 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
     );
   }
 
-  if (isApprovedJarvisSessionMergeIntent(input)) {
-    hints.push("- Strong routing signal: exact Jarvis session merge approval phrase detected, so call `execute_jarvis_session_merge` with that exact approval phrase. Do not call capability snapshot first.");
+  if (isApprovedRuneSessionMergeIntent(input)) {
+    hints.push("- Strong routing signal: exact Rune session merge approval phrase detected, so call `execute_rune_session_merge` with that exact approval phrase. Do not call capability snapshot first.");
   } else if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     hints.push(
       "- Strong routing signal: this request is execution-oriented, so use `execute_code` before giving analysis."
@@ -553,7 +553,7 @@ function sanitizeAttachmentName(name: string | undefined) {
 /**
  * Validates whether an image URL is safe to forward to the AI model.
  *
- * When JARVIS_ALLOWED_IMAGE_HOSTS is set (comma-separated hostnames) only those
+ * When RUNE_ALLOWED_IMAGE_HOSTS is set (comma-separated hostnames) only those
  * hosts are accepted.  Without that variable any well-formed HTTPS URL is
  * allowed — operators should set the allowlist in production to prevent
  * arbitrary external URLs (tracker pixels, oversized images, etc.) from being
@@ -568,7 +568,7 @@ function isSafeImageUrl(url: string): boolean {
   }
   if (parsed.protocol !== "https:") return false;
 
-  const allowedHostsEnv = process.env.JARVIS_ALLOWED_IMAGE_HOSTS;
+  const allowedHostsEnv = process.env.RUNE_ALLOWED_IMAGE_HOSTS;
   if (allowedHostsEnv) {
     const allowedHosts = new Set(
       allowedHostsEnv.split(",").map((h) => h.trim()).filter(Boolean)
@@ -577,14 +577,14 @@ function isSafeImageUrl(url: string): boolean {
   }
 
   // No allowlist configured — permit any HTTPS URL.
-  // Set JARVIS_ALLOWED_IMAGE_HOSTS to restrict to trusted hosts in production.
+  // Set RUNE_ALLOWED_IMAGE_HOSTS to restrict to trusted hosts in production.
   return true;
 }
 
 const baseAgentTools = {
-  get_jarvis_capability_snapshot: tool({
+  get_rune_capability_snapshot: tool({
     description:
-      "Return a safe, non-secret truth snapshot of Jarvis capabilities, configuration readiness, missing setup, not-connected integrations, canonical projects, and approval rules. Use this before answering capability, setup, self-assessment, or owner-console planning questions.",
+      "Return a safe, non-secret truth snapshot of Rune capabilities, configuration readiness, missing setup, not-connected integrations, canonical projects, and approval rules. Use this before answering capability, setup, self-assessment, or owner-console planning questions.",
     parameters: z.object({}),
     execute: async () => getCapabilityTruthSnapshot(),
   }),
@@ -592,18 +592,18 @@ const baseAgentTools = {
 
   get_tool_lifecycle_diagnostic: tool({
     description:
-      "Run a fast, no-network diagnostic for Jarvis freeze/stuck/question-mark delayed-answer symptoms. Use this instead of full self-audit when Javier reports that Jarvis froze, got stuck, or only answered after sending a question mark.",
+      "Run a fast, no-network diagnostic for Rune freeze/stuck/question-mark delayed-answer symptoms. Use this instead of full self-audit when Javier reports that Rune froze, got stuck, or only answered after sending a question mark.",
     parameters: z.object({
       symptom: z.string().max(240).optional().default("freeze/stuck/question-mark delayed answer"),
     }),
     execute: async ({ symptom }) => getToolLifecycleDiagnostic(symptom),
   }),
 
-  get_jarvis_self_audit_snapshot: tool({
+  get_rune_self_audit_snapshot: tool({
     description:
       "Run Jarvis Self-Audit Mode. Returns a structured, non-secret report covering identity, project map, capability truth, deploy/config health, codebase signals, safety gates, not-connected integrations, and the recommended next patch. Use this for explicit self-audits, system health checks, and 'are you ready' questions. Do not use for freeze/stuck/question-mark delayed-answer symptoms; use get_tool_lifecycle_diagnostic instead.",
     parameters: z.object({
-      scope: z.enum(["jarvis-brain", "full-owner-console"]).optional().default("jarvis-brain"),
+      scope: z.enum(["rune-brain", "full-owner-console"]).optional().default("rune-brain"),
     }),
     execute: async ({ scope }) => getSelfAuditSnapshot(scope),
   }),
@@ -631,7 +631,7 @@ const baseAgentTools = {
     description:
       "Inspect App Store Connect for the configured app in strict read-only mode. Use when Javier asks about iOS builds, TestFlight/build processing, App Store versions, review/release status, or App Store Connect status. This tool only reads builds and versions; it never submits, releases, edits metadata, expires builds, or mutates App Store Connect.",
     parameters: z.object({
-      appId: z.string().min(1).max(64).optional().describe("Optional App Store Connect app ID override. Omit to use the configured Jarvis app ID."),
+      appId: z.string().min(1).max(64).optional().describe("Optional App Store Connect app ID override. Omit to use the configured Rune app ID."),
     }),
     execute: async ({ appId }) => {
       const result = await getAppStoreConnectReadOnlySummary(appId);
@@ -650,7 +650,7 @@ const baseAgentTools = {
     description:
       "Inspect Google Play in strict read-only mode. Use when Javier asks about Android/Google Play status, reviews, subscriptions, in-app products, or Play Console readiness. This tool uses GET-only Android Publisher endpoints after OAuth token exchange. It does not open edits, change release tracks, submit builds, publish, rollout, halt releases, or mutate Google Play. Release-track visibility is explicitly blocked because Google exposes it through edit sessions.",
     parameters: z.object({
-      packageName: z.string().min(1).max(220).optional().describe("Optional Android package name override. Omit to use the configured Jarvis package name."),
+      packageName: z.string().min(1).max(220).optional().describe("Optional Android package name override. Omit to use the configured Rune package name."),
     }),
     execute: async ({ packageName }) => {
       const result = await getGooglePlayReadOnlySummary(packageName);
@@ -686,29 +686,29 @@ const baseAgentTools = {
   }),
 
 
-  audit_jarvis_session_fragments: tool({
+  audit_rune_session_fragments: tool({
     description:
-      "Run a strict read-only audit of Jarvis workspace/session fragmentation after the unified owner-session fix. Returns only session IDs, counts, timestamps, and workspace names. It never reads message content and never inserts, updates, deletes, merges, or mutates schema.",
+      "Run a strict read-only audit of Rune workspace/session fragmentation after the unified owner-session fix. Returns only session IDs, counts, timestamps, and workspace names. It never reads message content and never inserts, updates, deletes, merges, or mutates schema.",
     parameters: z.object({}),
-    execute: async () => auditJarvisSessionFragments(),
+    execute: async () => auditRuneSessionFragments(),
   }),
 
 
-  plan_jarvis_fragmented_session_merge: tool({
+  plan_rune_fragmented_session_merge: tool({
     description:
-      "Prepare a planner-only dry run for consolidating old Jarvis browser-local session fragments into owner:javier. Returns proposed counts, source session IDs, approval phrase, and safety boundaries. It never reads message content and never inserts, updates, deletes, upserts, merges, calls RPC, mutates schema, or executes the merge.",
+      "Prepare a planner-only dry run for consolidating old Rune browser-local session fragments into owner:javier. Returns proposed counts, source session IDs, approval phrase, and safety boundaries. It never reads message content and never inserts, updates, deletes, upserts, merges, calls RPC, mutates schema, or executes the merge.",
     parameters: z.object({}),
-    execute: async () => planJarvisSessionFragmentMerge(),
+    execute: async () => planRuneSessionFragmentMerge(),
   }),
 
 
-  execute_jarvis_session_merge: tool({
+  execute_rune_session_merge: tool({
     description:
-      "Execute the approved Jarvis session metadata merge only when Javier provides the exact approval phrase. This updates ownership metadata for old browser-local conversations/workspaces/events to owner:javier. It never reads message content, never updates message rows, never deletes rows, never mutates schema, and never runs without the exact phrase APPROVE JARVIS SESSION MERGE.",
+      "Execute the approved Rune session metadata merge only when Javier provides the exact approval phrase. This updates ownership metadata for old browser-local conversations/workspaces/events to owner:javier. It never reads message content, never updates message rows, never deletes rows, never mutates schema, and never runs without the exact phrase APPROVE RUNE SESSION MERGE.",
     parameters: z.object({
-      approvalPhrase: z.string().min(1).max(80).describe("Must exactly equal APPROVE JARVIS SESSION MERGE."),
+      approvalPhrase: z.string().min(1).max(80).describe("Must exactly equal APPROVE RUNE SESSION MERGE."),
     }),
-    execute: async ({ approvalPhrase }) => executeJarvisSessionFragmentMerge(approvalPhrase),
+    execute: async ({ approvalPhrase }) => executeRuneSessionFragmentMerge(approvalPhrase),
   }),
 
   get_current_datetime: tool({
@@ -850,14 +850,14 @@ const baseAgentTools = {
 
   analyze_github_repo: tool({
     description:
-      "Analyze a GitHub repository. If the user asks about Jarvis, your own repo, this app, your source code, or does not provide a repo, default to Tanjiro-1122/Jarvis. Use the canonical project registry instead of guessing owner/repo names.",
+      "Analyze a GitHub repository. If the user asks about Rune, your own repo, this app, your source code, or does not provide a repo, default to Tanjiro-1122/Rune. Use the canonical project registry instead of guessing owner/repo names.",
     parameters: z.object({
       repo: z
         .string()
         .optional()
-        .default(JARVIS_DEFAULT_REPO)
+        .default(RUNE_DEFAULT_REPO)
         .describe(
-          "GitHub repository as 'owner/repo', a full URL, a known project alias like 'Jarvis'/'Unfiltr'/'SWH'/'Unfiltr Family', or omitted to inspect Jarvis itself"
+          "GitHub repository as 'owner/repo', a full URL, a known project alias like 'Rune'/'Unfiltr'/'SWH'/'Unfiltr Family', or omitted to inspect Rune itself"
         ),
       include_readme: z
         .boolean()
@@ -898,7 +898,7 @@ const baseAgentTools = {
           if (repoRes.status === 403 || repoRes.status === 429) {
             return {
               error:
-                "GitHub API rate limit reached. Set GITHUB_TOKEN or JARVIS_GITHUB_TOKEN for a higher rate limit and private repo access.",
+                "GitHub API rate limit reached. Set GITHUB_TOKEN or RUNE_GITHUB_TOKEN for a higher rate limit and private repo access.",
               repo: ownerRepo,
             };
           }
@@ -1014,10 +1014,10 @@ const baseAgentTools = {
 
   readRepositoryFile: tool({
     description:
-      "Read the complete code contents of a specific file in the GitHub repository before making edits. For Jarvis itself, use owner 'Tanjiro-1122' and repo 'Jarvis'. Never guess javierhuertas/jarvis.",
+      "Read the complete code contents of a specific file in the GitHub repository before making edits. For Rune itself, use owner 'Tanjiro-1122' and repo 'Rune'. Never guess javierhuertas/rune.",
     parameters: z.object({
-      owner: z.string().describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
-      repo: z.string().describe("The repository name. For Jarvis itself, use 'Jarvis'."),
+      owner: z.string().describe("The GitHub username. For Rune itself, use 'Tanjiro-1122'."),
+      repo: z.string().describe("The repository name. For Rune itself, use 'Rune'."),
       path: z
         .string()
         .describe("The path to the file relative to the repo root (e.g., 'app/api/chat/route.ts')."),
@@ -1068,10 +1068,10 @@ const baseAgentTools = {
 
   listRepositoryTree: tool({
     description:
-      "List the complete file structure and folder layout of the GitHub repository. For Jarvis itself, use owner 'Tanjiro-1122' and repo 'Jarvis'. Never guess javierhuertas/jarvis.",
+      "List the complete file structure and folder layout of the GitHub repository. For Rune itself, use owner 'Tanjiro-1122' and repo 'Rune'. Never guess javierhuertas/rune.",
     parameters: z.object({
-      owner: z.string().describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
-      repo: z.string().describe("The repository name. For Jarvis itself, use 'Jarvis'."),
+      owner: z.string().describe("The GitHub username. For Rune itself, use 'Tanjiro-1122'."),
+      repo: z.string().describe("The repository name. For Rune itself, use 'Rune'."),
     }),
     execute: async ({ owner, repo }) => {
       try {
@@ -1109,13 +1109,13 @@ const baseAgentTools = {
     description:
       "Search real code in a GitHub repository and return actual file paths plus snippets. Use this before readRepositoryFile when Javier asks for exact implementation details, source files, filenames, or code evidence. This is read-only and must never mutate GitHub.",
     parameters: z.object({
-      owner: z.string().optional().default("Tanjiro-1122").describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
-      repo: z.string().optional().default("Jarvis").describe("The repository name. For Jarvis itself, use 'Jarvis'."),
+      owner: z.string().optional().default("Tanjiro-1122").describe("The GitHub username. For Rune itself, use 'Tanjiro-1122'."),
+      repo: z.string().optional().default("Rune").describe("The repository name. For Rune itself, use 'Rune'."),
       query: z.string().min(1).max(200).describe("Code search query, such as 'useChat status streaming' or 'sendMessage'."),
       path_filter: z.string().max(160).optional().describe("Optional repo path filter, such as 'app/api' or 'components'. Must be a real path prefix, not a placeholder."),
       max_results: z.number().int().min(1).max(10).optional().default(8),
     }),
-    execute: async ({ owner = "Tanjiro-1122", repo = "Jarvis", query, path_filter, max_results = 8 }) => {
+    execute: async ({ owner = "Tanjiro-1122", repo = "Rune", query, path_filter, max_results = 8 }) => {
       try {
         if (path_filter && isPlaceholderRepoPath(path_filter)) {
           return {
@@ -1138,7 +1138,7 @@ const baseAgentTools = {
             query,
             error: `GitHub code search returned ${searchRes.status}: ${searchRes.statusText}`,
             hint: searchRes.status === 401 || searchRes.status === 403
-              ? "Code search for private repos requires JARVIS_GITHUB_TOKEN/GITHUB_TOKEN with repo read access in the deployment environment."
+              ? "Code search for private repos requires RUNE_GITHUB_TOKEN/GITHUB_TOKEN with repo read access in the deployment environment."
               : undefined,
           };
         }
@@ -1308,7 +1308,7 @@ function getAgentTools({
 
     create_app_proposal: tool({
       description:
-        "Create a controlled App Creator v1 blueprint and Repo Control proposal for a brand-new app. This proves Jarvis can create apps through approval-gated workflow, but does not edit files, create schemas, deploy, or open a PR by itself.",
+        "Create a controlled App Creator v1 blueprint and Repo Control proposal for a brand-new app. This proves Rune can create apps through approval-gated workflow, but does not edit files, create schemas, deploy, or open a PR by itself.",
       parameters: z.object({
         idea: z.string().min(1).max(1600),
         appName: z.string().max(80).optional(),
@@ -1327,8 +1327,8 @@ function getAgentTools({
           complexity,
           mustHaveFeatures,
           preferredStack: preferredStack || null,
-          projectKey: "jarvis",
-          repo: "Tanjiro-1122/Jarvis",
+          projectKey: "rune",
+          repo: "Tanjiro-1122/Rune",
           sessionId: null,
           workspaceId: workspaceId ?? null,
           conversationId: conversationId ?? null,
@@ -1654,7 +1654,7 @@ function getAgentTools({
 
     execute_code: tool({
       description:
-        "Run a short, self-contained JavaScript or TypeScript snippet inside Jarvis's sandbox. Use for small coding checks, evaluating generated code, quick data transforms, algorithm verification, and generating downloadable text artifacts (CSV, JSON, SVG, HTML, Markdown). The snippet must be self-contained, must not use imports or external modules, and should use `return` to surface a final value. Console output and artifacts are returned to the chat UI.",
+        "Run a short, self-contained JavaScript or TypeScript snippet inside Rune's sandbox. Use for small coding checks, evaluating generated code, quick data transforms, algorithm verification, and generating downloadable text artifacts (CSV, JSON, SVG, HTML, Markdown). The snippet must be self-contained, must not use imports or external modules, and should use `return` to surface a final value. Console output and artifacts are returned to the chat UI.",
       parameters: z.object({
         language: z
           .enum(["javascript", "typescript"])
@@ -1990,10 +1990,10 @@ ${retrievalHits
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
-    const CHAT_MODEL = process.env.JARVIS_CHAT_MODEL ?? "gpt-4o-mini";
+    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4o-mini";
     const ownerMemorySection = getOwnerMemorySection();
     const inferredMemoryProject = inferProjectFromText(latestUserText);
-    const memoryProjectKey = inferredMemoryProject?.key ?? (workspaceId ? "jarvis" : null);
+    const memoryProjectKey = inferredMemoryProject?.key ?? (workspaceId ? "rune" : null);
     const supabaseMemorySection = await buildSupabaseMemorySection({
       query: latestUserText,
       projectKey: memoryProjectKey,
@@ -2001,7 +2001,7 @@ ${retrievalHits
     const memoryRoutingSection = `## Memory Routing
 - Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
 - If the request mentions a known project, prefer memories for that project plus global rules.
-- Do not use Jarvis-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
+- Do not use Rune-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
 
     const projectRegistrySection = buildProjectRegistryPromptSection();
 
@@ -2098,20 +2098,20 @@ ${plannerOutput.steps
 
 ### Private owner-console safety model
 - Rune is not a SaaS product for sale. Rune is Javier's private owner console for apps, projects, customer support, and eventually sensitive owner-only services.
-- For questions like "what can you do", "how far can we take you", or "what setup is missing", call get_jarvis_capability_snapshot before answering.
-- If Javier provides the exact phrase APPROVE JARVIS SESSION MERGE, call execute_jarvis_session_merge immediately with approvalPhrase set to that exact phrase. Do not call capability snapshot first.
+- For questions like "what can you do", "how far can we take you", or "what setup is missing", call get_rune_capability_snapshot before answering.
+- If Javier provides the exact phrase APPROVE RUNE SESSION MERGE, call execute_rune_session_merge immediately with approvalPhrase set to that exact phrase. Do not call capability snapshot first.
 - For freeze/stuck/question-mark delayed-answer reports, call get_tool_lifecycle_diagnostic before answering. Do not call full self-audit for those symptoms unless Javier explicitly asks for a full self-audit.
-- For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_jarvis_self_audit_snapshot before answering.
+- For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_rune_self_audit_snapshot before answering.
 - Treat banking, customer emails, subscription credits/free months, production app fixes, deploys, and repo changes as sensitive actions.
 - For sensitive actions, follow this sequence: gather facts safely, explain findings, draft the proposed action, ask Javier for approval, then execute only after approval.
-- If Javier asks whether Jarvis can create an app, answer yes with precision: Jarvis can create apps through the controlled App Creator workflow (create_app_proposal) and Repo Control approval gates. App Creator v1 creates blueprints/proposals; approved_app_scaffold can generate starter files only after the proposal is approved. preview_app_creator_proposal can show the current plan, refine_app_creator_proposal can update it in place, run_app_creator_scaffold_bridge can run scaffold generation plus Repo Control checks/PR handoff, and prepare_app_creator_preview_handoff can prepare metadata-only preview deployment handoff, and queue_private_app_creator_deploy can queue a private-owner runner job only after exact approval. Schema changes, merges, and deployments still require explicit approval gates.
-- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available. Google Play lookup is read-only only through lookup_google_play_status; never imply release-track edits, publishing, rollout, halt, product edits, or review replies are available. Google Play release tracks are blocked unless Javier approves a separate edit-session reader design. One-command app health snapshots are read-only only through get_app_health_snapshot and must not imply repair actions were executed. Jarvis session fragmentation audit through audit_jarvis_session_fragments is read-only only: it returns counts/metadata and never reads message content, merges sessions, edits messages, updates workspace mappings, inserts rows, deletes rows, or mutates schema. Jarvis fragmented session merge planning through plan_jarvis_fragmented_session_merge is also planner-only/read-only: it can produce a dry-run plan and required approval phrase but must never imply it executed the merge, changed Supabase, read message content, or implemented a merge executor. Jarvis session merge execution through execute_jarvis_session_merge is allowed only when Javier provides the exact phrase APPROVE JARVIS SESSION MERGE. It may update only session ownership metadata for conversations, workspaces, workspace memberships, and workspace events; it must never read message content, update message rows, delete rows, mutate schema, or run with an approximate phrase. App Creator through create_app_proposal is blueprint/proposal-only; preview_app_creator_proposal is read-only. refine_app_creator_proposal updates only proposal metadata/blueprint and resets scaffold readiness. approved_app_scaffold can save a scaffold patch only for an approved App Creator proposal. run_app_creator_scaffold_bridge may open/track a PR only through Repo Control gates. prepare_app_creator_preview_handoff is metadata-only and must not imply Vercel deployment, merge, schemas, environment changes, or production systems were changed. queue_private_app_creator_deploy requires exact approval text APPROVE PRIVATE JARVIS DEPLOY and only queues an owner-only runner job; it must not imply public production, customer launch, merge, schema mutation, or chat-side deployment. One-command Repo Control flow through run_repo_control_flow must stop at approval gates and never imply merge, deploy, rollback, or production mutation. Deployment handoff through prepare_repo_deployment_handoff is metadata-only and never queues or executes deployment.
+- If Javier asks whether Rune can create an app, answer yes with precision: Rune can create apps through the controlled App Creator workflow (create_app_proposal) and Repo Control approval gates. App Creator v1 creates blueprints/proposals; approved_app_scaffold can generate starter files only after the proposal is approved. preview_app_creator_proposal can show the current plan, refine_app_creator_proposal can update it in place, run_app_creator_scaffold_bridge can run scaffold generation plus Repo Control checks/PR handoff, and prepare_app_creator_preview_handoff can prepare metadata-only preview deployment handoff, and queue_private_app_creator_deploy can queue a private-owner runner job only after exact approval. Schema changes, merges, and deployments still require explicit approval gates.
+- Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless the capability snapshot or a real tool confirms it. RevenueCat subscriber lookup is read-only only through lookup_revenuecat_subscriber; never imply grants, refunds, transfers, deletes, or entitlement mutations are available. App Store Connect lookup is read-only only through lookup_app_store_connect_status; never imply release, submit, metadata edit, build expiry, or review mutation actions are available. Google Play lookup is read-only only through lookup_google_play_status; never imply release-track edits, publishing, rollout, halt, product edits, or review replies are available. Google Play release tracks are blocked unless Javier approves a separate edit-session reader design. One-command app health snapshots are read-only only through get_app_health_snapshot and must not imply repair actions were executed. Rune session fragmentation audit through audit_rune_session_fragments is read-only only: it returns counts/metadata and never reads message content, merges sessions, edits messages, updates workspace mappings, inserts rows, deletes rows, or mutates schema. Rune fragmented session merge planning through plan_rune_fragmented_session_merge is also planner-only/read-only: it can produce a dry-run plan and required approval phrase but must never imply it executed the merge, changed Supabase, read message content, or implemented a merge executor. Rune session merge execution through execute_rune_session_merge is allowed only when Javier provides the exact phrase APPROVE RUNE SESSION MERGE. It may update only session ownership metadata for conversations, workspaces, workspace memberships, and workspace events; it must never read message content, update message rows, delete rows, mutate schema, or run with an approximate phrase. App Creator through create_app_proposal is blueprint/proposal-only; preview_app_creator_proposal is read-only. refine_app_creator_proposal updates only proposal metadata/blueprint and resets scaffold readiness. approved_app_scaffold can save a scaffold patch only for an approved App Creator proposal. run_app_creator_scaffold_bridge may open/track a PR only through Repo Control gates. prepare_app_creator_preview_handoff is metadata-only and must not imply Vercel deployment, merge, schemas, environment changes, or production systems were changed. queue_private_app_creator_deploy requires exact approval text APPROVE PRIVATE RUNE DEPLOY and only queues an owner-only runner job; it must not imply public production, customer launch, merge, schema mutation, or chat-side deployment. One-command Repo Control flow through run_repo_control_flow must stop at approval gates and never imply merge, deploy, rollback, or production mutation. Deployment handoff through prepare_repo_deployment_handoff is metadata-only and never queues or executes deployment.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
 
 ### Capability-accurate responses
 - Never prove Rune platform capabilities by creating fake/simulated JavaScript objects that say systems are operational. That is not a real diagnostic.
-- For Jarvis self-audits, use real available endpoints/tools where available, or clearly label the result as "not verified" with the exact missing check. Be brutally honest.
+- For Rune self-audits, use real available endpoints/tools where available, or clearly label the result as "not verified" with the exact missing check. Be brutally honest.
 - Follow the Reasoning Router route. If it says approval_required or proposal_required, do not skip straight to execution even if Javier gave broad phase approval; external/sensitive actions still need exact-action approval.
 - Agent Core v1 rule: inspect → plan → propose before code changes. Avoid generic audit prose when a real repository inspection is available.
 - Smart targeting rule: if Javier names a product or feature area, use the canonical project registry and likely file targets instead of asking him for repo/file paths.

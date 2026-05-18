@@ -14,7 +14,7 @@ function cleanOwnerMemory(raw: string) {
  * file so private user/project context never has to be committed to GitHub.
  */
 export function getOwnerMemorySection() {
-  const raw = process.env.JARVIS_OWNER_MEMORY;
+  const raw = process.env.RUNE_OWNER_MEMORY;
   if (!raw || !raw.trim()) return "";
 
   const cleaned = cleanOwnerMemory(raw);

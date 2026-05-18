@@ -187,7 +187,7 @@ Foundation reaches 100% only when all are true:
 - [ ] session auth works and rejects unauthenticated access
 - [ ] `SESSION_SECRET` or `AUTH_SECRET` is configured
 - [ ] server-side Supabase writes use service role safely
-- [ ] `JARVIS_OWNER_MEMORY` or Supabase memory provides private owner context
+- [ ] `RUNE_OWNER_MEMORY` or Supabase memory provides private owner context
 - [ ] upload endpoint stores files without oversized chat payloads
 - [ ] signed URL endpoint opens private files safely
 - [ ] deploy health reports required, optional, and missing setup clearly

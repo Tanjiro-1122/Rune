@@ -15,7 +15,7 @@ export function getToolLifecycleDiagnostic(symptom = "freeze/stuck/question-mark
     generatedAt: new Date().toISOString(),
     symptom,
     verifiedFindings: [
-      "Frozen/stuck/question-mark reports are routed to this lightweight diagnostic instead of the full Jarvis self-audit.",
+      "Frozen/stuck/question-mark reports are routed to this lightweight diagnostic instead of the full Rune self-audit.",
       "The visible symptom is a pending tool/status card lifecycle issue: the UI can show a tool as running while the answer stream is delayed, not reconciled, or waiting for a follow-up render.",
       "This diagnostic intentionally avoids external Vercel/GitHub/Supabase health checks so it cannot hang on network visibility work.",
       "A lone question mark after recent frozen/stuck context is treated as a diagnostic follow-up, not a new generic chat request.",

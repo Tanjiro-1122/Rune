@@ -14,7 +14,7 @@ SESSION_SECRET=a_long_random_secret_string
 Optional:
 
 ```env
-JARVIS_SESSION_MAX_AGE_SECONDS=43200
+RUNE_SESSION_MAX_AGE_SECONDS=43200
 ```
 
 The default session length is 12 hours. The hard maximum is 7 days.
@@ -61,4 +61,4 @@ Middleware adds security headers:
 
 ## Seed token cleanup
 
-After initial memory seeding, rotate or remove `JARVIS_MEMORY_SEED_TOKEN` in Vercel. If you keep it, treat it like a secret.
+After initial memory seeding, rotate or remove `RUNE_MEMORY_SEED_TOKEN` in Vercel. If you keep it, treat it like a secret.

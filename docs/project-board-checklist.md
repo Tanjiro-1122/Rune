@@ -107,7 +107,7 @@
 **Acceptance criteria:**
 - [ ] **Option A:** Implement the upload endpoint — store images in Supabase Storage or Vercel Blob and return a signed URL; use the signed URL in the AI message
 - [ ] **Option B (short-term):** Add visible UI feedback so the user knows pasting images is unsupported; failed uploads must **not** block text-only message submission
-- [x] Raw external image URLs are **not** forwarded to the model without sanitisation — `isSafeImageUrl()` now filters markdown image URLs through an optional hostname allowlist (`JARVIS_ALLOWED_IMAGE_HOSTS`)
+- [x] Raw external image URLs are **not** forwarded to the model without sanitisation — `isSafeImageUrl()` now filters markdown image URLs through an optional hostname allowlist (`RUNE_ALLOWED_IMAGE_HOSTS`)
 - [x] Chat submission succeeds when no image is attached, regardless of upload endpoint status
 
 ---
@@ -164,10 +164,10 @@
 **Problem:** The markdown image extractor accepts any `https://` URL up to 4 096 characters and forwards it to the OpenAI vision endpoint. Tracker pixels, internal metadata endpoints, or oversized images can inflate token counts or leak request data.
 
 **Acceptance criteria:**
-- [x] `isSafeImageUrl(url)` checks `protocol === "https:"` and optionally restricts to an operator-configured hostname allowlist via `JARVIS_ALLOWED_IMAGE_HOSTS`
+- [x] `isSafeImageUrl(url)` checks `protocol === "https:"` and optionally restricts to an operator-configured hostname allowlist via `RUNE_ALLOWED_IMAGE_HOSTS`
 - [x] Image blocks are only attached to the AI message if `isSafeImageUrl` returns `true`
 - [x] Disallowed URLs are silently dropped; text content is preserved
-- [x] `JARVIS_ALLOWED_IMAGE_HOSTS` documented in `.env.example` and `docs/setup.md`
+- [x] `RUNE_ALLOWED_IMAGE_HOSTS` documented in `.env.example` and `docs/setup.md`
 
 ---
 
@@ -203,12 +203,12 @@
 | **Affected files** | `app/api/auth/login/route.ts`, `app/api/auth/logout/route.ts`, `middleware.ts` |
 | **Status** | ✅ Done |
 
-**Problem:** The string `"jarvis_session"` is hardcoded in three places. A rename in one file silently breaks the others at runtime.
+**Problem:** The string `"rune_session"` is hardcoded in three places. A rename in one file silently breaks the others at runtime.
 
 **Acceptance criteria:**
 - [x] `SESSION_COOKIE` is exported from a single location (`lib/auth.ts`)
 - [x] All three files import `SESSION_COOKIE` from that single source
-- [x] The literal string `"jarvis_session"` no longer appears in any file other than the single source of truth
+- [x] The literal string `"rune_session"` no longer appears in any file other than the single source of truth
 - [x] Build and runtime behaviour unchanged
 
 ---
@@ -224,8 +224,8 @@
 **Problem:** `openai("gpt-4o-mini")` is hardcoded. Switching to a newer or cheaper model requires a code change and full redeploy.
 
 **Acceptance criteria:**
-- [x] Model name read from `process.env.JARVIS_CHAT_MODEL` with `"gpt-4o-mini"` as the default fallback
-- [x] `JARVIS_CHAT_MODEL` documented in `.env.example` and `docs/setup.md`
+- [x] Model name read from `process.env.RUNE_CHAT_MODEL` with `"gpt-4o-mini"` as the default fallback
+- [x] `RUNE_CHAT_MODEL` documented in `.env.example` and `docs/setup.md`
 - [x] No other behaviour changes
 
 ---

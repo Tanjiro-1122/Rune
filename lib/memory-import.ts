@@ -129,7 +129,7 @@ export async function previewOrImportMemories(input: MemoryImportInput) {
     status: blocked > 0 ? "blocked" : mode === "import" ? "executed" : "proposed",
     approvalStage: mode === "import" ? "complete" : "approval",
     riskLevel: "medium",
-    projectKey: "jarvis",
+    projectKey: "rune",
     metadata: { mode, source, imported, blocked, duplicates, total: items.length },
   });
 

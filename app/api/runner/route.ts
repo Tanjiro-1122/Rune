@@ -22,8 +22,8 @@ function getBearerToken(req: NextRequest) {
 }
 
 function isRunnerAuthorized(req: NextRequest) {
-  const configured = process.env.JARVIS_RUNNER_TOKEN?.trim();
-  if (!configured) return { ok: false, error: "Runner token is not configured. Set JARVIS_RUNNER_TOKEN." };
+  const configured = process.env.RUNE_RUNNER_TOKEN?.trim();
+  if (!configured) return { ok: false, error: "Runner token is not configured. Set RUNE_RUNNER_TOKEN." };
   const provided = getBearerToken(req);
   if (!provided || provided !== configured) return { ok: false, error: "Runner authorization failed." };
   return { ok: true };
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       status: "info",
       approvalStage: "action",
       riskLevel: "low",
-      projectKey: "jarvis",
+      projectKey: "rune",
       workspaceId: task?.workspaceId ?? null,
       conversationId: task?.conversationId ?? null,
       metadata: { runnerId, taskId: task?.id ?? null },
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       status: "executed",
       approvalStage: "complete",
       riskLevel: "low",
-      projectKey: "jarvis",
+      projectKey: "rune",
       workspaceId: task.workspaceId,
       conversationId: task.conversationId,
       metadata: { runnerId, taskId },
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     status: "failed",
     approvalStage: "action",
     riskLevel: "medium",
-    projectKey: "jarvis",
+    projectKey: "rune",
     workspaceId: task.workspaceId,
     conversationId: task.conversationId,
     metadata: { runnerId, taskId },

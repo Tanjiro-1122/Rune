@@ -17,10 +17,10 @@ assert(plannerStart > 0, "merge planner result type exists");
 const executorStart = lib.indexOf("export type SessionFragmentMergeExecutionResult");
 const planner = lib.slice(plannerStart, executorStart > plannerStart ? executorStart : undefined);
 
-assert(planner.includes("planJarvisSessionFragmentMerge"), "merge planner function exists");
+assert(planner.includes("planRuneSessionFragmentMerge"), "merge planner function exists");
 assert(planner.includes("dryRun: true"), "planner is explicitly dry-run");
 assert(planner.includes("readOnly: true"), "planner is explicitly read-only");
-assert(planner.includes("APPROVE JARVIS SESSION MERGE"), "planner requires separate merge approval phrase");
+assert(planner.includes("APPROVE RUNE SESSION MERGE"), "planner requires separate merge approval phrase");
 assert(planner.includes("Planner only. No merge executor is implemented by this tool."), "planner states there is no executor");
 assert(planner.includes("messageRowsUpdatedDirectly: 0"), "planner does not propose direct message edits");
 assert(planner.includes("messageContentRead: false"), "planner does not read message content");
@@ -30,11 +30,11 @@ for (const needle of [".insert(", ".update(", ".delete(", ".upsert(", "rpc("]) {
   assert(!planner.includes(needle), `planner contains no ${needle}`);
 }
 
-assert(chat.includes("plan_jarvis_fragmented_session_merge"), "chat exposes merge planner tool");
-assert(chat.includes("execute: async () => planJarvisSessionFragmentMerge()"), "chat tool calls planner only");
+assert(chat.includes("plan_rune_fragmented_session_merge"), "chat exposes merge planner tool");
+assert(chat.includes("execute: async () => planRuneSessionFragmentMerge()"), "chat tool calls planner only");
 assert(chat.includes("must never imply it executed the merge"), "system prompt blocks merge execution claims");
 assert(chat.includes("or implemented a merge executor"), "system prompt blocks executor claims");
-assert(chat.includes("execute_jarvis_session_merge"), "approved merge executor tool exists separately from planner");
+assert(chat.includes("execute_rune_session_merge"), "approved merge executor tool exists separately from planner");
 assert(chat.includes("approvalPhrase: z.string"), "separate executor requires explicit approval phrase");
 
 assert(ui.includes("SessionFragmentMergePlanCard"), "merge planner UI card exists");

@@ -64,12 +64,12 @@ Foundation includes:
 | session auth works and rejects unauthenticated access | ✅ Complete | `middleware.ts`, `lib/auth.ts`, `app/api/auth/*` | Signed v2 cookie, expiration, login protection, production secret requirement. |
 | `SESSION_SECRET` or `AUTH_SECRET` is configured | ⚠️ Needs live verification | `lib/deploy-health.ts` | Deploy Health checks `SESSION_SECRET`, but live environment must be checked. |
 | server-side Supabase writes use service role safely | ✅ Mostly complete | `lib/supabase.ts` | Prefers `SUPABASE_SERVICE_ROLE_KEY`, falls back to anon for dev. Needs live env verification. |
-| `JARVIS_OWNER_MEMORY` or Supabase memory provides private owner context | ✅ Mostly complete | `lib/owner-memory.ts`, `lib/memory.ts`, `app/api/chat/route.ts` | Both patterns exist. Supabase memory is preferred long-term. |
+| `RUNE_OWNER_MEMORY` or Supabase memory provides private owner context | ✅ Mostly complete | `lib/owner-memory.ts`, `lib/memory.ts`, `app/api/chat/route.ts` | Both patterns exist. Supabase memory is preferred long-term. |
 | upload endpoint stores files without oversized chat payloads | ✅ Complete | `app/api/upload/route.ts`, Patch 23 in `components/chat.tsx` | Selected images now upload first. Pasted images already uploaded first. |
 | signed URL endpoint opens private files safely | ✅ Complete | `app/api/files/signed-url/route.ts` | Generates fresh signed URLs for stored private files. |
 | deploy health reports required, optional, and missing setup clearly | ✅ Code complete / live verification needed | `lib/deploy-health.ts` | Deploy Health now checks every Foundation table. |
 | task queue stores and retrieves jobs | ✅ Mostly complete | `lib/tasks.ts`, `app/api/tasks/route.ts`, `app/api/jobs/route.ts` | Queue and resume flows exist. Needs live persistence verification. |
-| runner API is token-protected | ✅ Complete | `middleware.ts`, `app/api/runner/route.ts` | Requires `JARVIS_RUNNER_TOKEN` bearer token. |
+| runner API is token-protected | ✅ Complete | `middleware.ts`, `app/api/runner/route.ts` | Requires `RUNE_RUNNER_TOKEN` bearer token. |
 | secrets are never committed or displayed | ✅ Mostly complete | `lib/repo-actions.ts`, docs | Secret redaction and docs exist. Needs repo scan in final Foundation pass. |
 | Foundation risks and deferred work are documented | ✅ This document | `docs/foundation-completion-audit.md` | Current risks and next actions are listed below. |
 | Javier approves Foundation as 100% complete | ❌ Not complete | Owner approval required | This cannot be checked until all above items are done. |
@@ -123,7 +123,7 @@ Implemented:
 - manual memory save/update/archive
 - duplicate blocking via title/project upsert and frontend logic
 - prompt injection of Supabase memory
-- `JARVIS_OWNER_MEMORY` fallback/seed pattern
+- `RUNE_OWNER_MEMORY` fallback/seed pattern
 - dedicated `agent_memory_events` logging for save/update/archive actions
 
 Status:
@@ -224,7 +224,7 @@ Then verify these in the deployed Jarvis app:
 - [ ] signed URL opens a private stored file
 - [ ] task queue creates/retrieves/resumes a task
 - [ ] runner route rejects missing/wrong token
-- [ ] runner route accepts valid bearer token when `JARVIS_RUNNER_TOKEN` is configured
+- [ ] runner route accepts valid bearer token when `RUNE_RUNNER_TOKEN` is configured
 - [ ] repo proposal can be created and listed
 - [ ] repo secret scan confirms no secrets committed
 

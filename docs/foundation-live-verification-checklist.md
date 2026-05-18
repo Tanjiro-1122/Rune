@@ -40,7 +40,7 @@
 - [ ] Confirm it appears in the Tasks drawer.
 - [ ] Confirm task resume/retry path appears for interrupted tasks.
 - [ ] Call `/api/runner` without a token and confirm it is rejected.
-- [ ] Call `/api/runner` with the configured `JARVIS_RUNNER_TOKEN` and confirm it can reach the runner endpoint.
+- [ ] Call `/api/runner` with the configured `RUNE_RUNNER_TOKEN` and confirm it can reach the runner endpoint.
 - [ ] Create a repo proposal.
 - [ ] Confirm the repo proposal appears in Repo Control.
 - [ ] Run a local secret scan / grep to confirm no obvious secrets are committed.

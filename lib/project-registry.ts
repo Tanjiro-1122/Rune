@@ -1,7 +1,7 @@
-export type JarvisProjectKey = "jarvis" | "unfiltr" | "swh" | "family";
+export type RuneProjectKey = "rune" | "unfiltr" | "swh" | "family";
 
 export type JarvisProject = {
-  key: JarvisProjectKey;
+  key: RuneProjectKey;
   label: string;
   canonicalName: string;
   repo: string;
@@ -10,12 +10,12 @@ export type JarvisProject = {
   aliases: string[];
 };
 
-export const JARVIS_CANONICAL_PROJECTS: JarvisProject[] = [
+export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
   {
-    key: "jarvis",
-    label: "Jarvis",
+    key: "rune",
+    label: "Rune",
     canonicalName: "Jarvis private owner console",
-    repo: "Tanjiro-1122/Jarvis",
+    repo: "Tanjiro-1122/Rune",
     description:
       "Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
     safetyLevel: "owner-console",
@@ -53,7 +53,7 @@ export const JARVIS_CANONICAL_PROJECTS: JarvisProject[] = [
   },
 ];
 
-export const JARVIS_DEFAULT_REPO = "Tanjiro-1122/Jarvis";
+export const RUNE_DEFAULT_REPO = "Tanjiro-1122/Rune";
 
 export const JARVIS_APPROVAL_REQUIRED_ACTIONS = [
   "changing production code",
@@ -90,10 +90,10 @@ function normalize(input: string) {
 }
 
 export function normalizeRepoSlug(input: string | null | undefined) {
-  const raw = (input || JARVIS_DEFAULT_REPO).trim();
+  const raw = (input || RUNE_DEFAULT_REPO).trim();
   const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)/i);
   const slug = (match?.[1] || raw).replace(/\.git$/i, "").replace(/^@/, "").trim();
-  return slug || JARVIS_DEFAULT_REPO;
+  return slug || RUNE_DEFAULT_REPO;
 }
 
 export function splitRepoSlug(input: string | null | undefined) {
@@ -102,24 +102,24 @@ export function splitRepoSlug(input: string | null | undefined) {
   return {
     slug,
     owner: owner || "Tanjiro-1122",
-    repo: repo || "Jarvis",
+    repo: repo || "Rune",
   };
 }
 
 export function getProjectByKey(key: string | null | undefined) {
-  return JARVIS_CANONICAL_PROJECTS.find((project) => project.key === key) || null;
+  return RUNE_CANONICAL_PROJECTS.find((project) => project.key === key) || null;
 }
 
 export function getProjectByRepo(repo: string | null | undefined) {
   const slug = normalizeRepoSlug(repo).toLowerCase();
-  return JARVIS_CANONICAL_PROJECTS.find((project) => project.repo.toLowerCase() === slug) || null;
+  return RUNE_CANONICAL_PROJECTS.find((project) => project.repo.toLowerCase() === slug) || null;
 }
 
 export function inferProjectFromText(text: string | null | undefined) {
   const normalized = normalize(text || "");
   if (!normalized) return null;
   return (
-    JARVIS_CANONICAL_PROJECTS.find((project) =>
+    RUNE_CANONICAL_PROJECTS.find((project) =>
       [project.label, project.canonicalName, project.key, project.repo, ...project.aliases].some((alias) => {
         const candidate = normalize(alias);
         return candidate.length >= 3 && normalized.includes(candidate);
@@ -135,7 +135,7 @@ export function resolveCanonicalRepo(input: string | null | undefined, textHint?
     if (directProject) return directProject.repo;
 
     const normalizedRaw = normalize(raw);
-    const aliasProject = JARVIS_CANONICAL_PROJECTS.find((project) =>
+    const aliasProject = RUNE_CANONICAL_PROJECTS.find((project) =>
       [project.label, project.canonicalName, project.key, ...project.aliases].some((alias) => normalize(alias) === normalizedRaw)
     );
     if (aliasProject) return aliasProject.repo;
@@ -144,14 +144,14 @@ export function resolveCanonicalRepo(input: string | null | undefined, textHint?
   }
 
   const inferred = inferProjectFromText(textHint || "");
-  return inferred?.repo || JARVIS_DEFAULT_REPO;
+  return inferred?.repo || RUNE_DEFAULT_REPO;
 }
 
 export function buildProjectRegistryPromptSection() {
-  const projectLines = JARVIS_CANONICAL_PROJECTS.map(
+  const projectLines = RUNE_CANONICAL_PROJECTS.map(
     (project) =>
       `- ${project.label}: repo \`${project.repo}\`; ${project.description} Safety: ${project.safetyLevel}.`
   ).join("\n");
 
-  return `## Canonical Project Registry\n${projectLines}\n\n## Brain Grounding Rules\n- If Javier asks about "your repo", "your own repo", "Jarvis code", "this app", or "read yourself", use \`${JARVIS_DEFAULT_REPO}\`. Never guess \`javierhuertas/jarvis\` or invent owner/repo names.\n- If Javier mentions Unfiltr, use \`Tanjiro-1122/UniltrbyJavierbackup\`.\n- If Javier mentions SWH or SportsWager Helper, use \`Tanjiro-1122/swhmobile\`.\n- If Javier mentions Unfiltr Family or elderly-care companion, use \`Tanjiro-1122/UnfiltrFamily\`.\n- If the requested project is not in this registry, ask for the repo slug instead of guessing.\n- Be capability-accurate: separate what is verified, partially wired, requires env/schema setup, and not connected yet.\n\n## Real Capability Snapshot\nCurrently real/wired foundations:\n${JARVIS_REAL_CAPABILITIES.map((item) => `- ${item}`).join("\n")}\n\nNot connected yet:\n${JARVIS_NOT_CONNECTED_YET.map((item) => `- ${item}`).join("\n")}\n\nActions requiring explicit Javier approval before execution:\n${JARVIS_APPROVAL_REQUIRED_ACTIONS.map((item) => `- ${item}`).join("\n")}`;
+  return `## Canonical Project Registry\n${projectLines}\n\n## Brain Grounding Rules\n- If Javier asks about "your repo", "your own repo", "Jarvis code", "this app", or "read yourself", use \`${RUNE_DEFAULT_REPO}\`. Never guess \`javierhuertas/jarvis\` or invent owner/repo names.\n- If Javier mentions Unfiltr, use \`Tanjiro-1122/UniltrbyJavierbackup\`.\n- If Javier mentions SWH or SportsWager Helper, use \`Tanjiro-1122/swhmobile\`.\n- If Javier mentions Unfiltr Family or elderly-care companion, use \`Tanjiro-1122/UnfiltrFamily\`.\n- If the requested project is not in this registry, ask for the repo slug instead of guessing.\n- Be capability-accurate: separate what is verified, partially wired, requires env/schema setup, and not connected yet.\n\n## Real Capability Snapshot\nCurrently real/wired foundations:\n${JARVIS_REAL_CAPABILITIES.map((item) => `- ${item}`).join("\n")}\n\nNot connected yet:\n${JARVIS_NOT_CONNECTED_YET.map((item) => `- ${item}`).join("\n")}\n\nActions requiring explicit Javier approval before execution:\n${JARVIS_APPROVAL_REQUIRED_ACTIONS.map((item) => `- ${item}`).join("\n")}`;
 }

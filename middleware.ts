@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
   // Allow the private memory seed endpoint when a seed token is configured and
   // supplied. This keeps curl-based setup possible without exposing the route.
   if (pathname.startsWith("/api/memory/seed")) {
-    const seedToken = process.env.JARVIS_MEMORY_SEED_TOKEN;
+    const seedToken = process.env.RUNE_MEMORY_SEED_TOKEN;
     const provided =
       request.headers.get("x-jarvis-seed-token") ??
       request.nextUrl.searchParams.get("token");
@@ -37,9 +37,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Allow an external isolated runner to poll the runner API with a dedicated
-  // bearer token. This route still remains closed unless JARVIS_RUNNER_TOKEN is set.
+  // bearer token. This route still remains closed unless RUNE_RUNNER_TOKEN is set.
   if (pathname.startsWith("/api/runner")) {
-    const runnerToken = process.env.JARVIS_RUNNER_TOKEN;
+    const runnerToken = process.env.RUNE_RUNNER_TOKEN;
     const authHeader = request.headers.get("authorization") ?? "";
     const provided = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     if (runnerToken && provided === runnerToken) {

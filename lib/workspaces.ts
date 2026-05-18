@@ -645,7 +645,7 @@ async function ensureWorkspaceRows(sessionId: string) {
       .insert({
         session_id: sessionId,
         name: DEFAULT_WORKSPACE_NAME,
-        description: "Default workspace for this Jarvis session.",
+        description: "Default workspace for this Rune session.",
       })
       .select("id, session_id, name, description, created_at, updated_at")
       .single();

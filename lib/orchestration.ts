@@ -194,8 +194,8 @@ export interface PlannerOutput {
     | "calculate"
     | "get_current_datetime"
     | "analyze_github_repo"
-    | "get_jarvis_capability_snapshot"
-    | "get_jarvis_self_audit_snapshot"
+    | "get_rune_capability_snapshot"
+    | "get_rune_self_audit_snapshot"
     | "get_tool_lifecycle_diagnostic"
     | null;
   reasoningRoute: ReasoningRoute;
@@ -248,7 +248,7 @@ export function buildPlannerOutput(options: {
   if (intent === "self_audit") {
     return {
       intent,
-      forcedToolName: "get_jarvis_self_audit_snapshot",
+      forcedToolName: "get_rune_self_audit_snapshot",
       reasoningRoute: "self_audit",
       routingHint: "- Reasoning Router: run Self-Audit Mode before answering. Report verified, partial, missing, not connected, and next patch.",
       steps: baseSteps,
@@ -257,7 +257,7 @@ export function buildPlannerOutput(options: {
   if (intent === "capability_truth") {
     return {
       intent,
-      forcedToolName: "get_jarvis_capability_snapshot",
+      forcedToolName: "get_rune_capability_snapshot",
       reasoningRoute: "truth_check",
       routingHint:
         "- Reasoning Router: use the Capability Truth Layer before answering. Separate verified/configured/partial/missing/not connected/approval-required.",
@@ -267,7 +267,7 @@ export function buildPlannerOutput(options: {
   if (intent === "approval_required") {
     return {
       intent,
-      forcedToolName: "get_jarvis_capability_snapshot",
+      forcedToolName: "get_rune_capability_snapshot",
       reasoningRoute: "approval_required",
       routingHint:
         "- Reasoning Router: sensitive action detected. Gather facts only, explain findings/plan, and ask Javier for explicit approval before execution. Do not perform the action yet.",
@@ -277,7 +277,7 @@ export function buildPlannerOutput(options: {
   if (intent === "not_connected") {
     return {
       intent,
-      forcedToolName: "get_jarvis_capability_snapshot",
+      forcedToolName: "get_rune_capability_snapshot",
       reasoningRoute: "not_connected",
       routingHint:
         "- Reasoning Router: requested capability may not be connected. Check truth layer, state the limitation plainly, and suggest the safest next setup path.",

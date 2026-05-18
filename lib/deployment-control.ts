@@ -26,8 +26,8 @@ function isoFromVercelTimestamp(value: unknown) {
 }
 
 function getVercelConfig() {
-  const token = process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
+  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
+  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
   const teamId = process.env.VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
   return { token, project, teamId };
 }
@@ -109,7 +109,7 @@ export async function inspectDeploymentControl(options: { gitBranch?: string | n
     status: result.ok ? "info" : "blocked",
     approvalStage: "none",
     riskLevel: "medium",
-    projectKey: "jarvis",
+    projectKey: "rune",
     metadata: {
       configured: result.configured,
       project: "project" in result ? result.project : null,
@@ -148,7 +148,7 @@ export async function prepareDeploymentControlAction(options: {
     status: ready ? "proposed" : "blocked",
     approvalStage: "approval",
     riskLevel: "high",
-    projectKey: "jarvis",
+    projectKey: "rune",
     metadata: {
       action: options.action,
       reason: options.reason || null,
@@ -189,8 +189,8 @@ function getDeploymentMutationMode() {
 
 function expectedDeploymentApprovalText(action: "execute_redeploy" | "execute_rollback") {
   return action === "execute_redeploy"
-    ? "APPROVE JARVIS REDEPLOY"
-    : "APPROVE JARVIS ROLLBACK";
+    ? "APPROVE RUNE REDEPLOY"
+    : "APPROVE RUNE ROLLBACK";
 }
 
 export async function executeDeploymentControlAction(options: {
@@ -234,7 +234,7 @@ export async function executeDeploymentControlAction(options: {
       status: "blocked",
       approvalStage: "approval",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: { ...baseMetadata, reason_blocked: "approval_text_mismatch" },
     });
     return {
@@ -253,7 +253,7 @@ export async function executeDeploymentControlAction(options: {
       status: "blocked",
       approvalStage: "action",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: { ...baseMetadata, reason_blocked: "inspection_failed", error: inspection.error },
     });
     return { ok: false, blocked: true, error: inspection.error, configured: inspection.configured, safety: "blocked_no_deployment_mutation" };
@@ -266,7 +266,7 @@ export async function executeDeploymentControlAction(options: {
       status: "blocked",
       approvalStage: "action",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: { ...baseMetadata, reason_blocked: "no_deployment_target" },
     });
     return { ok: false, blocked: true, error: "No deployment target was found for this action.", deployments: inspection.deployments, safety: "blocked_no_deployment_mutation" };
@@ -286,7 +286,7 @@ export async function executeDeploymentControlAction(options: {
       status: "blocked",
       approvalStage: "action",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_not_enabled", documentedCommand: command },
     });
     return {
@@ -297,7 +297,7 @@ export async function executeDeploymentControlAction(options: {
       deployment: selectedDeployment,
       documentedCommand: command,
       safety: "approved_but_blocked_no_deployment_mutation",
-      message: "Jarvis prepared the exact documented Vercel CLI command but did not redeploy or rollback production.",
+      message: "Rune prepared the exact documented Vercel CLI command but did not redeploy or rollback production.",
     };
   }
 
@@ -320,7 +320,7 @@ export async function executeDeploymentControlAction(options: {
       status: "blocked",
       approvalStage: "action",
       riskLevel: "high",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_queue_failed", documentedCommand: command, error: queued.error },
     });
     return {

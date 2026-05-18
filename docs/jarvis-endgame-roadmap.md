@@ -45,13 +45,13 @@ Goal: make Supabase the primary durable memory layer.
 
 Steps:
 
-1. Keep `JARVIS_OWNER_MEMORY` as an optional bootstrap only.
+1. Keep `RUNE_OWNER_MEMORY` as an optional bootstrap only.
 2. Use `agent_memories` as the source of truth for enduring facts, rules, decisions, and project context.
 3. Import only curated safe memories, never raw chat logs.
 4. Add dry-run import preview before any memory write.
 5. Log every import preview/import to `jarvis_action_events`.
 6. Add duplicate detection and secret/raw-chat guards.
-7. After successful import, rotate/remove `JARVIS_MEMORY_SEED_TOKEN` if it is no longer needed.
+7. After successful import, rotate/remove `RUNE_MEMORY_SEED_TOKEN` if it is no longer needed.
 
 Implemented in this patch:
 

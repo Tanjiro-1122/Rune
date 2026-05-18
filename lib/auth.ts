@@ -1,5 +1,5 @@
 /** Single source of truth for the session cookie name. */
-export const SESSION_COOKIE = "jarvis_session" as const;
+export const SESSION_COOKIE = "rune_session" as const;
 
 const DEFAULT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12; // 12 hours
 const MAX_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // hard cap: 7 days
@@ -36,7 +36,7 @@ export function getSessionSecret(): string | undefined {
 }
 
 export function getSessionMaxAgeSeconds(): number {
-  const configured = Number(process.env.JARVIS_SESSION_MAX_AGE_SECONDS);
+  const configured = Number(process.env.RUNE_SESSION_MAX_AGE_SECONDS);
   if (Number.isFinite(configured) && configured > 0) {
     return Math.min(Math.floor(configured), MAX_SESSION_MAX_AGE_SECONDS);
   }

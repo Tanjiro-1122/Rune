@@ -3,13 +3,13 @@ import { getBuildIntelligenceSnapshot, type BuildIntelligenceSnapshot } from "@/
 import { getDeployHealthSnapshot, type DeployHealthSnapshot } from "@/lib/deploy-health";
 import { getSupabaseClient } from "@/lib/supabase";
 import { listRepoActionProposals, type RepoActionProposalRow } from "@/lib/repo-actions";
-import { JARVIS_CANONICAL_PROJECTS, getProjectByKey, type JarvisProjectKey } from "@/lib/project-registry";
+import { RUNE_CANONICAL_PROJECTS, getProjectByKey, type RuneProjectKey } from "@/lib/project-registry";
 import { logError } from "@/lib/errors";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
 export interface OperatorBriefingProjectSummary {
-  key: JarvisProjectKey;
+  key: RuneProjectKey;
   label: string;
   repo: string;
   safetyLevel: string;
@@ -101,12 +101,12 @@ function getBuildRunStatus(build: BuildIntelligenceSnapshot) {
 }
 
 function summarizeProject(
-  projectKey: JarvisProjectKey,
+  projectKey: RuneProjectKey,
   health: AppHealthSnapshot,
   build: BuildIntelligenceSnapshot,
   deploy: DeployHealthSnapshot | null
 ): OperatorBriefingProjectSummary {
-  const project = getProjectByKey(projectKey) || JARVIS_CANONICAL_PROJECTS.find((item) => item.key === projectKey)!;
+  const project = getProjectByKey(projectKey) || RUNE_CANONICAL_PROJECTS.find((item) => item.key === projectKey)!;
   const warnings = [
     ...health.blockers.slice(0, 4),
     ...(build.github.error ? [`GitHub visibility: ${build.github.error}`] : []),
@@ -123,7 +123,7 @@ function summarizeProject(
     healthScore: typeof health.score === "number" ? health.score : null,
     buildStatus: getBuildRunStatus(build),
     latestCommit: build.github.latestCommit?.sha?.slice(0, 7) || null,
-    deploySignal: project.key === "jarvis" ? deploy?.overall || "unknown" : "not_applicable",
+    deploySignal: project.key === "rune" ? deploy?.overall || "unknown" : "not_applicable",
     warnings,
   };
 }
@@ -176,7 +176,7 @@ async function getRecentWorkspaceTasks(): Promise<OperatorBriefingTaskSummary[]>
 
 async function getMemorySummary(): Promise<OperatorBriefingMemorySummary> {
   const supabase = getSupabaseClient();
-  const ownerMemoryConfigured = Boolean(process.env.JARVIS_OWNER_MEMORY?.trim());
+  const ownerMemoryConfigured = Boolean(process.env.RUNE_OWNER_MEMORY?.trim());
 
   if (!supabase) {
     return {
@@ -233,7 +233,7 @@ function getBriefingHeadline(overallStatus: OperatorBriefingStatus) {
   return overallStatus === "healthy"
     ? "Jarvis operator signals look calm."
     : overallStatus === "warning"
-      ? "Jarvis has integration visibility or health warnings to review."
+      ? "Rune has integration visibility or health warnings to review."
       : "Jarvis found a blocked operator signal that needs review.";
 }
 
@@ -298,7 +298,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
   ]);
 
   const projectResults = await Promise.all(
-    JARVIS_CANONICAL_PROJECTS.map(async (project) => {
+    RUNE_CANONICAL_PROJECTS.map(async (project) => {
       const [health, build] = await Promise.all([
         getAppHealthSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true }),
         getBuildIntelligenceSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true }),

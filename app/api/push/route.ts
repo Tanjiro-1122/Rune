@@ -22,8 +22,8 @@ const DeleteSchema = z.object({ endpoint: z.string().url().max(500) });
 
 function isAuthorized(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  const cookie = req.cookies.get("jarvis_session")?.value;
-  const ownerToken = process.env.JARVIS_OWNER_TOKEN;
+  const cookie = req.cookies.get("rune_session")?.value;
+  const ownerToken = process.env.RUNE_OWNER_TOKEN;
   if (ownerToken && cookie === ownerToken) return true;
   // Also allow from same-origin requests (browser)
   const origin = req.headers.get("origin");

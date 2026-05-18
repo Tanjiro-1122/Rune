@@ -1,5 +1,5 @@
 import {
-  JARVIS_DEFAULT_REPO,
+  RUNE_DEFAULT_REPO,
   getProjectByKey,
   getProjectByRepo,
   inferProjectFromText,
@@ -35,7 +35,7 @@ export function inferRepoActionTargets(input: {
     getProjectByKey(input.projectKey || undefined) ||
     getProjectByRepo(input.repo || undefined) ||
     inferProjectFromText(requestText);
-  const repo = resolveCanonicalRepo(input.repo || inferredProject?.repo || JARVIS_DEFAULT_REPO, requestText);
+  const repo = resolveCanonicalRepo(input.repo || inferredProject?.repo || RUNE_DEFAULT_REPO, requestText);
   const project = getProjectByRepo(repo) || inferredProject;
   const projectKey = project?.key || input.projectKey || "jarvis";
   const files: RepoActionFileTarget[] = [...(input.files || [])];
@@ -115,16 +115,16 @@ export function inferRepoActionTargets(input: {
 function splitRepo(repoSlug: string) {
   const raw = repoSlug.trim();
   const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
-  const slug = (match?.[1] || match?.[2] || JARVIS_DEFAULT_REPO).replace(/\.git$/i, "");
+  const slug = (match?.[1] || match?.[2] || RUNE_DEFAULT_REPO).replace(/\.git$/i, "");
   const [owner, repo] = slug.split("/");
-  return { owner: owner || "Tanjiro-1122", repo: repo || "Jarvis", slug };
+  return { owner: owner || "Tanjiro-1122", repo: repo || "Rune", slug };
 }
 
 function getGitHubClient() {
-  const token = process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
   return new Octokit({
     ...(token ? { auth: token } : {}),
-    userAgent: "Jarvis-Repo-Targeting/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
+    userAgent: "Jarvis-Repo-Targeting/1.0 (+https://github.com/Tanjiro-1122/Rune)",
   });
 }
 

@@ -60,7 +60,7 @@ export interface RepoActionProposalRow {
 
 const VALID_RISKS: RepoActionRisk[] = ["low", "medium", "high"];
 const VALID_STATUSES: RepoActionStatus[] = ["draft", "proposed", "approved", "rejected", "blocked", "executed", "cancelled"];
-const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
+const DEFAULT_REPO = "Tanjiro-1122/Rune";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NUMERIC_ID_RE = /^\d{8,}$/;
@@ -96,10 +96,10 @@ function getRepoParts(repoSlug: string) {
 }
 
 function getGitHubClient() {
-  const token = process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
   return new Octokit({
     ...(token ? { auth: token } : {}),
-    userAgent: "Jarvis-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
+    userAgent: "Jarvis-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Rune)",
   });
 }
 
@@ -248,7 +248,7 @@ function isRepoAllowed(repoSlug: string) {
 }
 
 function getAuthenticatedCloneUrl(slug: string) {
-  const token = process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
   if (token) return `https://x-access-token:${encodeURIComponent(token)}@github.com/${slug}.git`;
   return `https://github.com/${slug}.git`;
 }
@@ -281,8 +281,8 @@ function isoFromUnknownTimestamp(value: unknown) {
 }
 
 async function getVercelDeploymentForBranch(branch?: string | null) {
-  const token = process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
+  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
+  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
   const teamId = process.env.VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
   if (!token) return { configured: false, error: "Vercel token not configured." };
 
@@ -366,7 +366,7 @@ function buildPrBody(proposal: RepoActionProposalRow, metadata: Record<string, u
     "",
     "## Approval note",
     "",
-    proposal.approval_note || "Approved in Jarvis Repo Control.",
+    proposal.approval_note || "Approved in Rune Repo Control.",
     "",
     "## Diff preview",
     "",
@@ -377,7 +377,7 @@ function buildPrBody(proposal: RepoActionProposalRow, metadata: Record<string, u
 }
 
 function redactedCommandOutput(value: string, maxChars = 9000) {
-  const secrets = [process.env.GITHUB_TOKEN, process.env.JARVIS_GITHUB_TOKEN, process.env.OPENAI_API_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY]
+  const secrets = [process.env.GITHUB_TOKEN, process.env.RUNE_GITHUB_TOKEN, process.env.OPENAI_API_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY]
     .filter((item): item is string => Boolean(item));
   let text = value;
   for (const secret of secrets) text = text.split(secret).join("[redacted]");
@@ -921,7 +921,7 @@ export async function generateRepoActionProposedDiff(options: { id: string }) {
     ].join("\n");
   }).join("\n\n---\n\n");
 
-  const model = process.env.JARVIS_PATCH_MODEL || process.env.JARVIS_CHAT_MODEL || "gpt-4o-mini";
+  const model = process.env.JARVIS_PATCH_MODEL || process.env.RUNE_CHAT_MODEL || "gpt-4o-mini";
   const prompt = [
     "You are Jarvis, Javier's cautious private developer agent.",
     "Create a focused review-only unified diff proposal from the repo files below.",
@@ -1878,7 +1878,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       ok: false,
       proposalId: "id" in options ? options.id : options.proposalId,
       ready: false,
-      requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
+      requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
       nextAction: "Configure Supabase so Jarvis can read proposal metadata.",
       safety: "metadata_only_no_deploy",
       message: "Deployment handoff could not be prepared because Supabase is not configured.",
@@ -1893,7 +1893,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       ok: false,
       proposalId: cleanText(rawProposalId, 120),
       ready: false,
-      requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
+      requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
       nextAction: "Use a Repo Control proposal UUID from the proposal card, not a GitHub Actions run ID.",
       safety: "metadata_only_no_deploy",
       message: "Deployment handoff could not start because the proposal ID was invalid.",
@@ -1913,7 +1913,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       ok: false,
       proposalId,
       ready: false,
-      requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
+      requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
       nextAction: "Confirm the proposal ID and rerun deployment handoff prep.",
       safety: "metadata_only_no_deploy",
       message: "Deployment handoff could not find the proposal.",
@@ -1947,7 +1947,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       pr_branch: prBranch,
       readiness_summary: readinessSummary,
       readiness_reasons: readinessReasons,
-      required_approval_phrase: "APPROVE JARVIS REDEPLOY",
+      required_approval_phrase: "APPROVE RUNE REDEPLOY",
       safety: "metadata_only_no_deploy",
     },
   };
@@ -1976,7 +1976,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       readinessSummary,
       readinessReasons,
       safety: "metadata_only_no_deploy",
-      requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
+      requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
     },
   });
 
@@ -1989,7 +1989,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
     readinessSummary,
     readinessReasons,
     vercel,
-    requiredApprovalPhrase: "APPROVE JARVIS REDEPLOY",
+    requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
     nextAction,
     safety: "metadata_only_no_deploy",
     message,

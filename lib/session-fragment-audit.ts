@@ -94,11 +94,11 @@ function emptyResult(error: string): SessionFragmentAuditResult {
 }
 
 /**
- * Read-only audit of historical browser-local Jarvis sessions.
+ * Read-only audit of historical browser-local Rune sessions.
  * This intentionally returns only counts/metadata. It never reads message
  * content and never mutates Supabase records.
  */
-export async function auditJarvisSessionFragments(): Promise<SessionFragmentAuditResult> {
+export async function auditRuneSessionFragments(): Promise<SessionFragmentAuditResult> {
   const supabase = getSupabaseClient();
   if (!supabase) {
     return emptyResult("Supabase is not configured, so Jarvis cannot audit persisted session fragments yet.");
@@ -164,7 +164,7 @@ export async function auditJarvisSessionFragments(): Promise<SessionFragmentAudi
   const fragmentedConversations = fragmentedSessions.reduce((total, session) => total + session.conversationCount, 0);
   const fragmentedMessages = fragmentedSessions.reduce((total, session) => total + session.messageCount, 0);
   const summary = fragmentedSessions.length === 0
-    ? "No old browser-local Jarvis session fragments were found in the sampled data."
+    ? "No old browser-local Rune session fragments were found in the sampled data."
     : `Found ${fragmentedSessions.length} old browser-local session fragment${fragmentedSessions.length === 1 ? "" : "s"} with ${fragmentedConversations} conversation${fragmentedConversations === 1 ? "" : "s"} and ${fragmentedMessages} message record${fragmentedMessages === 1 ? "" : "s"}.`;
 
   return {
@@ -216,7 +216,7 @@ export type SessionFragmentMergePlanResult = {
   sessions: SessionFragmentSummary[];
   approvalRequired: {
     required: true;
-    phrase: "APPROVE JARVIS SESSION MERGE";
+    phrase: "APPROVE RUNE SESSION MERGE";
     reason: string;
   };
   executionBoundary: string;
@@ -246,7 +246,7 @@ function blockedMergePlan(error: string): SessionFragmentMergePlanResult {
     sessions: [],
     approvalRequired: {
       required: true,
-      phrase: "APPROVE JARVIS SESSION MERGE",
+      phrase: "APPROVE RUNE SESSION MERGE",
       reason: "A separate approval is required before any Supabase rows are changed.",
     },
     executionBoundary: "Planner only. No merge executor is implemented by this tool.",
@@ -262,13 +262,13 @@ function blockedMergePlan(error: string): SessionFragmentMergePlanResult {
 }
 
 /**
- * Planner-only dry run for consolidating old browser-local Jarvis sessions.
+ * Planner-only dry run for consolidating old browser-local Rune sessions.
  *
  * This does not execute the merge. It translates the read-only audit into a
  * human approval plan for a future, separate executor.
  */
-export async function planJarvisSessionFragmentMerge(): Promise<SessionFragmentMergePlanResult> {
-  const audit = await auditJarvisSessionFragments();
+export async function planRuneSessionFragmentMerge(): Promise<SessionFragmentMergePlanResult> {
+  const audit = await auditRuneSessionFragments();
   if (!audit.success) return blockedMergePlan(audit.error ?? audit.summary);
 
   const fragments = audit.sessions.filter((session) => !session.isOwnerSession);
@@ -302,7 +302,7 @@ export async function planJarvisSessionFragmentMerge(): Promise<SessionFragmentM
     sessions: fragments,
     approvalRequired: {
       required: true,
-      phrase: "APPROVE JARVIS SESSION MERGE",
+      phrase: "APPROVE RUNE SESSION MERGE",
       reason: "The real merge would reassign existing conversation/workspace ownership metadata to owner:javier, so it must be a separate explicitly approved action.",
     },
     executionBoundary: "Planner only. No merge executor is implemented by this tool.",
@@ -326,7 +326,7 @@ export type SessionFragmentMergeExecutionResult = {
   ownerSessionId: string;
   generatedAt: string;
   summary: string;
-  requiredApprovalPhrase: "APPROVE JARVIS SESSION MERGE";
+  requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE";
   sourceSessionIds: string[];
   before?: SessionFragmentMergePlanResult;
   after?: SessionFragmentAuditResult;
@@ -351,7 +351,7 @@ function blockedMergeExecution(error: string, sourceSessionIds: string[] = []): 
     ownerSessionId: JARVIS_OWNER_SESSION_ID,
     generatedAt: new Date().toISOString(),
     summary: error,
-    requiredApprovalPhrase: "APPROVE JARVIS SESSION MERGE",
+    requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
     sourceSessionIds,
     mutations: {
       conversationsReassigned: 0,
@@ -375,7 +375,7 @@ function blockedMergeExecution(error: string, sourceSessionIds: string[] = []): 
 }
 
 /**
- * Executes the approved Jarvis session metadata merge.
+ * Executes the approved Rune session metadata merge.
  *
  * Scope is intentionally narrow:
  * - reassign conversation.session_id to owner:javier
@@ -386,8 +386,8 @@ function blockedMergeExecution(error: string, sourceSessionIds: string[] = []): 
  * It never reads message content, never updates message rows, never deletes
  * rows, and never changes schema.
  */
-export async function executeJarvisSessionFragmentMerge(approvalPhrase: string): Promise<SessionFragmentMergeExecutionResult> {
-  if (approvalPhrase !== "APPROVE JARVIS SESSION MERGE") {
+export async function executeRuneSessionFragmentMerge(approvalPhrase: string): Promise<SessionFragmentMergeExecutionResult> {
+  if (approvalPhrase !== "APPROVE RUNE SESSION MERGE") {
     return blockedMergeExecution("Blocked: exact approval phrase was not provided.");
   }
 
@@ -396,21 +396,21 @@ export async function executeJarvisSessionFragmentMerge(approvalPhrase: string):
     return blockedMergeExecution("Supabase is not configured, so Jarvis cannot execute the session merge.");
   }
 
-  const before = await planJarvisSessionFragmentMerge();
+  const before = await planRuneSessionFragmentMerge();
   if (!before.success) {
     return { ...blockedMergeExecution(before.error ?? before.summary, before.sourceSessionIds), before };
   }
 
   const sourceSessionIds = before.sourceSessionIds.filter((sessionId) => sessionId && sessionId !== JARVIS_OWNER_SESSION_ID);
   if (sourceSessionIds.length === 0) {
-    const after = await auditJarvisSessionFragments();
+    const after = await auditRuneSessionFragments();
     return {
       success: true,
       executed: false,
       ownerSessionId: JARVIS_OWNER_SESSION_ID,
       generatedAt: new Date().toISOString(),
       summary: "No fragmented sessions needed merging.",
-      requiredApprovalPhrase: "APPROVE JARVIS SESSION MERGE",
+      requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
       sourceSessionIds: [],
       before,
       after,
@@ -488,7 +488,7 @@ export async function executeJarvisSessionFragmentMerge(approvalPhrase: string):
     return { ...blockedMergeExecution(`Workspace event reassignment failed: ${eventUpdate.error.message}`, sourceSessionIds), before };
   }
 
-  const after = await auditJarvisSessionFragments();
+  const after = await auditRuneSessionFragments();
   const conversationsReassigned = conversationUpdate.data?.length ?? before.proposedChanges.conversationsToReassign;
   const workspacesReassigned = workspaceUpdate.data?.length ?? before.proposedChanges.workspaceOwnersToNormalize;
   const workspaceEventsReassigned = eventUpdate.data?.length ?? 0;
@@ -499,7 +499,7 @@ export async function executeJarvisSessionFragmentMerge(approvalPhrase: string):
     ownerSessionId: JARVIS_OWNER_SESSION_ID,
     generatedAt: new Date().toISOString(),
     summary: `Approved metadata merge executed: ${conversationsReassigned} conversation${conversationsReassigned === 1 ? "" : "s"} and ${workspacesReassigned} workspace${workspacesReassigned === 1 ? "" : "s"} were reassigned to ${JARVIS_OWNER_SESSION_ID}. Message rows were not edited.`,
-    requiredApprovalPhrase: "APPROVE JARVIS SESSION MERGE",
+    requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
     sourceSessionIds,
     before,
     after,

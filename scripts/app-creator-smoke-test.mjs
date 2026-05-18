@@ -37,7 +37,7 @@ assert(/refinement_required_rescaffold/.test(lib), "App Creator refinement must 
 assert(/refined_preview_only_no_files_changed_no_schema_no_deploy/.test(lib), "App Creator refinement must not change files/schema/deploy.");
 assert(/metadata_only_no_deploy_no_merge_no_schema_mutation/.test(lib), "App Creator preview handoff must be metadata-only.");
 assert(/prepareRepoDeploymentHandoff/.test(lib), "App Creator preview handoff must wrap existing Repo Control deployment handoff.");
-assert(/APPROVE PRIVATE JARVIS DEPLOY/.test(lib), "App Creator private deploy must require exact private approval phrase.");
+assert(/APPROVE PRIVATE RUNE DEPLOY/.test(lib), "App Creator private deploy must require exact private approval phrase.");
 assert(/queued_private_owner_only_executor_artifact_no_public_launch_no_merge_no_schema_mutation/.test(lib), "App Creator private deploy must be owner-only, artifact-only, and queue-only.");
 assert(/authRequired: true/.test(lib) && /owner_only_authenticated_javier/.test(lib) && /owner_only_executor_v1/.test(lib), "App Creator private deploy must require owner auth metadata for owner-only execution.");
 assert(/queueCliRunnerJob/.test(lib), "App Creator private deploy must queue through the trusted runner system.");
@@ -52,7 +52,7 @@ assert(/refine_app_creator_proposal/.test(route), "Chat must expose refine_app_c
 assert(/prepare_app_creator_preview_handoff/.test(route), "Chat must expose prepare_app_creator_preview_handoff tool.");
 assert(/queue_private_app_creator_deploy/.test(route), "Chat must expose queue_private_app_creator_deploy tool.");
 assert(/does not edit files, create schemas, deploy, or open a PR/.test(route), "Tool description must state no direct mutation.");
-assert(/Jarvis can create apps through the controlled App Creator workflow/.test(route), "System prompt must answer app creation accurately.");
+assert(/Rune can create apps through the controlled App Creator workflow/.test(route), "System prompt must answer app creation accurately.");
 assert(/AppCreatorCard/.test(ui), "Chat UI must render App Creator card.");
 assert(/changedFiles/.test(ui), "App Creator card must surface generated scaffold files.");
 assert(/repoFlow/.test(ui) && /prUrl/.test(ui), "App Creator card must surface bridge Repo Control and PR details.");

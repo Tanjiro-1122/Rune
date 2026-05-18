@@ -8,9 +8,9 @@ import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment,
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
-const STORAGE_KEY_SESSION_ID = "jarvis_session_id";
-const STORAGE_KEY_WORKSPACE_ID = "jarvis_workspace_id";
-const STORAGE_KEY_CONVERSATION_ID = "jarvis_conversation_id";
+const STORAGE_KEY_SESSION_ID = "rune_session_id";
+const STORAGE_KEY_WORKSPACE_ID = "rune_workspace_id";
+const STORAGE_KEY_CONVERSATION_ID = "rune_conversation_id";
 const ACCEPTED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -339,10 +339,10 @@ interface OperatorBriefingSnapshot {
 
 const PROJECT_SWITCHBOARD_OPTIONS = [
   {
-    key: "jarvis",
-    label: "Jarvis",
+    key: "rune",
+    label: "Rune",
     subtitle: "Private AI workspace",
-    repo: "Tanjiro-1122/Jarvis",
+    repo: "Tanjiro-1122/Rune",
     accent: "#7dd3fc",
     safetyLabel: "Owner-console",
     safetyTone: "owner",
@@ -457,7 +457,7 @@ function normalizeBriefingForDisplay(briefing: OperatorBriefingSnapshot | null):
   return {
     ...briefing,
     overallStatus: "warning",
-    headline: "Jarvis has integration visibility or health warnings to review.",
+    headline: "Rune has integration visibility or health warnings to review.",
   };
 }
 
@@ -706,8 +706,8 @@ export function Chat() {
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
   const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
-  const [selectedProjectKey, setSelectedProjectKey] = useState<(typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]>("jarvis");
-  const [memoryProjectKey, setMemoryProjectKey] = useState("jarvis");
+  const [selectedProjectKey, setSelectedProjectKey] = useState<(typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]>("rune");
+  const [memoryProjectKey, setMemoryProjectKey] = useState("rune");
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryTitle, setMemoryTitle] = useState("");
   const [memoryContent, setMemoryContent] = useState("");
@@ -845,7 +845,7 @@ export function Chat() {
       setChatErrorMessage(
         error instanceof Error
           ? error.message
-          : "Jarvis could not complete that response."
+          : "Rune could not complete that response."
       );
     },
   });
@@ -1105,7 +1105,7 @@ export function Chat() {
         body: JSON.stringify({
           title: repoProposalTitle.trim(),
           summary: repoProposalSummary.trim(),
-          findings: "Proposal created from Jarvis Repo Control. Full findings should be added by Jarvis before execution.",
+          findings: "Proposal created from Rune Repo Control. Full findings should be added by Rune before execution.",
           plan: "Review the proposal, confirm scope and risk, then approve only if Javier explicitly agrees.",
           projectKey: selectedProject.key,
           repo: selectedProject.repo,
@@ -1133,8 +1133,8 @@ export function Chat() {
 
   async function updateRepoProposalStatus(proposal: RepoActionProposalSummary, status: "approved" | "rejected" | "blocked" | "cancelled") {
     const note = status === "approved"
-      ? "Approved from Jarvis Repo Control. Execution still requires a separate controlled action path."
-      : `${status} from Jarvis Repo Control.`;
+      ? "Approved from Rune Repo Control. Execution still requires a separate controlled action path."
+      : `${status} from Rune Repo Control.`;
     const confirmed = window.confirm(`${status === "approved" ? "Approve" : "Update"} proposal?\n\n${proposal.title}`);
     if (!confirmed || repoProposalBusy) return;
 
@@ -1259,7 +1259,7 @@ export function Chat() {
 
   async function runTempWorkspaceCheck(proposal: RepoActionProposalSummary) {
     if (repoProposalBusy) return;
-    const confirmed = window.confirm(`Run a temporary workspace build check?\n\n${proposal.title}\n\nJarvis will clone the allowlisted repo into a temporary server folder, apply the proposed diff locally, run validation/build, then delete the folder. No commit, push, or deploy will happen.`);
+    const confirmed = window.confirm(`Run a temporary workspace build check?\n\n${proposal.title}\n\nRune will clone the allowlisted repo into a temporary server folder, apply the proposed diff locally, run validation/build, then delete the folder. No commit, push, or deploy will happen.`);
     if (!confirmed) return;
 
     setRepoProposalBusy(true);
@@ -1285,7 +1285,7 @@ export function Chat() {
 
   async function openRepoProposalPr(proposal: RepoActionProposalSummary) {
     if (repoProposalBusy) return;
-    const confirmed = window.confirm(`Open a GitHub pull request?\n\n${proposal.title}\n\nRequired: proposal approved + passing temp build. Jarvis will create a branch and PR only. It will not merge, deploy, or push to main.`);
+    const confirmed = window.confirm(`Open a GitHub pull request?\n\n${proposal.title}\n\nRequired: proposal approved + passing temp build. Rune will create a branch and PR only. It will not merge, deploy, or push to main.`);
     if (!confirmed) return;
 
     setRepoProposalBusy(true);
@@ -1347,7 +1347,7 @@ export function Chat() {
           workspaceId,
           conversationId,
           sessionId,
-          title: title || "Queued Jarvis job",
+          title: title || "Queued Rune job",
           inputText: input.trim(),
           intent: "plan",
         }),
@@ -1589,7 +1589,7 @@ export function Chat() {
 
     setEditingMemoryId(null);
     setMemoryKind("note");
-    setMemoryTitle(title || "Saved Jarvis insight");
+    setMemoryTitle(title || "Saved Rune insight");
     setMemoryContent(cleaned.slice(0, 4000));
     setMemoryStatus("Review, edit, then save this memory.");
     setShowInfoSidebar(true);
@@ -1913,13 +1913,13 @@ export function Chat() {
 
 
   useEffect(() => {
-    void refreshBuildIntelligence("jarvis");
+    void refreshBuildIntelligence("rune");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
   useEffect(() => {
-    void refreshRepoProposals("jarvis");
+    void refreshRepoProposals("rune");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2097,7 +2097,7 @@ export function Chat() {
 
     if (imageFiles.length === 0) return fileList;
     if (passthroughFiles.length > 0) {
-      throw new Error("Please send images and text files separately so Jarvis can process them safely.");
+      throw new Error("Please send images and text files separately so Rune can process them safely.");
     }
 
     setFileError("Uploading image safely before sending…");
@@ -2133,7 +2133,7 @@ export function Chat() {
       setFileError(
         error instanceof Error
           ? error.message
-          : "Jarvis could not prepare that attachment. Try a smaller image or send it separately."
+          : "Rune could not prepare that attachment. Try a smaller image or send it separately."
       );
     } finally {
       setIsUploadingAttachment(false);
@@ -2361,7 +2361,7 @@ export function Chat() {
             ☰
           </button>
           <div className="chat-header-copy">
-            <span className="chat-header-title">Jarvis</span>
+            <span className="chat-header-title">Rune</span>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
               {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
@@ -2406,10 +2406,10 @@ export function Chat() {
               <p>Loading workspace…</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="private-owner-empty" aria-label="Private Jarvis workspace ready">
+            <div className="private-owner-empty" aria-label="Private Rune workspace ready">
               <div className="private-owner-orb" aria-hidden="true">J</div>
               <p>Private workspace ready</p>
-              <span>Ask Jarvis below. Your tools, memory, repo control, files, and tasks stay tucked into the drawers.</span>
+              <span>Ask Rune below. Your tools, memory, repo control, files, and tasks stay tucked into the drawers.</span>
             </div>
           ) : (
             messages.map((message) => {
@@ -2428,7 +2428,7 @@ export function Chat() {
               >
                 <div className="message-role-row">
                   <div className="message-role">
-                    {message.role === "user" ? "" : "Jarvis"}
+                    {message.role === "user" ? "" : "Rune"}
                   </div>
                   {message.role === "assistant" && messageText.trim() && (
                     <button
@@ -2479,7 +2479,7 @@ export function Chat() {
                             ? ((invocation.result as { proposalId?: string }).proposalId as string)
                             : "";
                       const capabilityDedupeKey =
-                        invocation.toolName === "get_jarvis_capability_snapshot" || invocation.toolName === "get_jarvis_self_audit_snapshot" || invocation.toolName === "get_tool_lifecycle_diagnostic"
+                        invocation.toolName === "get_rune_capability_snapshot" || invocation.toolName === "get_rune_self_audit_snapshot" || invocation.toolName === "get_tool_lifecycle_diagnostic"
                           ? invocation.toolName
                           : "";
                       const toolSignature = capabilityDedupeKey || `${invocation.toolName}:${stageKey}:${proposalKey}:${invocation.state === "result" ? JSON.stringify(invocation.result ?? {}) : invocation.state}`;
@@ -2531,12 +2531,12 @@ export function Chat() {
 
           {showTypingIndicator && (
             <div className="message assistant message--typing">
-              <div className="message-role">Jarvis</div>
+              <div className="message-role">Rune</div>
               <div
                 className="typing-indicator"
                 role="status"
                 aria-live="polite"
-                aria-label="Jarvis is thinking"
+                aria-label="Rune is thinking"
               >
                 <span />
                 <span />
@@ -2572,7 +2572,7 @@ export function Chat() {
         {streamRecoveryNotice && <div className="file-error">{streamRecoveryNotice}</div>}
         {(chatErrorMessage || chatError) && (
           <div className="chat-error-banner" role="alert">
-            <strong>Jarvis paused.</strong>
+            <strong>Rune paused.</strong>
             <span>
               {chatErrorMessage || chatError?.message ||
                 "Something interrupted the response. Try sending again."}
@@ -2611,7 +2611,7 @@ export function Chat() {
                 formRef.current?.requestSubmit();
               }
             }}
-            placeholder="Ask Jarvis anything for this workspace…"
+            placeholder="Ask Rune anything for this workspace…"
             className="chat-input"
             rows={1}
           />
@@ -2640,11 +2640,11 @@ export function Chat() {
       )}
 
       {showInfoSidebar && (
-        <aside className={toolsShellClassName} data-tools-mode={isMobileToolsMode ? "mobile" : "desktop"} aria-label="Jarvis tools and controls">
+        <aside className={toolsShellClassName} data-tools-mode={isMobileToolsMode ? "mobile" : "desktop"} aria-label="Rune tools and controls">
           <div className={toolsPanelClassName}>
             <div className={toolsTitlebarClassName}>
               <div>
-                <span>Jarvis tools</span>
+                <span>Rune tools</span>
                 <small>{selectedProject.label}</small>
               </div>
               <button type="button" onClick={() => setShowInfoSidebar(false)} aria-label="Close tools">Close</button>
@@ -2662,7 +2662,7 @@ export function Chat() {
                 <div>
                   <div className="side-section-label">Project switchboard</div>
                   <p className="side-section-copy">
-                    Scope Jarvis controls to the project you are working on.
+                    Scope Rune controls to the project you are working on.
                   </p>
                 </div>
               </div>
@@ -2695,7 +2695,7 @@ export function Chat() {
               </div>
             </div>
 
-            <div ref={mobileToolsTopRef} className={filingCabinetClassName} data-testid={isMobileToolsMode ? "mobile-tools-top-tiles" : "desktop-tools-drawers"} aria-label="Jarvis filing cabinet sections">
+            <div ref={mobileToolsTopRef} className={filingCabinetClassName} data-testid={isMobileToolsMode ? "mobile-tools-top-tiles" : "desktop-tools-drawers"} aria-label="Rune filing cabinet sections">
               {CABINET_DRAWERS.map((drawer) => (
                 <button
                   key={drawer.key}
@@ -3024,7 +3024,7 @@ export function Chat() {
                   className="workspace-field workspace-field--multiline"
                   value={memoryContent}
                   onChange={(e) => setMemoryContent(e.target.value)}
-                  placeholder="What should Jarvis remember?"
+                  placeholder="What should Rune remember?"
                   rows={3}
                 />
                 <div className="memory-form-actions">
@@ -3077,7 +3077,7 @@ export function Chat() {
                   className="workspace-field workspace-field--multiline memory-import-textarea"
                   value={memoryImportText}
                   onChange={(e) => setMemoryImportText(e.target.value)}
-                  placeholder='[{"kind":"decision","title":"...","content":"...","project_key":"jarvis","tags":["curated"],"priority":8}]'
+                  placeholder='[{"kind":"decision","title":"...","content":"...","project_key":"rune","tags":["curated"],"priority":8}]'
                   rows={6}
                 />
                 <label className="memory-import-approval">
@@ -3156,7 +3156,7 @@ export function Chat() {
                 </div>
               ) : (
                 <div className="context-empty">
-                  No matching memories yet. Save one here, or ask Jarvis to remember an important decision.
+                  No matching memories yet. Save one here, or ask Rune to remember an important decision.
                 </div>
               )}
             </div>
@@ -3201,7 +3201,7 @@ export function Chat() {
                 </>
               ) : (
                 <div className="context-empty">
-                  Refresh to check Jarvis setup health.
+                  Refresh to check Rune setup health.
                 </div>
               )}
               {deployHealthStatus && <p className="memory-status">{deployHealthStatus}</p>}
@@ -3245,7 +3245,7 @@ export function Chat() {
                   className="workspace-field workspace-field--multiline"
                   value={repoProposalSummary}
                   onChange={(e) => setRepoProposalSummary(e.target.value)}
-                  placeholder="What should Jarvis prepare, inspect, or change?"
+                  placeholder="What should Rune prepare, inspect, or change?"
                   rows={3}
                 />
                 <button
@@ -3372,7 +3372,7 @@ export function Chat() {
                 </div>
               ) : (
                 <div className="context-empty">
-                  No repo proposals yet. Create one here, or let Jarvis propose one after an audit.
+                  No repo proposals yet. Create one here, or let Rune propose one after an audit.
                 </div>
               )}
             </div>
@@ -3434,7 +3434,7 @@ export function Chat() {
                         {buildIntel.vercel.configured ? "Configured" : "Optional"}
                       </span>
                     </div>
-                    <p className="build-intel-main">{buildIntel.vercel.project ?? "Jarvis"}</p>
+                    <p className="build-intel-main">{buildIntel.vercel.project ?? "Rune"}</p>
                     {buildIntel.vercel.latestDeployment ? (
                       <>
                         <p className="build-intel-copy">
@@ -3496,7 +3496,7 @@ export function Chat() {
                 </div>
               ) : (
                 <div className="context-empty">
-                  Refresh to inspect the Jarvis repo and deployment signals.
+                  Refresh to inspect the Rune repo and deployment signals.
                 </div>
               )}
               {buildIntelStatus && <p className="memory-status">{buildIntelStatus}</p>}
@@ -3509,7 +3509,7 @@ export function Chat() {
                 <div>
                   <div className="side-section-label">Activity log</div>
                   <p className="side-section-copy">
-                    A lightweight audit trail for meaningful Jarvis actions.
+                    A lightweight audit trail for meaningful Rune actions.
                   </p>
                 </div>
                 <button
@@ -3550,7 +3550,7 @@ export function Chat() {
                 </div>
               ) : (
                 <div className="context-empty">
-                  Activity appears here after Jarvis saves, edits, archives, proposes, or executes important actions.
+                  Activity appears here after Rune saves, edits, archives, proposes, or executes important actions.
                 </div>
               )}
             </div>

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 
 const RUNNER_ID = process.env.RUNNER_ID || "trusted-runner-1";
 const BASE_URL = (process.env.JARVIS_BASE_URL || "").replace(/\/$/, "");
-const RUNNER_TOKEN = process.env.JARVIS_RUNNER_TOKEN || "";
+const RUNNER_TOKEN = process.env.RUNE_RUNNER_TOKEN || "";
 const DRY_RUN = (process.env.JARVIS_RUNNER_DRY_RUN || "true").toLowerCase() !== "false";
 const ALLOW_DRY_RUN_CLAIM = (process.env.JARVIS_RUNNER_ALLOW_DRY_RUN_CLAIM || "false").toLowerCase() === "true";
 const POLL_INTERVAL_MS = Number(process.env.JARVIS_RUNNER_POLL_INTERVAL_MS || 15_000);
@@ -11,15 +11,15 @@ const ONCE = process.argv.includes("--once");
 const EXECUTE = (process.env.JARVIS_RUNNER_EXECUTION_MODE || "dry-run").toLowerCase() === "execute" && !DRY_RUN;
 
 const EXACT_APPROVALS = new Map([
-  ["vercel_redeploy", "APPROVE JARVIS REDEPLOY"],
-  ["vercel_rollback", "APPROVE JARVIS ROLLBACK"],
-  ["private_app_creator_deploy", "APPROVE PRIVATE JARVIS DEPLOY"],
+  ["vercel_redeploy", "APPROVE RUNE REDEPLOY"],
+  ["vercel_rollback", "APPROVE RUNE ROLLBACK"],
+  ["private_app_creator_deploy", "APPROVE PRIVATE RUNE DEPLOY"],
 ]);
 
 function requireEnv() {
   const missing = [];
   if (!BASE_URL) missing.push("JARVIS_BASE_URL");
-  if (!RUNNER_TOKEN) missing.push("JARVIS_RUNNER_TOKEN");
+  if (!RUNNER_TOKEN) missing.push("RUNE_RUNNER_TOKEN");
   if (EXECUTE && !process.env.VERCEL_TOKEN) missing.push("VERCEL_TOKEN");
   if (missing.length) throw new Error(`Missing required env vars: ${missing.join(", ")}`);
 }
@@ -79,7 +79,7 @@ function validatePrivateAppCreatorDeployMetadata(metadata, command) {
   const executorMode = String(metadata.executorMode || "");
   if (!["dry_run_validator_only", "owner_only_executor_v1"].includes(executorMode)) blockers.push("executor_mode_not_allowed_private_owner_mode");
   if (!isTrue(previewHandoff.ready)) blockers.push("preview_handoff_not_ready");
-  if (previewHandoff.requiredApprovalPhrase && previewHandoff.requiredApprovalPhrase !== "APPROVE JARVIS REDEPLOY") blockers.push("unexpected_preview_handoff_approval_phrase");
+  if (previewHandoff.requiredApprovalPhrase && previewHandoff.requiredApprovalPhrase !== "APPROVE RUNE REDEPLOY") blockers.push("unexpected_preview_handoff_approval_phrase");
   if (metadata.approval_text !== requiredApproval) blockers.push("private_approval_phrase_mismatch");
 
   if (blockers.length) {

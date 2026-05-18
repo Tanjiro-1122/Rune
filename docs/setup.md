@@ -29,8 +29,8 @@ Optional but recommended:
 TAVILY_API_KEY
 GITHUB_TOKEN
 JARVIS_CODE_EXECUTION_ENABLED=true
-JARVIS_CHAT_MODEL=gpt-4o-mini
-JARVIS_OWNER_MEMORY=private_safe_memory_for_javier_and_his_projects
+RUNE_CHAT_MODEL=gpt-4o-mini
+RUNE_OWNER_MEMORY=private_safe_memory_for_javier_and_his_projects
 ```
 
 Important: do **not** use `NEXT_PUBLIC_` for Supabase keys in this app. Jarvis uses Supabase from server routes only.
@@ -170,15 +170,15 @@ Recommended optional values:
 TAVILY_API_KEY=your_tavily_key
 GITHUB_TOKEN=your_github_token
 JARVIS_CODE_EXECUTION_ENABLED=true
-JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE=20
-JARVIS_CHAT_MODEL=gpt-4o-mini
-JARVIS_OWNER_MEMORY=paste_safe_owner_memory_here
+RUNE_CHAT_MAX_REQUESTS_PER_MINUTE=20
+RUNE_CHAT_MODEL=gpt-4o-mini
+RUNE_OWNER_MEMORY=paste_safe_owner_memory_here
 ```
 
 Optional private memory:
 
 ```txt
-JARVIS_OWNER_MEMORY=paste_safe_owner_memory_here
+RUNE_OWNER_MEMORY=paste_safe_owner_memory_here
 ```
 
 Use this for curated private context about Javier, Jarvis, and active projects. Keep it in Vercel only. Do not put private memory in GitHub, README files, or client-side variables.
@@ -186,7 +186,7 @@ Use this for curated private context about Javier, Jarvis, and active projects. 
 Optional image security setting for production:
 
 ```txt
-JARVIS_ALLOWED_IMAGE_HOSTS=your-cdn.com,your-project.supabase.co
+RUNE_ALLOWED_IMAGE_HOSTS=your-cdn.com,your-project.supabase.co
 ```
 
 Leave it blank during early testing if needed.
@@ -271,7 +271,7 @@ If `TAVILY_API_KEY` is missing, Jarvis should explain that web search is not con
 Ask:
 
 ```txt
-Analyze this repo: Tanjiro-1122/Jarvis
+Analyze this repo: Tanjiro-1122/Rune
 ```
 
 Without `GITHUB_TOKEN`, public repo analysis still works but is rate-limited by GitHub.
@@ -363,7 +363,7 @@ Future hardening to consider:
 
 ## Jarvis Memory Core
 
-Jarvis stores long-term memory in Supabase instead of only using the static `JARVIS_OWNER_MEMORY` environment variable.
+Jarvis stores long-term memory in Supabase instead of only using the static `RUNE_OWNER_MEMORY` environment variable.
 
 The Memory Core tables are now included in the canonical Foundation schema:
 
@@ -385,7 +385,7 @@ agent_memory_events
 Add this Vercel environment variable so you can safely seed memory from curl without a login cookie:
 
 ```txt
-JARVIS_MEMORY_SEED_TOKEN=make_a_private_random_token
+RUNE_MEMORY_SEED_TOKEN=make_a_private_random_token
 ```
 
 Seeding should include this token. Keep it private.
@@ -434,18 +434,18 @@ Patch 4 adds a lightweight Build Intelligence panel inside Jarvis. It can inspec
 Add these optional Vercel environment variables if you want the panel to have full signal:
 
 ```txt
-JARVIS_GITHUB_REPO=Tanjiro-1122/Jarvis
-GITHUB_TOKEN=your_github_token_or_use_JARVIS_GITHUB_TOKEN
-JARVIS_GITHUB_TOKEN=optional_alternative_github_token
-JARVIS_VERCEL_TOKEN=your_vercel_token
-JARVIS_VERCEL_PROJECT_ID=your_vercel_project_id
+JARVIS_GITHUB_REPO=Tanjiro-1122/Rune
+GITHUB_TOKEN=your_github_token_or_use_RUNE_GITHUB_TOKEN
+RUNE_GITHUB_TOKEN=optional_alternative_github_token
+RUNE_VERCEL_TOKEN=your_vercel_token
+RUNE_VERCEL_PROJECT_ID=your_vercel_project_id
 JARVIS_VERCEL_PROJECT_NAME=Jarvis
 JARVIS_VERCEL_TEAM_ID=your_team_id_if_needed
 ```
 
 GitHub inspection can work without a token for public repositories, but a token is recommended for private repos and higher rate limits.
 
-Vercel deployment inspection requires `JARVIS_VERCEL_TOKEN` or `VERCEL_TOKEN`. If it is missing, Jarvis will simply show Vercel as optional instead of failing the app.
+Vercel deployment inspection requires `RUNE_VERCEL_TOKEN` or `VERCEL_TOKEN`. If it is missing, Jarvis will simply show Vercel as optional instead of failing the app.
 
 Every build-intelligence refresh records a low-risk `intelligence.snapshot` event in the Activity Log.
 
@@ -503,7 +503,7 @@ Patch 7 adds a Project Switchboard to the right-side Jarvis control panel. Use t
 
 The switchboard scopes controls to:
 
-- Jarvis — `Tanjiro-1122/Jarvis`
+- Jarvis — `Tanjiro-1122/Rune`
 - Unfiltr — `Tanjiro-1122/UniltrbyJavierbackup`
 - SWH — `Tanjiro-1122/swhmobile`
 - Unfiltr Family — `Tanjiro-1122/UnfiltrFamily`
@@ -560,7 +560,7 @@ Inspection is intentionally safe:
 - does not push
 - does not deploy
 
-This uses `GITHUB_TOKEN` or `JARVIS_GITHUB_TOKEN` server-side. No additional Supabase schema is required beyond Patch 8's `draft_metadata` column.
+This uses `GITHUB_TOKEN` or `RUNE_GITHUB_TOKEN` server-side. No additional Supabase schema is required beyond Patch 8's `draft_metadata` column.
 
 
 ## Real Proposed Diff Generator
@@ -576,7 +576,7 @@ Memory button → Repo drawer → Create/select proposal → Generate diff
 The generator:
 
 - reads current file contents from GitHub
-- uses `OPENAI_API_KEY` with `JARVIS_PATCH_MODEL` or `JARVIS_CHAT_MODEL`
+- uses `OPENAI_API_KEY` with `JARVIS_PATCH_MODEL` or `RUNE_CHAT_MODEL`
 - stores a unified proposed diff in `diff_preview`
 - logs `repo_action.diff_generated` in Activity Log
 - does not edit files
@@ -649,7 +649,7 @@ The temp build check:
 Recommended env:
 
 ```txt
-JARVIS_ALLOWED_REPOS=Tanjiro-1122/Jarvis
+JARVIS_ALLOWED_REPOS=Tanjiro-1122/Rune
 JARVIS_SANDBOX_INSTALL_TIMEOUT_MS=180000
 JARVIS_SANDBOX_BUILD_TIMEOUT_MS=180000
 ```
@@ -683,8 +683,8 @@ The PR flow:
 Required env:
 
 ```txt
-GITHUB_TOKEN=... # or JARVIS_GITHUB_TOKEN
-JARVIS_ALLOWED_REPOS=Tanjiro-1122/Jarvis
+GITHUB_TOKEN=... # or RUNE_GITHUB_TOKEN
+JARVIS_ALLOWED_REPOS=Tanjiro-1122/Rune
 ```
 
 
@@ -713,8 +713,8 @@ The tracker:
 Optional Vercel env:
 
 ```txt
-JARVIS_VERCEL_TOKEN=...
-JARVIS_VERCEL_PROJECT_ID=...
+RUNE_VERCEL_TOKEN=...
+RUNE_VERCEL_PROJECT_ID=...
 JARVIS_VERCEL_TEAM_ID=... # only if needed
 ```
 
@@ -742,9 +742,9 @@ SUPABASE_SERVICE_ROLE_KEY=...
 Optional env:
 
 ```txt
-JARVIS_UPLOAD_BUCKET=jarvis-uploads
-JARVIS_MAX_UPLOAD_BYTES=8388608
-JARVIS_UPLOAD_SIGNED_URL_SECONDS=604800
+RUNE_UPLOAD_BUCKET=jarvis-uploads
+RUNE_MAX_UPLOAD_BYTES=8388608
+RUNE_UPLOAD_SIGNED_URL_SECONDS=604800
 ```
 
 Supabase schema update required:
@@ -774,7 +774,7 @@ What it enables:
 - file opens are logged as `workspace_file.signed_url_created`
 - the app no longer depends on old signed URLs staying valid forever
 
-The endpoint is protected by Jarvis session middleware and uses the server-side Supabase service role key. It does not expose the storage service key to the browser.
+The endpoint is protected by Rune session middleware and uses the server-side Supabase service role key. It does not expose the storage service key to the browser.
 
 
 ## Background Job Queue
@@ -811,7 +811,7 @@ Patch 18 adds the secure contract for a future external worker.
 What it enables:
 
 - `/api/runner` endpoint for external runner calls
-- runner bearer-token authentication via `JARVIS_RUNNER_TOKEN`
+- runner bearer-token authentication via `RUNE_RUNNER_TOKEN`
 - claim next queued job
 - heartbeat an owned job
 - complete an owned job
@@ -823,25 +823,25 @@ What it enables:
 Required Vercel env before using an external runner:
 
 ```txt
-JARVIS_RUNNER_TOKEN=your-long-random-runner-token
+RUNE_RUNNER_TOKEN=your-long-random-runner-token
 ```
 
 Runner API contract:
 
 ```bash
-curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"claim","runnerId":"local-runner-1"}'
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $RUNE_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"claim","runnerId":"local-runner-1"}'
 ```
 
 Heartbeat:
 
 ```bash
-curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"heartbeat","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Still working"}'
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $RUNE_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"heartbeat","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Still working"}'
 ```
 
 Complete:
 
 ```bash
-curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"complete","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Job completed"}'
+curl -X POST "https://your-jarvis-domain.vercel.app/api/runner"   -H "Authorization: Bearer $RUNE_RUNNER_TOKEN"   -H "Content-Type: application/json"   -d '{"action":"complete","runnerId":"local-runner-1","taskId":"TASK_ID","message":"Job completed"}'
 ```
 
 Schema update required:
@@ -988,7 +988,7 @@ The handoff includes:
 - PR branch
 - readiness summary/reasons
 - Vercel preview metadata when available
-- required deployment approval phrase: `APPROVE JARVIS REDEPLOY`
+- required deployment approval phrase: `APPROVE RUNE REDEPLOY`
 - next safe action
 
 Safety boundaries:

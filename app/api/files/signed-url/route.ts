@@ -5,7 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 
-const SIGNED_URL_SECONDS = Number(process.env.JARVIS_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
+const SIGNED_URL_SECONDS = Number(process.env.RUNE_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
 
 const SignedUrlSchema = z.object({
   projectFileId: z.string().uuid(),
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       status: "info",
       approvalStage: "none",
       riskLevel: "low",
-      projectKey: "jarvis",
+      projectKey: "rune",
       sessionId: sessionId ?? null,
       workspaceId: data.workspace_id ?? workspaceId ?? null,
       conversationId: data.conversation_id ?? conversationId ?? null,

@@ -1,7 +1,7 @@
 import { getDeployHealthSnapshot, type DeployHealthSnapshot } from "@/lib/deploy-health";
 import {
   JARVIS_APPROVAL_REQUIRED_ACTIONS,
-  JARVIS_CANONICAL_PROJECTS,
+  RUNE_CANONICAL_PROJECTS,
   JARVIS_NOT_CONNECTED_YET,
   JARVIS_REAL_CAPABILITIES,
 } from "@/lib/project-registry";
@@ -24,7 +24,7 @@ export type CapabilityTruthSnapshot = {
     owner: "Javier";
     productIntent: string;
   };
-  projects: typeof JARVIS_CANONICAL_PROJECTS;
+  projects: typeof RUNE_CANONICAL_PROJECTS;
   summary: {
     verifiedCount: number;
     configuredCount: number;
@@ -116,7 +116,7 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
   const generatedAt = new Date().toISOString();
 
   for (const capability of JARVIS_REAL_CAPABILITIES) {
-    push(buckets, item(`real.${capability.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, capability, "verified", "Implemented in the Jarvis codebase."));
+    push(buckets, item(`real.${capability.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, capability, "verified", "Implemented in the Rune codebase."));
   }
 
   push(
@@ -166,8 +166,8 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
     item(
       "config.github",
       "GitHub repository access",
-      anyEnv(["GITHUB_TOKEN", "JARVIS_GITHUB_TOKEN"]) ? "configured" : "partial",
-      anyEnv(["GITHUB_TOKEN", "JARVIS_GITHUB_TOKEN"])
+      anyEnv(["GITHUB_TOKEN", "RUNE_GITHUB_TOKEN"]) ? "configured" : "partial",
+      anyEnv(["GITHUB_TOKEN", "RUNE_GITHUB_TOKEN"])
         ? "GitHub token is configured for repo inspection and private repository access."
         : "No GitHub token is configured; public repo inspection may work, private repos and higher rate limits will not.",
       "Environment readiness check"
@@ -178,8 +178,8 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
     item(
       "config.vercel",
       "Vercel deployment intelligence",
-      anyEnv(["VERCEL_TOKEN", "JARVIS_VERCEL_TOKEN"]) ? "configured" : "partial",
-      anyEnv(["VERCEL_TOKEN", "JARVIS_VERCEL_TOKEN"])
+      anyEnv(["VERCEL_TOKEN", "RUNE_VERCEL_TOKEN"]) ? "configured" : "partial",
+      anyEnv(["VERCEL_TOKEN", "RUNE_VERCEL_TOKEN"])
         ? "Vercel token is configured for deployment intelligence."
         : "Vercel token is optional but missing; deployment intelligence may be limited.",
       "Environment readiness check"
@@ -190,10 +190,10 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
     item(
       "config.runner",
       "External runner token",
-      envPresent("JARVIS_RUNNER_TOKEN") ? "configured" : "partial",
-      envPresent("JARVIS_RUNNER_TOKEN")
-        ? "JARVIS_RUNNER_TOKEN is configured for external worker claims."
-        : "Runner API exists, but long-running external execution needs JARVIS_RUNNER_TOKEN and a real runner process.",
+      envPresent("RUNE_RUNNER_TOKEN") ? "configured" : "partial",
+      envPresent("RUNE_RUNNER_TOKEN")
+        ? "RUNE_RUNNER_TOKEN is configured for external worker claims."
+        : "Runner API exists, but long-running external execution needs RUNE_RUNNER_TOKEN and a real runner process.",
       "Environment readiness check"
     )
   );
@@ -203,7 +203,7 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
       "config.upload_bucket",
       "Private upload bucket",
       "configured",
-      `Upload bucket name resolves to ${process.env.JARVIS_UPLOAD_BUCKET || "jarvis-uploads"}. Bucket existence is verified by Deploy Health/storage operations, not by exposing secrets.`,
+      `Upload bucket name resolves to ${process.env.RUNE_UPLOAD_BUCKET || "rune-uploads"}. Bucket existence is verified by Deploy Health/storage operations, not by exposing secrets.`,
       "Configuration default check"
     )
   );
@@ -247,14 +247,14 @@ export async function getCapabilityTruthSnapshot(): Promise<CapabilityTruthSnaps
       productIntent:
         "Not for sale. Built as Javier's private operating system for apps, projects, customer support, and eventually sensitive owner-only services.",
     },
-    projects: JARVIS_CANONICAL_PROJECTS,
+    projects: RUNE_CANONICAL_PROJECTS,
     summary,
     buckets,
     deployHealth: deploy.deployHealthSummary,
     guidance: [
       "Answer capability questions from this snapshot, not from assumptions.",
       "If a capability is partial, explain the missing setup before offering next steps.",
-      "If a capability is not_connected, do not imply Jarvis can perform it yet.",
+      "If a capability is not_connected, do not imply Rune can perform it yet.",
       "Sensitive actions stay behind Findings → Plan → Approval → Action.",
     ],
   };

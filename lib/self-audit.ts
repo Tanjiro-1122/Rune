@@ -4,8 +4,8 @@ import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 import {
   JARVIS_APPROVAL_REQUIRED_ACTIONS,
-  JARVIS_CANONICAL_PROJECTS,
-  JARVIS_DEFAULT_REPO,
+  RUNE_CANONICAL_PROJECTS,
+  RUNE_DEFAULT_REPO,
   JARVIS_NOT_CONNECTED_YET,
 } from "@/lib/project-registry";
 
@@ -23,7 +23,7 @@ export type SelfAuditCheck = {
 export type SelfAuditSnapshot = {
   generatedAt: string;
   mode: "self-audit";
-  scope: "jarvis-brain" | "full-owner-console";
+  scope: "rune-brain" | "full-owner-console";
   repo: string;
   headline: string;
   sections: {
@@ -152,7 +152,7 @@ function deploymentChecks(capabilityTruth: CapabilityTruthSnapshot, buildIntelli
           ? "GitHub intelligence is present but returned a limited/error signal."
           : "GitHub intelligence can read the Jarvis repository signal.",
         buildIntelligence.github.error || `${buildIntelligence.github.repo} latest commit ${buildIntelligence.github.latestCommit?.sha ?? "unknown"}`,
-        buildIntelligence.github.error ? "Check GITHUB_TOKEN/JARVIS_GITHUB_TOKEN permissions if private repo data is needed." : undefined
+        buildIntelligence.github.error ? "Check GITHUB_TOKEN/RUNE_GITHUB_TOKEN permissions if private repo data is needed." : undefined
       )
     );
 
@@ -191,7 +191,7 @@ function codebaseChecks(): SelfAuditCheck[] {
       "Canonical project registry",
       "verified",
       "Jarvis has a canonical registry for Jarvis, Unfiltr, SWH, and Unfiltr Family.",
-      JARVIS_CANONICAL_PROJECTS.map((project) => `${project.label}: ${project.repo}`).join(" | ")
+      RUNE_CANONICAL_PROJECTS.map((project) => `${project.label}: ${project.repo}`).join(" | ")
     ),
     check(
       "code.capability_truth_module",
@@ -235,14 +235,14 @@ function notConnectedChecks(): SelfAuditCheck[] {
   );
 }
 
-export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "jarvis-brain"): Promise<SelfAuditSnapshot> {
+export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "rune-brain"): Promise<SelfAuditSnapshot> {
   const generatedAt = new Date().toISOString();
   const capabilityTruth = await getCapabilityTruthSnapshot();
 
   let buildIntelligence: BuildIntelligenceSnapshot | null = null;
   let buildError: string | null = null;
   try {
-    buildIntelligence = await getBuildIntelligenceSnapshot({ projectKey: "jarvis", repo: JARVIS_DEFAULT_REPO });
+    buildIntelligence = await getBuildIntelligenceSnapshot({ projectKey: "rune", repo: RUNE_DEFAULT_REPO });
   } catch (error) {
     buildError = error instanceof Error ? error.message : "Unknown build intelligence error";
     logError("selfAudit.buildIntelligence", error);
@@ -261,15 +261,15 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
         "identity.default_repo",
         "Default self-repo",
         "verified",
-        `Jarvis self-repo resolves to ${JARVIS_DEFAULT_REPO}.`,
+        `Jarvis self-repo resolves to ${RUNE_DEFAULT_REPO}.`,
         "Brain Patch 1 project registry"
       ),
       check(
         "identity.project_count",
         "Known projects",
         "verified",
-        `Jarvis knows ${JARVIS_CANONICAL_PROJECTS.length} canonical project scopes.`,
-        JARVIS_CANONICAL_PROJECTS.map((project) => project.label).join(", ")
+        `Jarvis knows ${RUNE_CANONICAL_PROJECTS.length} canonical project scopes.`,
+        RUNE_CANONICAL_PROJECTS.map((project) => project.label).join(", ")
       ),
     ],
     capabilityTruth: capabilityChecks(capabilityTruth),
@@ -291,7 +291,7 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
     generatedAt,
     mode: "self-audit",
     scope,
-    repo: JARVIS_DEFAULT_REPO,
+    repo: RUNE_DEFAULT_REPO,
     headline,
     sections,
     summary,
@@ -314,10 +314,10 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
     status: summary.missing > 0 ? "info" : "executed",
     approvalStage: "findings",
     riskLevel: "low",
-    projectKey: "jarvis",
+    projectKey: "rune",
     metadata: {
       scope,
-      repo: JARVIS_DEFAULT_REPO,
+      repo: RUNE_DEFAULT_REPO,
       summary,
       recommendedNextPatch: snapshot.recommendedNextPatch.title,
     },

@@ -7,7 +7,7 @@ const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 
 const checks = [
   ['long-form diagnostic tool set exists', chatUi.includes('LONG_FORM_DIAGNOSTIC_TOOLS')],
-  ['self-audit is treated as long-form diagnostic', chatUi.includes('"get_jarvis_self_audit_snapshot"') && chatUi.includes('isLongFormDiagnosticTool')],
+  ['self-audit is treated as long-form diagnostic', chatUi.includes('"get_rune_self_audit_snapshot"') && chatUi.includes('isLongFormDiagnosticTool')],
   ['tool card receives assistant text context', chat.includes('assistantHasText={Boolean(messageText.trim())}')],
   ['pending diagnostic card can show answer-follows state', chatUi.includes('tool-card--answer-follows')],
   ['answer-follows state removes spinner', chatUi.includes('isPending && !showAnswerFollows') || chatUi.includes('!showAnswerFollows && !showLifecycleFallback')],

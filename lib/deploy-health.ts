@@ -27,13 +27,13 @@ const REQUIRED_ENV = [
 
 const OPTIONAL_ENV = [
   {
-    keys: ["JARVIS_OWNER_MEMORY"],
+    keys: ["RUNE_OWNER_MEMORY"],
     label: "Owner memory seed",
     fallbackDetail: "Covered by Supabase Memory Core",
   },
-  { keys: ["GITHUB_TOKEN", "JARVIS_GITHUB_TOKEN"], label: "GitHub token" },
-  { keys: ["VERCEL_TOKEN", "JARVIS_VERCEL_TOKEN"], label: "Vercel token" },
-  { keys: ["JARVIS_MEMORY_SEED_TOKEN"], label: "Memory seed token" },
+  { keys: ["GITHUB_TOKEN", "RUNE_GITHUB_TOKEN"], label: "GitHub token" },
+  { keys: ["VERCEL_TOKEN", "RUNE_VERCEL_TOKEN"], label: "Vercel token" },
+  { keys: ["RUNE_MEMORY_SEED_TOKEN"], label: "Memory seed token" },
 ];
 
 const REQUIRED_TABLES = [
@@ -138,7 +138,7 @@ export async function getDeployHealthSnapshot(options: { skipActionLog?: boolean
   checks.push(...tableChecks);
 
   try {
-    const intelligence = await getBuildIntelligenceSnapshot({ projectKey: "jarvis" });
+    const intelligence = await getBuildIntelligenceSnapshot({ projectKey: "rune" });
     checks.push({
       key: "github.intelligence",
       label: "GitHub intelligence",
@@ -176,7 +176,7 @@ export async function getDeployHealthSnapshot(options: { skipActionLog?: boolean
       status: snapshot.overall === "ok" ? "executed" : snapshot.overall === "warning" ? "info" : "failed",
       approvalStage: "findings",
       riskLevel: "low",
-      projectKey: "jarvis",
+      projectKey: "rune",
       metadata: {
         overall: snapshot.overall,
         missing: checks.filter((check) => check.status === "missing" || check.status === "error").map((check) => check.key),

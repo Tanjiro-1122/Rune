@@ -1,4 +1,4 @@
-import { inferProjectFromText, JARVIS_DEFAULT_REPO, resolveCanonicalRepo, splitRepoSlug } from "@/lib/project-registry";
+import { inferProjectFromText, RUNE_DEFAULT_REPO, resolveCanonicalRepo, splitRepoSlug } from "@/lib/project-registry";
 import { type DetectedIntent, type ReasoningRoute, needsRepositoryInspection } from "@/lib/orchestration";
 
 export type AgentWorkPhase = "understand" | "inspect" | "plan" | "propose" | "verify" | "respond";
@@ -24,7 +24,7 @@ export function buildAgentWorkLoopSnapshot(options: {
 }): AgentWorkLoopSnapshot {
   const project = inferProjectFromText(options.input);
   const repo = resolveCanonicalRepo(null, options.input);
-  const resolved = splitRepoSlug(repo || JARVIS_DEFAULT_REPO);
+  const resolved = splitRepoSlug(repo || RUNE_DEFAULT_REPO);
   const inspectionRequired =
     needsRepositoryInspection(options.input) ||
     options.reasoningRoute === "inspect_first" ||
@@ -62,7 +62,7 @@ export function buildAgentWorkLoopSnapshot(options: {
 
   return {
     projectKey: project?.key ?? null,
-    projectLabel: project?.label ?? "General/Jarvis default",
+    projectLabel: project?.label ?? "General/Rune default",
     repo: resolved.slug,
     repoOwner: resolved.owner,
     repoName: resolved.repo,

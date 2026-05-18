@@ -8,7 +8,7 @@ This document defines the contract for a separate trusted runner process.
 
 - Jarvis web runtime may prepare and queue CLI jobs.
 - Jarvis web runtime must not call `exec`, `spawn`, or run production deployment commands for queued CLI jobs.
-- A separate runner process claims queued jobs through `/api/runner` using `JARVIS_RUNNER_TOKEN`.
+- A separate runner process claims queued jobs through `/api/runner` using `RUNE_RUNNER_TOKEN`.
 - Queued CLI jobs use `runner_metadata.execution_mode = "queued_only_no_local_execution"`.
 - Approved deployment jobs are created only after exact approval gates pass.
 
@@ -17,16 +17,16 @@ This document defines the contract for a separate trusted runner process.
 Web deployment:
 
 ```txt
-JARVIS_RUNNER_TOKEN=<long random bearer token>
+RUNE_RUNNER_TOKEN=<long random bearer token>
 JARVIS_DEFAULT_WORKSPACE_ID=<workspace uuid for system-queued deployment jobs>
 JARVIS_DEPLOYMENT_MUTATION_MODE=cli_runner
-JARVIS_VERCEL_TOKEN=<vercel token, or VERCEL_TOKEN>
+RUNE_VERCEL_TOKEN=<vercel token, or VERCEL_TOKEN>
 ```
 
 Runner machine:
 
 ```txt
-JARVIS_RUNNER_TOKEN=<same bearer token>
+RUNE_RUNNER_TOKEN=<same bearer token>
 JARVIS_BASE_URL=https://your-jarvis-domain.vercel.app
 VERCEL_TOKEN=<token used by documented Vercel CLI commands>
 RUNNER_ID=trusted-runner-1
@@ -65,7 +65,7 @@ The external runner polls:
 
 ```bash
 curl -sS -X POST "$JARVIS_BASE_URL/api/runner" \
-  -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN" \
+  -H "Authorization: Bearer $RUNE_RUNNER_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"action\":\"claim\",\"runnerId\":\"$RUNNER_ID\"}"
 ```
@@ -94,9 +94,9 @@ Before running anything, the external runner must verify:
 2. `runner_metadata.execution_mode === "queued_only_no_local_execution"`
 3. `runner_metadata.command` starts with an allowlisted prefix.
 4. For deployment jobs, `runner_metadata.approval_text` exactly matches:
-   - `APPROVE JARVIS REDEPLOY`
-   - `APPROVE JARVIS ROLLBACK`
-   - `APPROVE PRIVATE JARVIS DEPLOY` for private App Creator dry-run validation
+   - `APPROVE RUNE REDEPLOY`
+   - `APPROVE RUNE ROLLBACK`
+   - `APPROVE PRIVATE RUNE DEPLOY` for private App Creator dry-run validation
 5. The command is one of the documented command shapes Jarvis prepared:
    - `vercel redeploy <deployment-url-or-id> --token=$VERCEL_TOKEN`
    - `vercel rollback <deployment-url-or-id> --token=$VERCEL_TOKEN`
@@ -122,7 +122,7 @@ During execution, the runner should send heartbeats:
 
 ```bash
 curl -sS -X POST "$JARVIS_BASE_URL/api/runner" \
-  -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN" \
+  -H "Authorization: Bearer $RUNE_RUNNER_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"action\":\"heartbeat\",\"runnerId\":\"$RUNNER_ID\",\"taskId\":\"$TASK_ID\",\"message\":\"Running approved CLI command\"}"
 ```
@@ -133,7 +133,7 @@ On success:
 
 ```bash
 curl -sS -X POST "$JARVIS_BASE_URL/api/runner" \
-  -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN" \
+  -H "Authorization: Bearer $RUNE_RUNNER_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"action\":\"complete\",\"runnerId\":\"$RUNNER_ID\",\"taskId\":\"$TASK_ID\",\"message\":\"CLI runner job completed successfully\"}"
 ```
@@ -142,7 +142,7 @@ On failure:
 
 ```bash
 curl -sS -X POST "$JARVIS_BASE_URL/api/runner" \
-  -H "Authorization: Bearer $JARVIS_RUNNER_TOKEN" \
+  -H "Authorization: Bearer $RUNE_RUNNER_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"action\":\"fail\",\"runnerId\":\"$RUNNER_ID\",\"taskId\":\"$TASK_ID\",\"message\":\"CLI runner job failed safely: <reason>\"}"
 ```

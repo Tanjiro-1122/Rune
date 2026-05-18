@@ -148,14 +148,14 @@ JARVIS_CODE_MAX_ARTIFACTS=5
 JARVIS_CODE_MAX_ARTIFACT_BYTES=24000
 JARVIS_CODE_MEMORY_LIMIT_MB=64
 JARVIS_CODE_MAX_WORKER_RETRIES=1
-JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE=20
+RUNE_CHAT_MAX_REQUESTS_PER_MINUTE=20
 
 # Optional: override the OpenAI chat model (default: gpt-4o-mini)
-JARVIS_CHAT_MODEL=gpt-4o-mini
+RUNE_CHAT_MODEL=gpt-4o-mini
 
 # Optional: comma-separated hostnames allowed as vision-API image sources
 # Leave unset to allow any HTTPS image URL (development default)
-JARVIS_ALLOWED_IMAGE_HOSTS=
+RUNE_ALLOWED_IMAGE_HOSTS=
 ```
 
 > **Required variables:** `OPENAI_API_KEY`, `APP_PASSWORD`, and `SESSION_SECRET`.
@@ -165,11 +165,11 @@ JARVIS_ALLOWED_IMAGE_HOSTS=
 > - `SUPABASE_URL` / `SUPABASE_ANON_KEY` — enables persistent workspaces, history, and artifacts
 > - `TAVILY_API_KEY` — enables real-time web search
 > - `GITHUB_TOKEN` — raises GitHub API rate limit from 60 to 5 000 req/hr
-> - `JARVIS_CHAT_MODEL` — switch chat model without a code change (default `gpt-4o-mini`)
-> - `JARVIS_ALLOWED_IMAGE_HOSTS` — comma-separated allowlist of image hostnames forwarded to the AI vision API; leave unset in dev, set it in production to restrict to your CDN/Supabase Storage domain
+> - `RUNE_CHAT_MODEL` — switch chat model without a code change (default `gpt-4o-mini`)
+> - `RUNE_ALLOWED_IMAGE_HOSTS` — comma-separated allowlist of image hostnames forwarded to the AI vision API; leave unset in dev, set it in production to restrict to your CDN/Supabase Storage domain
 > - `JARVIS_CODE_EXECUTION_ENABLED` — set to `false` to disable the JS/TS sandbox entirely
 > - `JARVIS_CODE_MAX_WORKER_RETRIES` — retries failed sandbox worker startups (clamped 0–2)
-> - `JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE` — per-session chat burst protection (clamped 5–300)
+> - `RUNE_CHAT_MAX_REQUESTS_PER_MINUTE` — per-session chat burst protection (clamped 5–300)
 >
 > `OPENAI_API_KEY` is also used for semantic retrieval embeddings in addition to chat completions.
 
@@ -248,7 +248,7 @@ Current permission model:
 
 ## Operational and usage controls in this stage
 
-- Per-session chat burst limiting (`JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE`) to reduce abuse/cost spikes
+- Per-session chat burst limiting (`RUNE_CHAT_MAX_REQUESTS_PER_MINUTE`) to reduce abuse/cost spikes
 - Workspace event logging for request lifecycle visibility and admin troubleshooting
 - Sandbox worker retry behavior for better resilience against transient worker startup failures
 
@@ -310,15 +310,15 @@ jarvis/
    - `SESSION_SECRET` *(required — use a long random string, e.g. `openssl rand -hex 32`)*
    - `SUPABASE_URL` and `SUPABASE_ANON_KEY` *(required for persistence)*
    - `TAVILY_API_KEY`, `GITHUB_TOKEN`, and optional tuning vars as needed
-   - `JARVIS_CHAT_MODEL` *(optional — defaults to `gpt-4o-mini`; set to switch models without redeploying)*
-   - `JARVIS_ALLOWED_IMAGE_HOSTS` *(recommended in production — comma-separated hostnames allowed as AI vision sources)*
+   - `RUNE_CHAT_MODEL` *(optional — defaults to `gpt-4o-mini`; set to switch models without redeploying)*
+   - `RUNE_ALLOWED_IMAGE_HOSTS` *(recommended in production — comma-separated hostnames allowed as AI vision sources)*
 3. Ensure the deployment uses the **Node.js runtime**.
 4. Run the Supabase SQL before expecting persistent workspaces or artifacts (see [Setup guide](./docs/setup.md)).
 5. Deploy.
 
 > `maxDuration` is set to 60 seconds for multi-step agent work. Long-running tasks may require Vercel Pro or better.
 >
-> **Note on rate limiting:** The built-in per-session rate limiter uses in-process memory, which resets on every cold start. On Vercel, where multiple serverless instances may run concurrently, the limit can be bypassed by routing requests to different instances. For production abuse prevention, complement `JARVIS_CHAT_MAX_REQUESTS_PER_MINUTE` with Vercel's edge rate limiting or a WAF rule, or replace the in-process limiter with an external atomic store (Upstash Redis / Vercel KV). See `app/api/chat/route.ts` for the isolated rate-limiter block that is designed to be upgraded.
+> **Note on rate limiting:** The built-in per-session rate limiter uses in-process memory, which resets on every cold start. On Vercel, where multiple serverless instances may run concurrently, the limit can be bypassed by routing requests to different instances. For production abuse prevention, complement `RUNE_CHAT_MAX_REQUESTS_PER_MINUTE` with Vercel's edge rate limiting or a WAF rule, or replace the in-process limiter with an external atomic store (Upstash Redis / Vercel KV). See `app/api/chat/route.ts` for the isolated rate-limiter block that is designed to be upgraded.
 
 ## What remains intentionally out of scope
 

@@ -4,7 +4,7 @@ import { getExternalServicesHealth, summarizeExternalServicesHealth, type Extern
 import { logActionEvent } from "@/lib/action-events";
 import { getProjectByKey } from "@/lib/project-registry";
 
-const DEFAULT_REPO = "Tanjiro-1122/Jarvis";
+const DEFAULT_REPO = "Tanjiro-1122/Rune";
 const EXTERNAL_INTELLIGENCE_TIMEOUT_MS = 8_000;
 
 export interface GitHubIntelligence {
@@ -70,10 +70,10 @@ function getRepoSlug(repoOverride?: string | null) {
 }
 
 function getOctokitClient() {
-  const githubToken = process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+  const githubToken = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
   return new Octokit({
     ...(githubToken ? { auth: githubToken } : {}),
-    userAgent: "Jarvis-Build-Intelligence/1.0 (+https://github.com/Tanjiro-1122/Jarvis)",
+    userAgent: "Rune-Build-Intelligence/1.0 (+https://github.com/Tanjiro-1122/Rune)",
   });
 }
 
@@ -101,7 +101,7 @@ async function withIntelligenceTimeout<T>(label: string, promise: Promise<T>, fa
 
 export async function getGitHubIntelligence(repoOverride?: string | null): Promise<GitHubIntelligence> {
   const { owner, repo, slug } = getRepoSlug(repoOverride);
-  const tokenConfigured = Boolean(process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN);
+  const tokenConfigured = Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN);
   const octokit = getOctokitClient();
 
   try {
@@ -161,8 +161,8 @@ export async function getGitHubIntelligence(repoOverride?: string | null): Promi
 }
 
 export async function getVercelIntelligence(): Promise<VercelIntelligence> {
-  const token = process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Jarvis";
+  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
+  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
   const teamId = process.env.VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
 
   if (!token) {
@@ -230,15 +230,15 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
 export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null; skipActionLog?: boolean } = {}): Promise<BuildIntelligenceSnapshot> {
   const projectRepo = options.repo || getProjectByKey(options.projectKey)?.repo || null;
   const repoSlug = getRepoSlug(projectRepo).slug;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Jarvis";
+  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
   const [github, vercel] = await Promise.all([
     withIntelligenceTimeout("github", getGitHubIntelligence(projectRepo), () => ({
-      configured: Boolean(process.env.GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN),
+      configured: Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN),
       repo: repoSlug,
       error: `GitHub intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms; returning partial snapshot.`,
     })),
     withIntelligenceTimeout("vercel", getVercelIntelligence(), () => ({
-      configured: Boolean(process.env.VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN),
+      configured: Boolean(process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN),
       project,
       error: `Vercel intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms; returning partial snapshot.`,
     })),

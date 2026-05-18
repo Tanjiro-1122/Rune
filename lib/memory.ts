@@ -349,7 +349,7 @@ export function getSafeSavingGraceSeed(): SeedMemoryInput[] {
     {
       kind: "project",
       title: "Jarvis goal",
-      project_key: "jarvis",
+      project_key: "rune",
       content: "Jarvis is Javier's private AI workspace and developer agent. It should feel elegant, capable, persistent, safe, and eventually reduce dependence on Base44 by storing memory and project context in Javier-owned Supabase.",
       tags: ["jarvis", "supabase", "memory"],
       priority: 10,
