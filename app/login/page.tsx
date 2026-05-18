@@ -36,36 +36,46 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="page">
-      <header className="hero">
-        <h1 className="rune-wordmark-title">
+    <main className="rune-login-page">
+      {/* Ambient ember glow blobs */}
+      <div className="rune-login-glow rune-login-glow--1" aria-hidden="true" />
+      <div className="rune-login-glow rune-login-glow--2" aria-hidden="true" />
+
+      <div className="rune-login-card">
+        {/* Wordmark */}
+        <div className="rune-login-brand">
           <img
             src="/images/rune-wordmark.png"
             alt="Rune"
-            className="rune-wordmark-img"
+            className="rune-login-wordmark"
+            onError={(e) => {
+              // Fallback if image fails
+              (e.target as HTMLImageElement).style.display = "none";
+              const el = document.querySelector(".rune-login-brand-fallback") as HTMLElement;
+              if (el) el.style.display = "block";
+            }}
           />
-        </h1>
-        <span className="hero-divider" aria-hidden="true">·</span>
-        <p>Sign in to continue</p>
-      </header>
+          <span className="rune-login-brand-fallback" aria-hidden="true">Rune</span>
+        </div>
 
-      <section className="chat-shell">
-        <form className="login-form" onSubmit={handleSubmit}>
+        <p className="rune-login-subtitle">Sign in to continue</p>
+
+        <form className="rune-login-form" onSubmit={handleSubmit}>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="chat-input"
+            className="rune-login-input"
             autoFocus
             required
           />
-          {error && <p className="login-error">{error}</p>}
-          <button type="submit" className="send-button" disabled={loading}>
+          {error && <p className="rune-login-error">{error}</p>}
+          <button type="submit" className="rune-login-btn" disabled={loading}>
             {loading ? "Checking…" : "Sign in"}
           </button>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

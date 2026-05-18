@@ -3009,3 +3009,138 @@ button:disabled {
   filter: drop-shadow(0 0 8px rgba(200, 60, 20, 0.45));
 }
 
+/* ── Rune Login Screen ─────────────────────────────────────── */
+.rune-login-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #09090b;
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+}
+
+/* Ember glow blobs */
+.rune-login-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+.rune-login-glow--1 {
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, #c43a14 0%, transparent 70%);
+  top: -80px;
+  left: -60px;
+}
+.rune-login-glow--2 {
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, #7c1a0a 0%, transparent 70%);
+  bottom: -60px;
+  right: -40px;
+}
+
+/* Card */
+.rune-login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* Brand */
+.rune-login-brand {
+  margin-bottom: 8px;
+  position: relative;
+}
+.rune-login-wordmark {
+  display: block;
+  height: 72px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(196, 58, 20, 0.6))
+          drop-shadow(0 0 40px rgba(196, 58, 20, 0.25));
+}
+.rune-login-brand-fallback {
+  display: none;
+  font-size: 48px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -2px;
+  text-shadow: 0 0 20px rgba(196, 58, 20, 0.8);
+}
+
+/* Subtitle */
+.rune-login-subtitle {
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 32px 0;
+}
+
+/* Form */
+.rune-login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rune-login-input {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.rune-login-input::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+.rune-login-input:focus {
+  border-color: rgba(196, 58, 20, 0.6);
+  box-shadow: 0 0 0 3px rgba(196, 58, 20, 0.15);
+}
+.rune-login-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #c43a14 0%, #8b2209 100%);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  letter-spacing: 0.02em;
+}
+.rune-login-btn:hover {
+  opacity: 0.9;
+}
+.rune-login-btn:active {
+  transform: scale(0.98);
+}
+.rune-login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.rune-login-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin: 0;
+  text-align: center;
+}
+/* ─────────────────────────────────────────────────────────── */
+
