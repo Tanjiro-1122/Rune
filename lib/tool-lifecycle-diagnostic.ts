@@ -30,7 +30,7 @@ export function getToolLifecycleDiagnostic(symptom = "freeze/stuck/question-mark
       "reviewed performance metrics",
     ],
     likelyRootCause:
-      "Tool-call lifecycle and stream/UI reconciliation: Jarvis previously routed this symptom into the full self-audit, which can perform external health checks and leave a pending card visible if the stream/tool state does not reconcile cleanly.",
+      "Tool-call lifecycle and stream/UI reconciliation: Rune previously routed this symptom into the full self-audit, which can perform external health checks and leave a pending card visible if the stream/tool state does not reconcile cleanly.",
     productFixPath: [
       "Use this lightweight diagnostic route for freeze/stuck/question-mark symptoms.",
       "Keep full self-audit only for explicit audit/readiness/system-health requests.",
