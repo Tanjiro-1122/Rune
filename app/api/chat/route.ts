@@ -1786,6 +1786,22 @@ function getAgentTools({
       },
     }),
 
+
+    get_app_intelligence: tool({
+      description:
+        "Get a live cross-app intelligence report covering Unfiltr and Sports Wager Helper. " +
+        "Returns DAU/MAU, retention, free-to-pro conversion, revenue, mood trends, bet win rates, ROI, and cross-app patterns. " +
+        "Use when Javier asks about users, revenue, engagement, analytics, retention, or how the apps are doing. " +
+        "Pass force=true to bypass the 6-hour cache.",
+      parameters: z.object({
+        force: z.boolean().optional().describe("Set true to force fresh data, bypassing the 6-hour cache."),
+      }),
+      execute: async ({ force }) => {
+        const { getCrossAppIntelligence } = await import("@/lib/cross-app-intelligence");
+        return getCrossAppIntelligence(force ?? false);
+      },
+    }),
+
     rollback_rune: tool({
       description:
         "Immediately roll back Rune's production deployment to the previous build. " +
