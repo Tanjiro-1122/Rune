@@ -51,7 +51,8 @@
     "test:chat-decomposition": "node scripts/chat-decomposition-smoke-test.mjs",
     "test:stream-finalization-guard": "node scripts/stream-finalization-guard-smoke-test.mjs",
     "test:stream-stall-watchdog": "node scripts/stream-stall-watchdog-smoke-test.mjs",
-    "test:github-readonly-inspection": "node scripts/github-readonly-inspection-smoke-test.mjs"
+    "test:github-readonly-inspection": "node scripts/github-readonly-inspection-smoke-test.mjs",
+    "test:source-search-final-answer-contract": "node scripts/source-search-final-answer-contract-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

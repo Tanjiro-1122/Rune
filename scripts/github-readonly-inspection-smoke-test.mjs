@@ -5,8 +5,8 @@ const cards = fs.readFileSync('components/chat/tool-cards.tsx', 'utf8');
 
 const checks = [
   ['source inspection intent exists', route.includes('function isGitHubSourceInspectionIntent')],
-  ['source intent is forced to code search', route.includes('return { type: "tool", toolName: "searchRepositoryCode" };')],
-  ['forced tool union includes code search', route.includes('| "searchRepositoryCode"')],
+  ['source intent prefers code search without forcing a loop', route.includes('prefer `searchRepositoryCode` first') && !route.includes('return { type: "tool", toolName: "searchRepositoryCode" };')],
+  ['forced tool union does not include code search', !route.includes('| "searchRepositoryCode"')],
   ['web search excludes source inspection requests', route.includes('isGitHubSourceInspectionIntent(input) || isGitHubAnalysisIntent(input)')],
   ['routing hint forbids placeholder paths', route.includes('Never invent placeholder paths like path/to/sendMessage.js')],
   ['system prompt requires source inspection discipline', route.includes('GitHub source inspection discipline')],

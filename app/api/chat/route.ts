@@ -469,7 +469,6 @@ function getForcedToolChoice(
         | "calculate"
         | "get_current_datetime"
         | "analyze_github_repo"
-        | "searchRepositoryCode"
         | "get_jarvis_capability_snapshot"
         | "get_jarvis_self_audit_snapshot"
         | "get_tool_lifecycle_diagnostic"
@@ -496,9 +495,6 @@ function getForcedToolChoice(
   }
   if (isDatetimeIntent(input)) {
     return { type: "tool", toolName: "get_current_datetime" };
-  }
-  if (isGitHubSourceInspectionIntent(input)) {
-    return { type: "tool", toolName: "searchRepositoryCode" };
   }
   if (isGitHubAnalysisIntent(input)) {
     return { type: "tool", toolName: "analyze_github_repo" };
@@ -532,7 +528,7 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
   } else if (isDatetimeIntent(input)) {
     hints.push("- Strong routing signal: this request is time-sensitive, so use `get_current_datetime`.");
   } else if (isGitHubSourceInspectionIntent(input)) {
-    hints.push("- Strong routing signal: this request asks for exact source-code evidence, so use `searchRepositoryCode` first. Only use `readRepositoryFile` with a real path returned by tree/search results. Never invent placeholder paths like path/to/sendMessage.js.");
+    hints.push("- Strong routing signal: this request asks for exact source-code evidence, so prefer `searchRepositoryCode` first, then synthesize the final answer from its results. Do not repeatedly call `searchRepositoryCode` with the same request. Only use `readRepositoryFile` with a real path returned by tree/search results. Never invent placeholder paths like path/to/sendMessage.js.");
   } else if (isGitHubAnalysisIntent(input)) {
     hints.push("- Strong routing signal: this request is about a GitHub repository, so use `analyze_github_repo`.");
   } else if (isWebSearchIntent(input)) {
@@ -2038,6 +2034,7 @@ ${projectRegistrySection}
 - \`create_task_plan\` — numbered step-by-step plan shown as a visual card
 - \`web_search\` — live web search via Tavily (requires TAVILY_API_KEY to be set in the deployment)
 - \`analyze_github_repo\` — fetch metadata, README, and file tree for any public GitHub repo
+- \`searchRepositoryCode\` — search real GitHub source and return actual file paths/snippets; use this for exact code-evidence requests, then answer from the returned results instead of searching repeatedly
 - \`listRepositoryTree\` — list complete repository file/folder layout
 - \`readRepositoryFile\` — read full file contents from a repository path before editing
 ${codeExecutionSummary}
@@ -2062,7 +2059,9 @@ ${routingHint}
 ## GitHub source inspection discipline
 - When Javier asks for exact implementation details, source files, snippets, filenames, or code evidence, use searchRepositoryCode/listRepositoryTree/readRepositoryFile instead of prose-only answers.
 - Use searchRepositoryCode first unless Javier gave an exact real repo path.
+- After searchRepositoryCode returns, stop searching unless the result is empty and one refined search would materially help. Prefer a final answer using returned file paths/snippets.
 - Never call readRepositoryFile with placeholder paths such as path/to/file.js, path/to/sendMessage.js, example paths, or invented filenames.
+- Final answers to exact source-code requests must include real file paths and snippets from tool results, or clearly say no matching source evidence was found.
 - If a file was not actually read, say it was not read. Do not claim code contents without tool evidence.
 
 ### Document and code context
