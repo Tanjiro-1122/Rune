@@ -15,6 +15,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { sendPushNotificationsToAll } from "@/lib/push-notify";
 import { getRevenueCatOverview } from "@/lib/revenuecat-overview";
 import { buildWhatsAppBriefingMessage } from "@/lib/whatsapp-briefing";
+import { getCrossAppIntelligence } from "@/lib/cross-app-intelligence";
 
 function isAuthorizedCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -101,11 +102,12 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseClient();
 
     // Run all data fetches in parallel
-    const [briefing, rc, openAiSpend, previousScore] = await Promise.all([
+    const [briefing, rc, openAiSpend, previousScore, intelligence] = await Promise.all([
       getDailyOperatorBriefing(),
       getRevenueCatOverview(),
       getOpenAiSpendThisMonth(),
       getPreviousHealthScore(supabase),
+      getCrossAppIntelligence(false),
     ]);
 
     // Compute avg health score for trend tracking
@@ -145,6 +147,8 @@ export async function GET(req: NextRequest) {
       openAiSpend,
       message,
       pushResult,
+      weeklyHighlight: intelligence.weeklyHighlight,
+      crossAppInsight: intelligence.crossAppInsight,
     });
   } catch (err) {
     console.error("[cron/daily-briefing] error", err);
