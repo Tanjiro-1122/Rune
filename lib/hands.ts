@@ -289,4 +289,4 @@ export async function getHandsProposal(proposalId: string): Promise<HandsProposa
     .single();
   return data as HandsProposal | null;
 }
-// built: 1779148617
+// @hands-phase1-v1
