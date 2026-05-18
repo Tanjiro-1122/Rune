@@ -34,7 +34,7 @@ export interface RevenueCatReadOnlyResult {
 }
 
 function getRevenueCatApiKey() {
-  return process.env.REVENUECAT_API_KEY?.trim() || process.env.JARVIS_REVENUECAT_API_KEY?.trim() || "";
+  return process.env.REVENUECAT_API_KEY?.trim() || process.env.REVENUECAT_SECRET_KEY?.trim() || process.env.JARVIS_REVENUECAT_API_KEY?.trim() || "";
 }
 
 function asString(value: unknown) {
@@ -155,3 +155,4 @@ export async function getRevenueCatSubscriberReadOnly(appUserId: string): Promis
     };
   }
 }
+

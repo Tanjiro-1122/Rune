@@ -37,7 +37,7 @@ function serviceSummary(label: string, status: ExternalServiceStatus) {
 }
 
 export function getExternalServicesHealth(): ExternalServiceCheck[] {
-  const revenueCatRequired = [process.env.JARVIS_REVENUECAT_API_KEY ? "JARVIS_REVENUECAT_API_KEY" : "REVENUECAT_API_KEY"];
+  const revenueCatRequired = [process.env.REVENUECAT_SECRET_KEY ? "REVENUECAT_SECRET_KEY" : process.env.JARVIS_REVENUECAT_API_KEY ? "JARVIS_REVENUECAT_API_KEY" : "REVENUECAT_API_KEY"];
   const revenueCatOptional = [
     "REVENUECAT_PROJECT_ID",
     "REVENUECAT_IOS_APP_ID",
@@ -112,3 +112,4 @@ export function summarizeExternalServicesHealth(checks = getExternalServicesHeal
   const missing = checks.filter((check) => check.status === "missing").length;
   return { configured, partial, missing, total: checks.length };
 }
+
