@@ -8,7 +8,7 @@ function cleanOwnerMemory(raw: string) {
 }
 
 /**
- * Private owner memory for Jarvis.
+ * Private owner memory for Rune.
  *
  * This is intentionally loaded from an environment variable instead of a repo
  * file so private user/project context never has to be committed to GitHub.
