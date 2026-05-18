@@ -3,6 +3,8 @@ import fs from 'node:fs';
 const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const route = fs.readFileSync('app/api/chat/route.ts', 'utf8');
 const chat = fs.readFileSync('components/chat.tsx', 'utf8');
+const toolCards = fs.readFileSync('components/chat/tool-cards.tsx', 'utf8');
+const chatUi = `${chat}\n${toolCards}`;
 const build = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
 const diagnostic = fs.readFileSync('lib/tool-lifecycle-diagnostic.ts', 'utf8');
 
@@ -17,9 +19,9 @@ const checks = [
   ['prompt says not to call full self-audit for freeze reports', route.includes('Do not call full self-audit for those symptoms')],
   ['diagnostic has no-network/no-self-audit guard', diagnostic.includes('shouldRunFullSelfAudit: false')],
   ['diagnostic explicitly blocks fake load claims', diagnostic.includes('system load') && diagnostic.includes('backend lag')],
-  ['chat label exists for lifecycle diagnostic', chat.includes('get_tool_lifecycle_diagnostic: "Checking Jarvis response lifecycle"')],
-  ['lifecycle tool is long-form diagnostic for answer-follows UI', chat.includes('"get_tool_lifecycle_diagnostic"') && chat.includes('showLifecycleFallback')],
-  ['lifecycle card removes indefinite spinner', chat.includes('so this card will not spin indefinitely')],
+  ['chat label exists for lifecycle diagnostic', chatUi.includes('get_tool_lifecycle_diagnostic: "Checking Jarvis response lifecycle"')],
+  ['lifecycle tool is long-form diagnostic for answer-follows UI', chatUi.includes('"get_tool_lifecycle_diagnostic"') && chatUi.includes('showLifecycleFallback')],
+  ['lifecycle card removes indefinite spinner', chatUi.includes('so this card will not spin indefinitely')],
   ['capability dedupe includes lifecycle diagnostic', chat.includes('invocation.toolName === "get_tool_lifecycle_diagnostic"')],
   ['external intelligence timeout constant exists', build.includes('EXTERNAL_INTELLIGENCE_TIMEOUT_MS = 8_000')],
   ['external intelligence uses Promise.race timeout', build.includes('Promise.race') && build.includes('withIntelligenceTimeout')],

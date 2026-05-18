@@ -13,6 +13,9 @@ const appHealthRoute = fs.readFileSync('app/api/app-health/route.ts', 'utf8');
 const appStoreConnectRoute = fs.readFileSync('app/api/app-store-connect/route.ts', 'utf8');
 const revenueCatRoute = fs.readFileSync('app/api/revenuecat/route.ts', 'utf8');
 const buildIntelligence = fs.readFileSync('lib/build-intelligence.ts', 'utf8');
+const chatComponent = fs.readFileSync('components/chat.tsx', 'utf8');
+const toolCards = fs.readFileSync('components/chat/tool-cards.tsx', 'utf8');
+const chatUi = `${chatComponent}\n${toolCards}`;
 
 const orchestration = fs.readFileSync('lib/orchestration.ts', 'utf8');
 const explicitRepoProposalPattern = /const EXPLICIT_REPO_PROPOSAL_PATTERN/.test(orchestration);
@@ -36,9 +39,9 @@ const checks = [
   ['deployment handoff exists', /prepareRepoDeploymentHandoff/.test(repoActions) && /metadata_only_no_deploy/.test(repoActions) && /APPROVE JARVIS REDEPLOY/.test(repoActions)],
   ['deployment control exists', fs.existsSync('lib/deployment-control.ts') && /deployment_control/.test(route) && /prepareDeploymentControlAction/.test(fs.readFileSync('lib/deployment-control.ts', 'utf8'))],
   ['deployment executor gate exists', /executeDeploymentControlAction/.test(deploymentControl) && /APPROVE JARVIS REDEPLOY/.test(deploymentControl) && /cli_runner_not_enabled/.test(deploymentControl) && /execute_redeploy/.test(route)],
-  ['specific tool labels exist', /getToolDisplayLabel/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Preparing rollback approval/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
-  ['repo/deployment UI status details exist', /readinessSummary/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Required phrase/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /repo-control-status/.test(fs.readFileSync('app/globals.css', 'utf8'))],
-  ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
+  ['specific tool labels exist', /getToolDisplayLabel/.test(chatUi) && /Preparing rollback approval/.test(chatUi)],
+  ['repo/deployment UI status details exist', /readinessSummary/.test(chatUi) && /Required phrase/.test(chatUi) && /repo-control-status/.test(fs.readFileSync('app/globals.css', 'utf8'))],
+  ['repo proposal outranks deployment wording', explicitRepoProposalPattern && safeReviewOnlyPattern && narrowedDeployPattern && /capabilityDedupeKey/.test(chatComponent)],
   ['repo ladder avoids calculator', /isRepoControlCommand/.test(chatRoute) && /withoutUuids/.test(chatRoute) && /Repo Control command detected; do not route to calculator/.test(chatRoute) && /safe repo control ladder/.test(orchestration)],
   ['jarvis voice layer exists', /Voice and personality/.test(chatRoute) && /private AI person/.test(chatRoute) && /not a compliance dashboard/.test(chatRoute) && /honest read/.test(chatRoute) && /Personality never overrides safety/.test(chatRoute)],
   ['external services health exists', /RevenueCat/.test(externalServicesHealth) && /App Store Connect/.test(externalServicesHealth) && /Google Play/.test(externalServicesHealth) && /externalServices/.test(buildIntelligence)],
@@ -52,7 +55,7 @@ const checks = [
   ['app health snapshot tool exists', /get_app_health_snapshot/.test(route) && /getAppHealthSnapshot/.test(route) && /never commits, deploys, releases, publishes/.test(route)],
   ['repo control flow chat tool exists', /run_repo_control_flow/.test(route) && /runRepoControlFlow/.test(route) && /never merges, deploys/.test(route)],
   ['deployment handoff chat tool exists', /prepare_repo_deployment_handoff/.test(route) && /prepareRepoDeploymentHandoff/.test(route) && /never merges, deploys, redeploys/.test(route)],
-  ['operator console stays read-only', /refreshOperatorConsole/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /Read-only checks only/.test(fs.readFileSync('components/chat.tsx', 'utf8')) && /does not merge, deploy/.test(fs.readFileSync('components/chat.tsx', 'utf8'))],
+  ['operator console stays read-only', /refreshOperatorConsole/.test(chatComponent) && /Read-only checks only/.test(chatComponent) && /does not merge, deploy/.test(chatComponent)],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [name, ok] of checks) console.log(`${ok ? '✅' : '❌'} ${name}`);

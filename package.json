@@ -47,7 +47,8 @@
     "test:frozen-diagnostic-routing": "node scripts/frozen-diagnostic-routing-smoke-test.mjs",
     "test:frozen-followup-routing": "node scripts/frozen-followup-routing-smoke-test.mjs",
     "test:question-mark-freeze-routing": "node scripts/question-mark-freeze-routing-smoke-test.mjs",
-    "test:freeze-lifecycle-final": "node scripts/freeze-lifecycle-final-smoke-test.mjs"
+    "test:freeze-lifecycle-final": "node scripts/freeze-lifecycle-final-smoke-test.mjs",
+    "test:chat-decomposition": "node scripts/chat-decomposition-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
