@@ -1,13 +1,19 @@
 {
+  "id": "/",
   "name": "Rune \u2014 Private Workspace",
   "short_name": "Rune",
   "description": "Javier's private AI workspace.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "portrait-primary",
   "background_color": "#0a0f1e",
   "theme_color": "#0a0f1e",
+  "lang": "en-US",
   "categories": [
     "productivity",
     "utilities"
@@ -30,6 +36,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
