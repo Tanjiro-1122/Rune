@@ -68,6 +68,7 @@ import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-reado
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
+import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 
 export const maxDuration = 60; // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -1303,6 +1304,45 @@ function getAgentTools({
           success: result.ok,
           ...result,
         };
+      },
+    }),
+
+
+    build_app: tool({
+      description:
+        "Unified App Creator pipeline — takes a natural-language idea and drives it through " +
+        "plan → scaffold → PR → deploy in clear stages. " +
+        "stage='plan': generate a full app blueprint (safe, no files written). " +
+        "stage='scaffold': generate starter files and open a GitHub PR (requires proposalId from plan). " +
+        "stage='deploy': merge and deploy (requires proposalId + approvalToken). " +
+        "stage='status': check current pipeline status for a proposalId. " +
+        "Use this as the PRIMARY tool when Javier says 'build me X', 'create an app', or 'make a new app'. " +
+        "Always start with stage='plan' unless Javier already has a proposalId.",
+      parameters: z.object({
+        idea: z.string().min(1).max(1600).optional(),
+        appName: z.string().max(80).optional(),
+        targetUsers: z.string().max(180).optional(),
+        platform: z.enum(["web", "mobile", "both"]).optional(),
+        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
+        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
+        stage: z.enum(["plan", "scaffold", "deploy", "status"]).optional(),
+        proposalId: z.string().optional(),
+        approvalToken: z.string().optional(),
+      }),
+      execute: async ({ idea, appName, targetUsers, platform, complexity, mustHaveFeatures, stage, proposalId, approvalToken }) => {
+        return runAppCreatorPipeline({
+          idea: idea ?? "",
+          appName: appName ?? null,
+          targetUsers: targetUsers ?? null,
+          platform: platform ?? "web",
+          complexity: complexity ?? "standard",
+          mustHaveFeatures,
+          stage: stage ?? "plan",
+          proposalId: proposalId ?? null,
+          approvalToken: approvalToken ?? null,
+          workspaceId: workspaceId ?? null,
+          conversationId: conversationId ?? null,
+        });
       },
     }),
 
