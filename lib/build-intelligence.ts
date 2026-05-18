@@ -262,7 +262,7 @@ export async function getBuildIntelligenceSnapshot(options: { projectKey?: strin
       status: github.error ? "failed" : "executed",
       approvalStage: "findings",
       riskLevel: "low",
-      projectKey: options.projectKey ?? "jarvis",
+      projectKey: options.projectKey ?? "rune",
       metadata: {
         repo: github.repo,
         githubConfigured: github.configured,
