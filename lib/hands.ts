@@ -289,3 +289,4 @@ export async function getHandsProposal(proposalId: string): Promise<HandsProposa
     .single();
   return data as HandsProposal | null;
 }
+// @version 1.0
