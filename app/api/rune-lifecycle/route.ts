@@ -1,35 +1,38 @@
 /**
  * /api/rune-lifecycle
  * Owner-only endpoint that executes the full Rune PR lifecycle.
- * Called internally by Rune's chat tools when APPROVE RUNE: <task> is detected.
+ * Called internally by Rune when APPROVE RUNE: <task> is detected.
  *
- * POST body: LifecyclePROptions
- * Returns: LifecycleResult (streamed progress + final result)
+ * POST body: LifecyclePROptions | { rollback: true }
+ * Returns: LifecycleResult
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "@/lib/session";
+import { getSessionSecret, verifySessionCookie, SESSION_COOKIE } from "@/lib/auth";
 import { runLifecycle, rollbackProduction, type LifecyclePROptions } from "@/lib/rune-lifecycle";
 
-function isOwner(req: NextRequest): boolean {
-  // Must be authenticated as owner (signed v2 cookie) OR carry internal bearer token
+async function isOwnerRequest(req: NextRequest): Promise<boolean> {
+  // Option 1: internal bearer token (used by cron / agent calls)
   const internalToken = process.env.RUNE_INTERNAL_TOKEN?.trim();
   const auth = req.headers.get("authorization");
   if (internalToken && auth === `Bearer ${internalToken}`) return true;
-  return false;
-}
 
-async function isOwnerSession(req: NextRequest): Promise<boolean> {
-  if (isOwner(req)) return true;
-  try {
-    const session = await getServerSession();
-    return session?.isOwner === true;
-  } catch {
-    return false;
-  }
+  // Option 2: valid signed session cookie (browser login)
+  const secret = getSessionSecret();
+  if (!secret) return false;
+  const cookieValue =
+    req.cookies?.get?.(SESSION_COOKIE)?.value ??
+    req.headers
+      .get("cookie")
+      ?.split(";")
+      .map((p) => p.trim())
+      .find((p) => p.startsWith(`${SESSION_COOKIE}=`))
+      ?.slice(SESSION_COOKIE.length + 1);
+  const result = await verifySessionCookie(cookieValue, secret);
+  return result.ok;
 }
 
 export async function POST(req: NextRequest) {
-  const authorized = await isOwnerSession(req);
+  const authorized = await isOwnerRequest(req);
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
