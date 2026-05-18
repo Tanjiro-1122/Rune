@@ -9,11 +9,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Jarvis",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -22,7 +26,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#eef4ff",
+  themeColor: "#0a0f1e",
 };
 
 export default function RootLayout({
@@ -32,7 +36,37 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        {/* iOS standalone mode meta */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Jarvis" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+      </head>
+      <body>
+        {children}
+        {/* Service worker + push notification registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(function(reg) {
+        console.log('[Jarvis PWA] service worker registered', reg.scope);
+        window.__jarvisSwReg = reg;
+      })
+      .catch(function(err) {
+        console.warn('[Jarvis PWA] service worker registration failed', err);
+      });
+  });
+})();
+`,
+          }}
+        />
+      </body>
     </html>
   );
 }
