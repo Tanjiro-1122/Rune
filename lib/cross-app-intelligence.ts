@@ -153,11 +153,11 @@ async function analyzeUnfiltr(): Promise<AppInsightSection> {
   const errorRows = errors as ErrorRow[];
 
   // ── DAU / MAU ──────────────────────────────────────────────────────────
-  const todayChats = chatRows.filter((c) => c.saved_at?.slice(0, 10) === today);
+  const todayChats = chatRows.filter((c) => (c.saved_at ?? "").slice(0, 10) === today);
   const dau = uniqueBy(todayChats, (c) => c.apple_user_id ?? "").length;
-  const mauChats = chatRows.filter((c) => c.saved_at?.slice(0, 10) >= day30);
+  const mauChats = chatRows.filter((c) => (c.saved_at ?? "").slice(0, 10) >= day30);
   const mau = uniqueBy(mauChats, (c) => c.apple_user_id ?? "").length;
-  const wauChats = chatRows.filter((c) => c.saved_at?.slice(0, 10) >= day7);
+  const wauChats = chatRows.filter((c) => (c.saved_at ?? "").slice(0, 10) >= day7);
   const wau = uniqueBy(wauChats, (c) => c.apple_user_id ?? "").length;
   metrics.push({ label: "DAU / WAU / MAU", value: `${dau} / ${wau} / ${mau}`, status: mau > 0 ? "good" : "warn" });
 
@@ -171,7 +171,7 @@ async function analyzeUnfiltr(): Promise<AppInsightSection> {
 
   // ── Revenue last 30d ─────────────────────────────────────────────────
   const recentPurchases = purchaseRows.filter(
-    (p) => p.status === "success" && (p.created_date ?? "") >= day30
+    (p) => p.status === "success" && (p.created_date ?? "").slice(0, 10) >= day30
   );
   const revenue30d = recentPurchases.reduce((sum, p) => sum + (p.amount ?? 0), 0);
   metrics.push({ label: "Revenue (last 30d)", value: `$${revenue30d.toFixed(2)}`, status: revenue30d > 0 ? "good" : "warn" });
@@ -181,23 +181,23 @@ async function analyzeUnfiltr(): Promise<AppInsightSection> {
   const userFirstSeen: Record<string, string> = {};
   for (const c of chatRows) {
     const uid = c.apple_user_id ?? "";
-    const date = c.saved_at?.slice(0, 10) ?? "";
+    const date = (c.saved_at ?? "").slice(0, 10);
     if (!userFirstSeen[uid] || date < userFirstSeen[uid]) userFirstSeen[uid] = date;
     if (!userLastSeen[uid] || date > userLastSeen[uid]) userLastSeen[uid] = date;
   }
   const allUsers = Object.keys(userLastSeen);
-  const stillActive7d = allUsers.filter((u) => userLastSeen[u] >= day7).length;
+  const stillActive7d = allUsers.filter((u) => (userLastSeen[u] ?? "") >= day7).length;
   const retentionPct = allUsers.length > 0 ? ((stillActive7d / allUsers.length) * 100).toFixed(0) : "0";
   metrics.push({ label: "7-day retention", value: `${retentionPct}%`, status: parseInt(retentionPct) > 40 ? "good" : "warn" });
 
   // ── Mood distribution ────────────────────────────────────────────────
-  const recentMoods = moodRows.filter((m) => (m.date ?? "") >= day30);
+  const recentMoods = moodRows.filter((m) => (m.date ?? "").slice(0, 10) >= day30);
   const moodCounts = countBy(recentMoods, (m) => m.mood_label ?? "unknown");
   const topMoods = topN(moodCounts, 3).map(([label, count]) => `${label} (${count})`).join(", ");
   metrics.push({ label: "Top moods (30d)", value: topMoods || "no data", status: "neutral" });
 
   // ── Journal engagement ────────────────────────────────────────────────
-  const recentJournals = journalRows.filter((j) => (j.created_date ?? "") >= day30);
+  const recentJournals = journalRows.filter((j) => (j.created_date ?? "").slice(0, 10) >= day30);
   const journalAuthors = uniqueBy(recentJournals, (j) => j.apple_user_id ?? "").length;
   const journalPerUser = journalAuthors > 0 ? (recentJournals.length / journalAuthors).toFixed(1) : "0";
   metrics.push({ label: "Journal entries/user (30d)", value: journalPerUser, status: parseFloat(journalPerUser) > 2 ? "good" : "neutral" });
