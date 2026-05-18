@@ -74,6 +74,40 @@ const MAX_SESSION_ID_LENGTH = 128;
 const CHAT_RATE_WINDOW_MS = 60_000;
 const MAX_TRACKED_CHAT_SESSIONS = 2_000;
 const MAX_EVENT_ERROR_MESSAGE_LENGTH = 280;
+const CHAT_FINISH_PERSISTENCE_TIMEOUT_MS = 8_000;
+
+class ChatFinishPersistenceTimeoutError extends Error {
+  constructor(label: string, timeoutMs: number) {
+    super(`${label} timed out after ${timeoutMs}ms.`);
+    this.name = "ChatFinishPersistenceTimeoutError";
+  }
+}
+
+async function withChatFinishTimeout<T>(
+  operation: Promise<T>,
+  label: string,
+  timeoutMs = CHAT_FINISH_PERSISTENCE_TIMEOUT_MS
+): Promise<T | undefined> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<undefined>((resolve) => {
+        timeout = setTimeout(() => {
+          logError(
+            "api.chat.onFinish.timeout",
+            new ChatFinishPersistenceTimeoutError(label, timeoutMs)
+          );
+          resolve(undefined);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 const chatRateWindow = new Map<string, number[]>();
 
 function getMaxChatRequestsPerMinute() {
@@ -1971,81 +2005,100 @@ ${plannerOutput.steps
       onFinish: async ({ text }) => {
         if (!lastUserMessage) return;
 
-        if (taskId) {
-          await updateWorkspaceTaskStep({
-            taskId,
-            stepKey: "execute_plan",
-            status: "completed",
-            detail: "Primary generation step completed.",
-            progress: 78,
-          });
-          await updateWorkspaceTaskStep({
-            taskId,
-            stepKey: "persist_results",
-            status: "running",
-            detail: "Persisting final exchange and workspace updates.",
-            progress: 86,
-          });
-        }
+        const finishPersistence = (async () => {
+          if (taskId) {
+            await updateWorkspaceTaskStep({
+              taskId,
+              stepKey: "execute_plan",
+              status: "completed",
+              detail: "Primary generation step completed.",
+              progress: 78,
+            });
+            await updateWorkspaceTaskStep({
+              taskId,
+              stepKey: "persist_results",
+              status: "running",
+              detail: "Persisting final exchange and workspace updates.",
+              progress: 86,
+            });
+          }
 
-        const userContent = lastUserMessage.parts
-          .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
-          .map((p) => p.text)
-          .join("\n")
-          .trim();
-        const attachmentSummary =
-          latestAttachments.length > 0
-            ? `Uploaded: ${latestAttachments
-                .map((attachment) => sanitizeAttachmentName(attachment.name))
-                .join(", ")}`
-            : "";
-        const combinedUserContent = [userContent, attachmentSummary]
-          .filter(Boolean)
-          .join("\n\n");
+          const userContent = lastUserMessage.parts
+            .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+            .map((p) => p.text)
+            .join("\n")
+            .trim();
+          const attachmentSummary =
+            latestAttachments.length > 0
+              ? `Uploaded: ${latestAttachments
+                  .map((attachment) => sanitizeAttachmentName(attachment.name))
+                  .join(", ")}`
+              : "";
+          const combinedUserContent = [userContent, attachmentSummary]
+            .filter(Boolean)
+            .join("\n\n");
 
-        await saveConversationExchange({
-          conversationId,
-          workspaceId,
-          userContent: combinedUserContent,
-          assistantContent: text ?? "",
-          preferredTitle: deriveConversationTitle(
-            userContent || attachmentSummary || "Untitled chat"
-          ),
-        });
-        if (taskId) {
-          await updateWorkspaceTaskStep({
-            taskId,
-            stepKey: "persist_results",
-            status: "completed",
-            detail: "Conversation and workspace state saved successfully.",
-            progress: 100,
+          await saveConversationExchange({
+            conversationId,
+            workspaceId,
+            userContent: combinedUserContent,
+            assistantContent: text ?? "",
+            preferredTitle: deriveConversationTitle(
+              userContent || attachmentSummary || "Untitled chat"
+            ),
           });
-          const taskSummary =
-            summarizeTaskResult(text ?? "");
-          await addWorkspaceTaskCheckpoint(taskId, {
-            label: "Chat task completed",
-            summary: taskSummary || "Chat task completed and workspace state was saved.",
-            completedStep: "Persisted the answer and workspace state.",
-            nextStep: "Review the result, then continue with the next approved step.",
-            metadata: {
-              intent: plannerOutput.intent,
-              reasoningRoute: plannerOutput.reasoningRoute,
+          if (taskId) {
+            await updateWorkspaceTaskStep({
+              taskId,
+              stepKey: "persist_results",
+              status: "completed",
+              detail: "Conversation and workspace state saved successfully.",
+              progress: 100,
+            });
+            const taskSummary =
+              summarizeTaskResult(text ?? "");
+            await addWorkspaceTaskCheckpoint(taskId, {
+              label: "Chat task completed",
+              summary: taskSummary || "Chat task completed and workspace state was saved.",
+              completedStep: "Persisted the answer and workspace state.",
+              nextStep: "Review the result, then continue with the next approved step.",
+              metadata: {
+                intent: plannerOutput.intent,
+                reasoningRoute: plannerOutput.reasoningRoute,
+                responseChars: (text ?? "").length,
+              },
+            });
+            await completeWorkspaceTask(taskId, taskSummary);
+            activeTaskId = null;
+          }
+          await recordWorkspaceEvent({
+            sessionId,
+            workspaceId,
+            conversationId,
+            eventType: "chat.request",
+            status: "success",
+            details: {
               responseChars: (text ?? "").length,
             },
           });
-          await completeWorkspaceTask(taskId, taskSummary);
-          activeTaskId = null;
-        }
-        await recordWorkspaceEvent({
-          sessionId,
-          workspaceId,
-          conversationId,
-          eventType: "chat.request",
-          status: "success",
-          details: {
-            responseChars: (text ?? "").length,
-          },
+        })();
+
+        finishPersistence.catch((error) => {
+          logError("api.chat.onFinish.persistence", error);
+          if (activeTaskId) {
+            const errMsg =
+              error instanceof Error
+                ? error.message
+                : "Chat finalization failed after the response was generated.";
+            failWorkspaceTask(activeTaskId, errMsg).catch(() => {});
+            activeTaskId = null;
+          }
         });
+
+        await withChatFinishTimeout(
+          finishPersistence,
+          "chat finish persistence and task completion"
+        );
       },
       onError: ({ error }) => {
         // Mid-stream errors cannot change the HTTP status (headers already sent
