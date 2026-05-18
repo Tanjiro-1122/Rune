@@ -3287,6 +3287,9 @@ button:disabled {
 /* Input card */
 .builder-input-card {
   width: 100%;
+  position: relative;
+  z-index: 2;
+  cursor: text;
   background: rgba(255, 255, 255, 0.78);
   border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-xl);
@@ -3324,6 +3327,10 @@ button:disabled {
   max-height: 200px;
   box-sizing: border-box;
   display: block;
+  position: relative;
+  z-index: 2;
+  pointer-events: all;
+  cursor: text;
 }
 .builder-textarea::placeholder {
   color: var(--muted-2);

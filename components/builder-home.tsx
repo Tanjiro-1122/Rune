@@ -107,6 +107,7 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
         <form
           className={`builder-input-card ${focused ? "builder-input-card--focused" : ""}`}
           onSubmit={handleSubmit}
+          onClick={() => textareaRef.current?.focus()}
           aria-label="Rune prompt input"
         >
           <textarea
@@ -119,7 +120,10 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             rows={2}
+            tabIndex={0}
+            autoComplete="off"
             aria-label="Prompt input"
+            onClick={(e) => e.stopPropagation()}
           />
           <div className="builder-input-bar">
             <div className="builder-input-bar-left">
