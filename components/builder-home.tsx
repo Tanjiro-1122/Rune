@@ -65,13 +65,42 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
       <div className="builder-orb builder-orb--3" aria-hidden="true" />
 
       <div className="builder-content">
-        {/* Wordmark */}
+        {/* Wordmark — inline SVG so no broken image */}
         <div className="builder-wordmark-wrap">
-          <img
-            src="/images/rune-wordmark.png"
-            alt="Rune"
-            className="builder-wordmark"
-          />
+          <div className="builder-logo-lockup" aria-label="Rune">
+            {/* Othala rune ember icon */}
+            <svg className="builder-rune-icon" viewBox="0 0 40 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <radialGradient id="ember" cx="50%" cy="55%" r="55%">
+                  <stop offset="0%" stopColor="#ff6b35" />
+                  <stop offset="45%" stopColor="#c0392b" />
+                  <stop offset="100%" stopColor="#7b0d1e" />
+                </radialGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              {/* Othala rune shape: two diagonal legs + crossbar + base fork */}
+              <g filter="url(#glow)" stroke="url(#ember)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                {/* Left leg top-to-center */}
+                <line x1="6" y1="4" x2="20" y2="22" />
+                {/* Right leg top-to-center */}
+                <line x1="34" y1="4" x2="20" y2="22" />
+                {/* Crossbar */}
+                <line x1="6" y1="4" x2="34" y2="4" />
+                {/* Left base leg */}
+                <line x1="20" y1="22" x2="6" y2="44" />
+                {/* Right base leg */}
+                <line x1="20" y1="22" x2="34" y2="44" />
+                {/* Base foot left */}
+                <line x1="6" y1="44" x2="1" y2="44" />
+                {/* Base foot right */}
+                <line x1="34" y1="44" x2="39" y2="44" />
+              </g>
+            </svg>
+            <span className="builder-wordmark-text">Rune</span>
+          </div>
           <span className="builder-wordmark-sub">private workspace</span>
         </div>
 
