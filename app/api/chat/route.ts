@@ -346,22 +346,61 @@ function isPlaceholderRepoPath(path: string) {
   );
 }
 
-function buildCodeSnippet(content: string, query: string, contextLines = 3) {
+function buildCodeSnippet(content: string, query: string, contextLines = 8) {
   const lines = content.split(/\r?\n/);
   const terms = query
     .split(/\s+/)
     .map((term) => term.replace(/[^a-zA-Z0-9_.$-]/g, ""))
-    .filter((term) => term.length >= 3)
-    .slice(0, 8);
-  const index = lines.findIndex((line) =>
-    terms.some((term) => line.toLowerCase().includes(term.toLowerCase()))
+    .filter((term) => term.length >= 2)
+    .slice(0, 10);
+
+  if (terms.length === 0) {
+    // No usable terms — return file header
+    return lines.slice(0, Math.min(15, lines.length))
+      .map((line, i) => `${i + 1}: ${line}`)
+      .join("\n");
+  }
+
+  // Score each line: count how many distinct terms it contains
+  const scored = lines.map((line, idx) => {
+    const lower = line.toLowerCase();
+    const hits = terms.filter((term) => lower.includes(term.toLowerCase())).length;
+    return { idx, hits };
+  }).filter((r) => r.hits > 0);
+
+  if (scored.length === 0) {
+    // No matches at all — return file header and note
+    const header = lines.slice(0, Math.min(12, lines.length))
+      .map((line, i) => `${i + 1}: ${line}`)
+      .join("\n");
+    return `(no exact match for query terms — showing file header)\n${header}`;
+  }
+
+  // Sort by score descending to find best match windows
+  scored.sort((a, b) => b.hits - a.hits || a.idx - b.idx);
+
+  // Collect up to 3 non-overlapping snippet windows, best match first
+  const windows: Array<{ start: number; end: number }> = [];
+  for (const { idx } of scored) {
+    const start = Math.max(idx - contextLines, 0);
+    const end = Math.min(idx + contextLines + 1, lines.length);
+    const overlaps = windows.some((w) => start <= w.end && end >= w.start);
+    if (!overlaps) {
+      windows.push({ start, end });
+    }
+    if (windows.length >= 3) break;
+  }
+
+  // Sort windows by file position for readable output
+  windows.sort((a, b) => a.start - b.start);
+
+  const parts = windows.map(({ start, end }) =>
+    lines.slice(start, end)
+      .map((line, offset) => `${start + offset + 1}: ${line}`)
+      .join("\n")
   );
-  const startLine = Math.max(index >= 0 ? index - contextLines : 0, 0);
-  const endLine = Math.min(index >= 0 ? index + contextLines + 1 : Math.min(lines.length, 12), lines.length);
-  return lines
-    .slice(startLine, endLine)
-    .map((line, offset) => `${startLine + offset + 1}: ${line}`)
-    .join("\n");
+
+  return parts.join("\n…\n");
 }
 function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   if (!codeExecutionAvailable || !input.trim()) return false;
