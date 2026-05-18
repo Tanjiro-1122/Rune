@@ -2,8 +2,10 @@
  * /api/cron/daily-briefing
  * Called by Vercel Cron at 9:00 AM ET every day.
  * 1. Runs the operator briefing
- * 2. Stores result in Supabase
- * 3. Pushes a Web Push notification to all subscribed devices
+ * 2. Fetches RevenueCat MRR + subscriber counts
+ * 3. Fetches OpenAI spend
+ * 4. Stores result summary in Supabase agent_memories for trend tracking
+ * 5. Sends a structured WhatsApp-style push notification
  *
  * Protected by CRON_SECRET (Vercel sets this automatically).
  */
@@ -11,12 +13,81 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDailyOperatorBriefing } from "@/lib/operator-briefing";
 import { getSupabaseClient } from "@/lib/supabase";
 import { sendPushNotificationsToAll } from "@/lib/push-notify";
+import { getRevenueCatOverview } from "@/lib/revenuecat-overview";
+import { buildWhatsAppBriefingMessage } from "@/lib/whatsapp-briefing";
 
 function isAuthorizedCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${secret}`;
+}
+
+async function getOpenAiSpendThisMonth(): Promise<number | null> {
+  const key = process.env.OPENAI_ADMIN_KEY?.trim();
+  if (!key) return null;
+  try {
+    const now = new Date();
+    const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const res = await fetch(
+      `https://api.openai.com/v1/organization/costs?start_time=${startDate}&end_time=${endDate}&limit=1`,
+      { headers: { Authorization: `Bearer ${key}`, Accept: "application/json" }, cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    // sum all buckets
+    const total = (data?.data ?? []).reduce((sum: number, bucket: { results?: Array<{ amount?: { value?: number } }> }) => {
+      const bucketTotal = (bucket.results ?? []).reduce((s: number, r) => s + (r?.amount?.value ?? 0), 0);
+      return sum + bucketTotal;
+    }, 0);
+    return total > 0 ? Math.round(total * 100) / 100 : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getPreviousHealthScore(supabase: ReturnType<typeof getSupabaseClient>): Promise<number | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase
+      .from("agent_memories")
+      .select("content")
+      .eq("title", "rune-daily-briefing-score")
+      .eq("project_key", "rune")
+      .eq("is_active", true)
+      .single();
+    if (!data?.content) return null;
+    const parsed = JSON.parse(data.content);
+    return typeof parsed.score === "number" ? parsed.score : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveTodayHealthScore(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  score: number | null
+) {
+  if (!supabase || score === null) return;
+  try {
+    await supabase.from("agent_memories").upsert(
+      {
+        kind: "note",
+        title: "rune-daily-briefing-score",
+        content: JSON.stringify({ score, date: new Date().toISOString() }),
+        project_key: "rune",
+        tags: ["briefing", "health-score", "trend"],
+        priority: 3,
+        is_active: true,
+        source: "cron",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "title,project_key" }
+    );
+  } catch {
+    // non-fatal
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -27,47 +98,52 @@ export async function GET(req: NextRequest) {
   try {
     console.log("[cron/daily-briefing] starting at", new Date().toISOString());
 
-    // 1. Run the briefing
-    const briefing = await getDailyOperatorBriefing();
-
-    // 2. Store in Supabase for Rune to recall
     const supabase = getSupabaseClient();
-    if (supabase) await supabase.from("daily_briefings").insert({
-      generated_at: briefing.generatedAt,
-      overall_status: briefing.overallStatus,
-      headline: briefing.headline,
-      recommended_next_action: briefing.recommendedNextAction,
-      briefing_json: briefing,
-    }).then(({ error }: { error: { message: string } | null }) => {
-      if (error) console.error("[cron/daily-briefing] supabase store error", error.message);
-    });
 
-    // 3. Build push notification message
+    // Run all data fetches in parallel
+    const [briefing, rc, openAiSpend, previousScore] = await Promise.all([
+      getDailyOperatorBriefing(),
+      getRevenueCatOverview(),
+      getOpenAiSpendThisMonth(),
+      getPreviousHealthScore(supabase),
+    ]);
+
+    // Compute avg health score for trend tracking
+    const projectScores = briefing.projects
+      .map((p) => p.healthScore)
+      .filter((s): s is number => s !== null);
+    const avgScore = projectScores.length
+      ? Math.round(projectScores.reduce((a, b) => a + b, 0) / projectScores.length)
+      : null;
+
+    // Save today's score for tomorrow's trend
+    await saveTodayHealthScore(supabase, avgScore);
+
+    // Build the structured WhatsApp message
+    const message = buildWhatsAppBriefingMessage({ briefing, rc, previousScore, openAiSpend });
+
+    // Send push notification with structured message
     const statusEmoji =
       briefing.overallStatus === "healthy" ? "✅" :
-      briefing.overallStatus === "warning" ? "⚠️" :
-      "🚨";
+      briefing.overallStatus === "warning" ? "⚠️" : "🚨";
 
-    const projectLine = briefing.projects
-      .slice(0, 2)
-      .map((p) => `${p.key}: ${p.healthStatus}`)
-      .join(" · ");
-
-    const pushPayload = {
+    const pushResult = await sendPushNotificationsToAll({
       title: `Rune Morning Briefing ${statusEmoji}`,
-      body: briefing.headline + (projectLine ? `\n${projectLine}` : ""),
+      body: message.slice(0, 500),
       url: "/?view=briefing",
-    };
+    });
 
-    // 4. Send push to all subscribed devices
-    const pushResult = await sendPushNotificationsToAll(pushPayload);
-    console.log("[cron/daily-briefing] push result", pushResult);
+    console.log("[cron/daily-briefing] done", { avgScore, rcOk: rc.ok, openAiSpend, pushResult });
 
     return NextResponse.json({
       ok: true,
       generatedAt: briefing.generatedAt,
       overallStatus: briefing.overallStatus,
-      headline: briefing.headline,
+      avgHealthScore: avgScore,
+      previousScore,
+      rc: { ok: rc.ok, mrr: rc.mrr, activeSubscribers: rc.activeSubscribers },
+      openAiSpend,
+      message,
       pushResult,
     });
   } catch (err) {
