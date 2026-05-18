@@ -3163,11 +3163,11 @@ button:disabled {
 }
 
 /* Hide the bottom chat input bar when builder home is showing */
-.chat-shell:has(.builder-home) .input-form,
-.chat-shell:has(.builder-home) .attachment-preview,
-.chat-shell:has(.builder-home) .chat-error-banner,
-.chat-shell:has(.builder-home) .file-error {
-  display: none;
+.chat-panel:has(.builder-home) .input-form,
+.chat-panel:has(.builder-home) .attachment-preview,
+.chat-panel:has(.builder-home) .chat-error-banner,
+.chat-panel:has(.builder-home) .file-error {
+  display: none !important;
 }
 
 /* Ambient gradient orbs */
@@ -3451,12 +3451,12 @@ button:disabled {
   align-items: stretch;
 }
 
-/* Ensure chat-shell hides the input form and error banners via attribute */
-.chat-shell:has(.messages[data-builder-active="true"]) .input-form,
-.chat-shell:has(.messages[data-builder-active="true"]) .attachment-preview,
-.chat-shell:has(.messages[data-builder-active="true"]) .chat-error-banner,
-.chat-shell:has(.messages[data-builder-active="true"]) .file-error,
-.chat-shell:has(.messages[data-builder-active="true"]) .stream-recovery {
+/* chat-panel is the direct parent of .messages + .input-form */
+.chat-panel:has(.messages[data-builder-active="true"]) .input-form,
+.chat-panel:has(.messages[data-builder-active="true"]) .attachment-preview,
+.chat-panel:has(.messages[data-builder-active="true"]) .chat-error-banner,
+.chat-panel:has(.messages[data-builder-active="true"]) .file-error,
+.chat-panel:has(.messages[data-builder-active="true"]) .stream-recovery {
   display: none !important;
 }
 
