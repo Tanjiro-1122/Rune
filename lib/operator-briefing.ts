@@ -203,7 +203,7 @@ async function getMemorySummary(): Promise<OperatorBriefingMemorySummary> {
     ownerMemorySource: ownerMemoryConfigured ? "env" : "not_configured",
     warning: agentMemoriesReachable && agentMemoryEventsReachable
       ? null
-      : "Supabase memory tables are not fully reachable from Jarvis.",
+      : "Supabase memory tables are not fully reachable from Rune.",
   };
 }
 
@@ -231,10 +231,10 @@ function normalizeFinalBriefingStatus(options: {
 
 function getBriefingHeadline(overallStatus: OperatorBriefingStatus) {
   return overallStatus === "healthy"
-    ? "Jarvis operator signals look calm."
+    ? "Rune operator signals look calm."
     : overallStatus === "warning"
       ? "Rune has integration visibility or health warnings to review."
-      : "Jarvis found a blocked operator signal that needs review.";
+      : "Rune found a blocked operator signal that needs review.";
 }
 
 function chooseRecommendedNextAction(options: {
@@ -281,7 +281,7 @@ function chooseRecommendedNextAction(options: {
 
   return {
     title: "No urgent operator action",
-    detail: "Jarvis has no active blockers, proposals, or runner jobs needing immediate review.",
+    detail: "Rune has no active blockers, proposals, or runner jobs needing immediate review.",
     target: "none",
   };
 }
