@@ -254,7 +254,7 @@ async function stageScaffold(proposalId: string): Promise<PipelineRun> {
 
   // Now bridge to PR
   const bridge = await runAppCreatorScaffoldBridge({ proposalId, openPr: true, trackPr: true });
-  const prUrl = bridge.prUrl ?? result.proposal?.metadata?.prUrl ?? null;
+  const prUrl = bridge.prUrl ?? (result.proposal?.draft_metadata?.prUrl as string | undefined) ?? null;
   const prNumber = prUrl ? parseInt(prUrl.split("/").pop() ?? "0") : undefined;
 
   await saveProposalStatus(proposalId, prUrl ? "pr_open" : "scaffolded", {
