@@ -69,34 +69,30 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
         <div className="builder-wordmark-wrap">
           <div className="builder-logo-lockup" aria-label="Rune">
             {/* Othala rune ember icon */}
-            <svg className="builder-rune-icon" viewBox="0 0 40 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg className="builder-rune-icon" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <defs>
-                <radialGradient id="ember" cx="50%" cy="55%" r="55%">
-                  <stop offset="0%" stopColor="#ff6b35" />
-                  <stop offset="45%" stopColor="#c0392b" />
+                <linearGradient id="ember-grad" x1="20" y1="3" x2="20" y2="52" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#ff8c5a" />
+                  <stop offset="40%" stopColor="#c0392b" />
                   <stop offset="100%" stopColor="#7b0d1e" />
-                </radialGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                </linearGradient>
+                <filter id="ember-glow" x="-40%" y="-20%" width="180%" height="140%">
+                  <feGaussianBlur stdDeviation="2" result="blur" />
                   <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
               </defs>
-              {/* Othala rune shape: two diagonal legs + crossbar + base fork */}
-              <g filter="url(#glow)" stroke="url(#ember)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-                {/* Left leg top-to-center */}
-                <line x1="6" y1="4" x2="20" y2="22" />
-                {/* Right leg top-to-center */}
-                <line x1="34" y1="4" x2="20" y2="22" />
-                {/* Crossbar */}
-                <line x1="6" y1="4" x2="34" y2="4" />
-                {/* Left base leg */}
-                <line x1="20" y1="22" x2="6" y2="44" />
-                {/* Right base leg */}
-                <line x1="20" y1="22" x2="34" y2="44" />
-                {/* Base foot left */}
-                <line x1="6" y1="44" x2="1" y2="44" />
-                {/* Base foot right */}
-                <line x1="34" y1="44" x2="39" y2="44" />
+              {/* Othala ᚩ — diamond arch + two hanging legs */}
+              <g filter="url(#ember-glow)" stroke="url(#ember-grad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                {/* Diamond / arch: top → right → bottom → left → top */}
+                <polyline points="20,3 36,18 20,33 4,18 20,3" />
+                {/* Left leg: from left diamond point down */}
+                <line x1="4" y1="18" x2="9" y2="49" />
+                {/* Right leg: from right diamond point down */}
+                <line x1="36" y1="18" x2="31" y2="49" />
+                {/* Left foot serif */}
+                <line x1="9" y1="49" x2="3" y2="49" />
+                {/* Right foot serif */}
+                <line x1="31" y1="49" x2="37" y2="49" />
               </g>
             </svg>
             <span className="builder-wordmark-text">Rune</span>
