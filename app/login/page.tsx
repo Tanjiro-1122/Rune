@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [password, setPassword] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    // Read directly from DOM — works with controlled, uncontrolled, and synthetic events
+    const password = inputRef.current?.value ?? "";
+    if (!password) {
+      setError("Password is required.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -49,7 +55,6 @@ export default function LoginPage() {
             alt="Rune"
             className="rune-login-wordmark"
             onError={(e) => {
-              // Fallback if image fails
               (e.target as HTMLImageElement).style.display = "none";
               const el = document.querySelector(".rune-login-brand-fallback") as HTMLElement;
               if (el) el.style.display = "block";
@@ -62,13 +67,12 @@ export default function LoginPage() {
 
         <form className="rune-login-form" onSubmit={handleSubmit}>
           <input
+            ref={inputRef}
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
             className="rune-login-input"
             autoFocus
-            required
+            autoComplete="current-password"
           />
           {error && <p className="rune-login-error">{error}</p>}
           <button type="submit" className="rune-login-btn" disabled={loading}>
