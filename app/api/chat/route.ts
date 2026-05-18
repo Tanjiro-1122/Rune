@@ -321,6 +321,47 @@ function parseOwnerRepo(input: string | null | undefined, textHint?: string | nu
   return resolveCanonicalRepo(input, textHint);
 }
 
+function getGithubHeaders() {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Jarvis-Super-Agent/1.0",
+  };
+  const token = getGithubToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function isPlaceholderRepoPath(path: string) {
+  const normalized = path.trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized.startsWith("path/to/") ||
+    normalized.includes("<") ||
+    normalized.includes(">") ||
+    normalized.includes("...") ||
+    normalized.includes("your-file") ||
+    normalized.includes("example/")
+  );
+}
+
+function buildCodeSnippet(content: string, query: string, contextLines = 3) {
+  const lines = content.split(/\r?\n/);
+  const terms = query
+    .split(/\s+/)
+    .map((term) => term.replace(/[^a-zA-Z0-9_.$-]/g, ""))
+    .filter((term) => term.length >= 3)
+    .slice(0, 8);
+  const index = lines.findIndex((line) =>
+    terms.some((term) => line.toLowerCase().includes(term.toLowerCase()))
+  );
+  const startLine = Math.max(index >= 0 ? index - contextLines : 0, 0);
+  const endLine = Math.min(index >= 0 ? index + contextLines + 1 : Math.min(lines.length, 12), lines.length);
+  return lines
+    .slice(startLine, endLine)
+    .map((line, offset) => `${startLine + offset + 1}: ${line}`)
+    .join("\n");
+}
 function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   if (!codeExecutionAvailable || !input.trim()) return false;
 
@@ -391,9 +432,18 @@ function isGitHubAnalysisIntent(input: string) {
   );
 }
 
+function isGitHubSourceInspectionIntent(input: string) {
+  const trimmed = input.trim();
+  if (!trimmed) return false;
+  const asksForSource = /\b(source|code|file|files|filename|filenames|implementation|exact|snippet|snippets|read|inspect|search|grep|find)\b/i.test(trimmed);
+  const mentionsRepoSurface = /\b(github|repo|repository|jarvis|source file|codebase|sendMessage|useChat|AbortController|streaming|Task running|pendingTasks|runningTasks|taskComplete|streamComplete)\b/i.test(trimmed);
+  const asksAgainstFakePaths = /\b(no summaries|actual code|actual snippets|filenames only|complete source|exact implementation|do not guess|don't guess|no placeholder|placeholder path)\b/i.test(trimmed);
+  return asksForSource && (mentionsRepoSurface || asksAgainstFakePaths);
+}
+
 function isWebSearchIntent(input: string) {
   if (!input.trim()) return false;
-  if (isGitHubAnalysisIntent(input) || isCalculationIntent(input) || isDatetimeIntent(input) || isOperatorDiagnosticIntent(input)) {
+  if (isGitHubSourceInspectionIntent(input) || isGitHubAnalysisIntent(input) || isCalculationIntent(input) || isDatetimeIntent(input) || isOperatorDiagnosticIntent(input)) {
     return false;
   }
 
@@ -419,6 +469,7 @@ function getForcedToolChoice(
         | "calculate"
         | "get_current_datetime"
         | "analyze_github_repo"
+        | "searchRepositoryCode"
         | "get_jarvis_capability_snapshot"
         | "get_jarvis_self_audit_snapshot"
         | "get_tool_lifecycle_diagnostic"
@@ -445,6 +496,9 @@ function getForcedToolChoice(
   }
   if (isDatetimeIntent(input)) {
     return { type: "tool", toolName: "get_current_datetime" };
+  }
+  if (isGitHubSourceInspectionIntent(input)) {
+    return { type: "tool", toolName: "searchRepositoryCode" };
   }
   if (isGitHubAnalysisIntent(input)) {
     return { type: "tool", toolName: "analyze_github_repo" };
@@ -477,6 +531,8 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
     hints.push("- Strong routing signal: this request is numeric, so use `calculate`.");
   } else if (isDatetimeIntent(input)) {
     hints.push("- Strong routing signal: this request is time-sensitive, so use `get_current_datetime`.");
+  } else if (isGitHubSourceInspectionIntent(input)) {
+    hints.push("- Strong routing signal: this request asks for exact source-code evidence, so use `searchRepositoryCode` first. Only use `readRepositoryFile` with a real path returned by tree/search results. Never invent placeholder paths like path/to/sendMessage.js.");
   } else if (isGitHubAnalysisIntent(input)) {
     hints.push("- Strong routing signal: this request is about a GitHub repository, so use `analyze_github_repo`.");
   } else if (isWebSearchIntent(input)) {
@@ -828,13 +884,7 @@ const baseAgentTools = {
         };
       }
 
-      const headers: Record<string, string> = {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "Jarvis-Super-Agent/1.0",
-      };
-      const token = getGithubToken();
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const headers = getGithubHeaders();
 
       try {
         // 1. Repository metadata
@@ -978,6 +1028,13 @@ const baseAgentTools = {
     }),
     execute: async ({ owner, repo, path }) => {
       try {
+        if (isPlaceholderRepoPath(path)) {
+          return {
+            success: false,
+            error: "Refusing to read a placeholder or invented path. Search the repository tree/code first and provide a real path returned by GitHub.",
+            path,
+          };
+        }
         const octokit = getOctokitClient();
         const resolved = splitRepoSlug(`${owner}/${repo}`);
         const { data } = await octokit.repos.getContent({
@@ -1047,6 +1104,90 @@ const baseAgentTools = {
         return { success: true, defaultBranch, files: filePaths };
       } catch (err: unknown) {
         return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+      }
+    },
+  }),
+
+
+  searchRepositoryCode: tool({
+    description:
+      "Search real code in a GitHub repository and return actual file paths plus snippets. Use this before readRepositoryFile when Javier asks for exact implementation details, source files, filenames, or code evidence. This is read-only and must never mutate GitHub.",
+    parameters: z.object({
+      owner: z.string().optional().default("Tanjiro-1122").describe("The GitHub username. For Jarvis itself, use 'Tanjiro-1122'."),
+      repo: z.string().optional().default("Jarvis").describe("The repository name. For Jarvis itself, use 'Jarvis'."),
+      query: z.string().min(1).max(200).describe("Code search query, such as 'useChat status streaming' or 'sendMessage'."),
+      path_filter: z.string().max(160).optional().describe("Optional repo path filter, such as 'app/api' or 'components'. Must be a real path prefix, not a placeholder."),
+      max_results: z.number().int().min(1).max(10).optional().default(8),
+    }),
+    execute: async ({ owner = "Tanjiro-1122", repo = "Jarvis", query, path_filter, max_results = 8 }) => {
+      try {
+        if (path_filter && isPlaceholderRepoPath(path_filter)) {
+          return {
+            success: false,
+            error: "Refusing to search a placeholder path filter. Use a real repo path prefix or omit path_filter.",
+            path_filter,
+          };
+        }
+
+        const resolved = splitRepoSlug(`${owner}/${repo}`);
+        const headers = getGithubHeaders();
+        const pathQualifier = path_filter ? ` path:${path_filter.trim()}` : "";
+        const q = `${query.trim()} repo:${resolved.owner}/${resolved.repo}${pathQualifier}`;
+        const searchUrl = `https://api.github.com/search/code?q=${encodeURIComponent(q)}&per_page=${Math.min(max_results, 10)}`;
+        const searchRes = await fetch(searchUrl, { headers });
+        if (!searchRes.ok) {
+          return {
+            success: false,
+            repo: `${resolved.owner}/${resolved.repo}`,
+            query,
+            error: `GitHub code search returned ${searchRes.status}: ${searchRes.statusText}`,
+            hint: searchRes.status === 401 || searchRes.status === 403
+              ? "Code search for private repos requires JARVIS_GITHUB_TOKEN/GITHUB_TOKEN with repo read access in the deployment environment."
+              : undefined,
+          };
+        }
+        const payload = await searchRes.json() as { total_count?: number; items?: Array<{ name?: string; path?: string; html_url?: string; repository?: { full_name?: string }; score?: number }> };
+        const items = Array.isArray(payload.items) ? payload.items.slice(0, max_results) : [];
+        const octokit = getOctokitClient();
+        const matches = [];
+        for (const item of items) {
+          if (!item.path) continue;
+          let snippet: string | null = null;
+          try {
+            const { data } = await octokit.repos.getContent({
+              owner: resolved.owner,
+              repo: resolved.repo,
+              path: item.path,
+            });
+            if (!Array.isArray(data) && "content" in data && typeof data.content === "string" && data.encoding === "base64") {
+              const decoded = Buffer.from(data.content, "base64").toString("utf-8");
+              snippet = buildCodeSnippet(decoded, query);
+            }
+          } catch {
+            snippet = null;
+          }
+          matches.push({
+            path: item.path,
+            name: item.name ?? item.path.split("/").pop() ?? item.path,
+            url: item.html_url ?? null,
+            repository: item.repository?.full_name ?? `${resolved.owner}/${resolved.repo}`,
+            score: typeof item.score === "number" ? item.score : null,
+            snippet,
+          });
+        }
+
+        return {
+          success: true,
+          repo: `${resolved.owner}/${resolved.repo}`,
+          query,
+          searched: q,
+          total_count: typeof payload.total_count === "number" ? payload.total_count : matches.length,
+          matches,
+          read_only: true,
+          instruction: "Use only these returned paths for readRepositoryFile. Do not invent placeholder paths.",
+        };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : "Unknown error", query };
       }
     },
   }),
@@ -1917,6 +2058,12 @@ ${codeExecutionGuidance}
 - When a user asks to run/check code and \`execute_code\` is available, execute it in the sandbox even if you expect timeout or blocked APIs so the user gets a structured tool result card
 - For artifact/file-style outputs from code execution, use \`createArtifact(...)\` inside the sandbox snippet instead of describing the file in prose
 ${routingHint}
+
+## GitHub source inspection discipline
+- When Javier asks for exact implementation details, source files, snippets, filenames, or code evidence, use searchRepositoryCode/listRepositoryTree/readRepositoryFile instead of prose-only answers.
+- Use searchRepositoryCode first unless Javier gave an exact real repo path.
+- Never call readRepositoryFile with placeholder paths such as path/to/file.js, path/to/sendMessage.js, example paths, or invented filenames.
+- If a file was not actually read, say it was not read. Do not claim code contents without tool evidence.
 
 ### Document and code context
 - When a user uploads a code file or text document, read it carefully and reference specific sections in your response
