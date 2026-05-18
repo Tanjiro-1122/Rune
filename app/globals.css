@@ -3443,3 +3443,20 @@ button:disabled {
   }
 }
 
+/* Builder active — messages container becomes a clean full-height viewport, no scroll */
+.messages[data-builder-active="true"] {
+  overflow: hidden !important;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Ensure chat-shell hides the input form and error banners via attribute */
+.chat-shell:has(.messages[data-builder-active="true"]) .input-form,
+.chat-shell:has(.messages[data-builder-active="true"]) .attachment-preview,
+.chat-shell:has(.messages[data-builder-active="true"]) .chat-error-banner,
+.chat-shell:has(.messages[data-builder-active="true"]) .file-error,
+.chat-shell:has(.messages[data-builder-active="true"]) .stream-recovery {
+  display: none !important;
+}
+
