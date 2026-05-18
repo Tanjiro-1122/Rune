@@ -37,7 +37,7 @@ function getSessionCookieValue(req: RequestLike): string | undefined {
 /**
  * Resolve the durable workspace owner key.
  *
- * In production Jarvis is single-owner. Once the signed Jarvis auth cookie is
+ * In production Rune is single-owner. Once the signed Rune auth cookie is
  * valid, workspace/conversation/message persistence must not depend on random
  * browser localStorage IDs. Safari, Chrome, and desktop should all load the same
  * owner-scoped workspace state.
