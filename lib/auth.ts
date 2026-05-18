@@ -72,7 +72,7 @@ export async function createSessionCookieValue(
   nonce: string,
   expiresAtMs: number
 ): Promise<string> {
-  const payload = `jarvis:authenticated:v2:${nonce}:${expiresAtMs}`;
+  const payload = `rune:authenticated:v2:${nonce}:${expiresAtMs}`;
   const token = await computeToken(secret, payload);
   return `v2.${nonce}.${expiresAtMs}.${token}`;
 }
@@ -106,7 +106,7 @@ export async function verifySessionCookie(
 
   const expected = await computeToken(
     secret,
-    `jarvis:authenticated:v2:${nonce}:${expiresAtMs}`
+    `rune:authenticated:v2:${nonce}:${expiresAtMs}`
   );
 
   if (!safeEqual(provided, expected)) {
