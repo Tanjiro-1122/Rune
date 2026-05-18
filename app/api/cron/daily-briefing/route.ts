@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // 1. Run the briefing
     const briefing = await getDailyOperatorBriefing();
 
-    // 2. Store in Supabase for Jarvis to recall
+    // 2. Store in Supabase for Rune to recall
     const supabase = getSupabaseClient();
     if (supabase) await supabase.from("daily_briefings").insert({
       generated_at: briefing.generatedAt,
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       .join(" · ");
 
     const pushPayload = {
-      title: `Jarvis Morning Briefing ${statusEmoji}`,
+      title: `Rune Morning Briefing ${statusEmoji}`,
       body: briefing.headline + (projectLine ? `\n${projectLine}` : ""),
       url: "/?view=briefing",
     };

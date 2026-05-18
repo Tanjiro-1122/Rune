@@ -32,7 +32,7 @@ const checks = [
   ['sw.js exists', fs.existsSync('public/sw.js')],
   ['sw.js handles push event', fs.readFileSync('public/sw.js','utf8').includes("addEventListener('push'")],
   ['sw.js handles notificationclick', fs.readFileSync('public/sw.js','utf8').includes("addEventListener('notificationclick'")],
-  ['sw.js has cache name', fs.readFileSync('public/sw.js','utf8').includes('jarvis-v1')],
+  ['sw.js has cache name', fs.readFileSync('public/sw.js','utf8').includes('rune-v1')],
   // cron endpoint
   ['cron endpoint exists', fs.existsSync('app/api/cron/daily-briefing/route.ts')],
   ['cron checks CRON_SECRET', fs.readFileSync('app/api/cron/daily-briefing/route.ts','utf8').includes('CRON_SECRET')],
