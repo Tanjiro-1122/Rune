@@ -1,7 +1,7 @@
 export type RuneProjectKey = "rune" | "unfiltr" | "swh" | "family";
 export type ProjectPlatform = "ios" | "android" | "web";
 
-export type JarvisProject = {
+export type RuneProject = {
   key: RuneProjectKey;
   label: string;
   canonicalName: string;
@@ -13,14 +13,14 @@ export type JarvisProject = {
   platforms: ProjectPlatform[];
 };
 
-export const RUNE_CANONICAL_PROJECTS: JarvisProject[] = [
+export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
   {
     key: "rune",
     label: "Rune",
-    canonicalName: "Jarvis private owner console",
+    canonicalName: "Rune private owner console",
     repo: "Tanjiro-1122/Rune",
     description:
-      "Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
+      "Rune is Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
     safetyLevel: "owner-console",
     platforms: ["web"],
     aliases: ["jarvis", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console"],
