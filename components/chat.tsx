@@ -2410,7 +2410,7 @@ export function Chat() {
           )}
         </div>
 
-        <div className="messages">
+        <div className="messages" data-builder-active={historyLoaded && messages.length === 0 ? "true" : undefined}>
           {!historyLoaded ? (
             <div className="empty-state">
               <p>Loading workspace…</p>

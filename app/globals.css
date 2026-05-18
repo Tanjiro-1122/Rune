@@ -3153,10 +3153,21 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100%;
+  /* Fill the messages container exactly — no scrollbar */
   width: 100%;
-  padding: 32px 20px 80px;
+  height: 100%;
+  min-height: 0;
+  padding: 32px 20px 40px;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Hide the bottom chat input bar when builder home is showing */
+.chat-shell:has(.builder-home) .input-form,
+.chat-shell:has(.builder-home) .attachment-preview,
+.chat-shell:has(.builder-home) .chat-error-banner,
+.chat-shell:has(.builder-home) .file-error {
+  display: none;
 }
 
 /* Ambient gradient orbs */
@@ -3430,5 +3441,22 @@ button:disabled {
     font-size: 12px;
     padding: 7px 12px;
   }
+}
+
+/* Builder active — messages container becomes a clean full-height viewport, no scroll */
+.messages[data-builder-active="true"] {
+  overflow: hidden !important;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Ensure chat-shell hides the input form and error banners via attribute */
+.chat-shell:has(.messages[data-builder-active="true"]) .input-form,
+.chat-shell:has(.messages[data-builder-active="true"]) .attachment-preview,
+.chat-shell:has(.messages[data-builder-active="true"]) .chat-error-banner,
+.chat-shell:has(.messages[data-builder-active="true"]) .file-error,
+.chat-shell:has(.messages[data-builder-active="true"]) .stream-recovery {
+  display: none !important;
 }
 
