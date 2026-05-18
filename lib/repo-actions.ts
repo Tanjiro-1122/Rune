@@ -153,7 +153,7 @@ function cleanMultiline(value: unknown, maxChars = 8000) {
 
 function normalizeProjectKey(value: unknown) {
   const cleaned = cleanText(value, 80).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
-  return cleaned || "jarvis";
+  return cleaned || "rune";
 }
 
 function normalizeRisk(value: unknown): RepoActionRisk {
@@ -267,7 +267,7 @@ function slugifyBranchPart(value: string, maxChars = 60) {
 function makeRepoActionBranchName(proposal: RepoActionProposalRow) {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const shortId = proposal.id.replace(/[^a-z0-9]/gi, "").slice(0, 8).toLowerCase() || "patch";
-  return `jarvis/${proposal.project_key}/${date}-${slugifyBranchPart(proposal.title)}-${shortId}`;
+  return `rune/${proposal.project_key}/${date}-${slugifyBranchPart(proposal.title)}-${shortId}`;
 }
 
 
@@ -343,7 +343,7 @@ function buildPrBody(proposal: RepoActionProposalRow, metadata: Record<string, u
   const sandboxReady = metadata.sandbox_ready === true;
   const tempReady = metadata.temp_workspace_ready === true;
   return [
-    "## Jarvis controlled repo action",
+    "## Rune controlled repo action",
     "",
     proposal.summary,
     "",
@@ -399,7 +399,7 @@ function runCommand(command: string, args: string[], cwd: string, timeoutMs = 12
     });
     let output = "";
     const timer = setTimeout(() => {
-      output += `\n[Jarvis sandbox] Command timed out after ${timeoutMs}ms and was stopped.`;
+      output += `\n[Rune sandbox] Command timed out after ${timeoutMs}ms and was stopped.`;
       child.kill("SIGTERM");
     }, timeoutMs);
 
