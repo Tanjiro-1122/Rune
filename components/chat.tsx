@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
+import { BuilderHome } from "./builder-home";
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -2148,6 +2149,15 @@ export function Chat() {
     setInput(prompt);
   }
 
+  function handleBuilderSubmit(prompt: string) {
+    if (isLoading || !prompt.trim()) return;
+    setInput(prompt);
+    // Submit on next tick after setInput has flushed
+    setTimeout(() => {
+      formRef.current?.requestSubmit();
+    }, 0);
+  }
+
   async function handleWorkspaceSelect(nextWorkspaceId: string) {
     if (workspaceBusy || nextWorkspaceId === workspaceId) return;
     await syncWorkspaceSelection(nextWorkspaceId, null);
@@ -2406,11 +2416,10 @@ export function Chat() {
               <p>Loading workspace…</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="private-owner-empty" aria-label="Private Rune workspace ready">
-              <div className="private-owner-orb" aria-hidden="true">J</div>
-              <p>Private workspace ready</p>
-              <span>Ask Rune below. Your tools, memory, repo control, files, and tasks stay tucked into the drawers.</span>
-            </div>
+            <BuilderHome
+              onSubmit={handleBuilderSubmit}
+              isLoading={isLoading}
+            />
           ) : (
             messages.map((message) => {
               const messageText = (message.parts ?? [])
