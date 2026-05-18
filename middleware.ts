@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/memory/seed")) {
     const seedToken = process.env.RUNE_MEMORY_SEED_TOKEN;
     const provided =
-      request.headers.get("x-jarvis-seed-token") ??
+      request.headers.get("x-rune-seed-token") ??
       request.nextUrl.searchParams.get("token");
     if (seedToken && provided === seedToken) {
       return withSecurityHeaders(NextResponse.next());
@@ -58,7 +58,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return withSecurityHeaders(
         NextResponse.json(
-          { error: "Jarvis authentication is not configured. Set SESSION_SECRET." },
+          { error: "Rune authentication is not configured. Set SESSION_SECRET." },
           { status: 503 }
         )
       );
