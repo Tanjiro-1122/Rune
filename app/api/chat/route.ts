@@ -602,7 +602,7 @@ const baseAgentTools = {
 
   get_rune_self_audit_snapshot: tool({
     description:
-      "Run Jarvis Self-Audit Mode. Returns a structured, non-secret report covering identity, project map, capability truth, deploy/config health, codebase signals, safety gates, not-connected integrations, and the recommended next patch. Use this for explicit self-audits, system health checks, and 'are you ready' questions. Do not use for freeze/stuck/question-mark delayed-answer symptoms; use get_tool_lifecycle_diagnostic instead.",
+      "Run Rune Self-Audit Mode. Returns a structured, non-secret report covering identity, project map, capability truth, deploy/config health, codebase signals, safety gates, not-connected integrations, and the recommended next patch. Use this for explicit self-audits, system health checks, and 'are you ready' questions. Do not use for freeze/stuck/question-mark delayed-answer symptoms; use get_tool_lifecycle_diagnostic instead.",
     parameters: z.object({
       scope: z.enum(["rune-brain", "full-owner-console"]).optional().default("rune-brain"),
     }),
