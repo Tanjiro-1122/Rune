@@ -80,7 +80,7 @@ function capabilityChecks(capabilityTruth: CapabilityTruthSnapshot): SelfAuditCh
       "capability.truth_layer",
       "Capability truth layer",
       "verified",
-      "Jarvis can return structured capability buckets instead of guessing.",
+      "Rune can return structured capability buckets instead of guessing.",
       `Buckets: verified=${capabilityTruth.summary.verifiedCount}, configured=${capabilityTruth.summary.configuredCount}, partial=${capabilityTruth.summary.partialCount}, missing=${capabilityTruth.summary.missingSetupCount}`
     )
   );
@@ -91,7 +91,7 @@ function capabilityChecks(capabilityTruth: CapabilityTruthSnapshot): SelfAuditCh
         "capability.missing_setup",
         "Missing required setup",
         "missing",
-        `${capabilityTruth.summary.missingSetupCount} setup item(s) need attention before Jarvis is fully operational.`,
+        `${capabilityTruth.summary.missingSetupCount} setup item(s) need attention before Rune is fully operational.`,
         capabilityTruth.deployHealth.missingRequired.map((item) => item.label).join(", ") || "Capability truth detected missing setup.",
         "Open Deploy Health and resolve required missing items."
       )
@@ -150,7 +150,7 @@ function deploymentChecks(capabilityTruth: CapabilityTruthSnapshot, buildIntelli
         buildIntelligence.github.error ? "partial" : "verified",
         buildIntelligence.github.error
           ? "GitHub intelligence is present but returned a limited/error signal."
-          : "GitHub intelligence can read the Jarvis repository signal.",
+          : "GitHub intelligence can read the Rune repository signal.",
         buildIntelligence.github.error || `${buildIntelligence.github.repo} latest commit ${buildIntelligence.github.latestCommit?.sha ?? "unknown"}`,
         buildIntelligence.github.error ? "Check GITHUB_TOKEN/RUNE_GITHUB_TOKEN permissions if private repo data is needed." : undefined
       )
@@ -190,7 +190,7 @@ function codebaseChecks(): SelfAuditCheck[] {
       "code.project_registry",
       "Canonical project registry",
       "verified",
-      "Jarvis has a canonical registry for Jarvis, Unfiltr, SWH, and Unfiltr Family.",
+      "Rune has a canonical registry for Rune, Unfiltr, SWH, and Unfiltr Family.",
       RUNE_CANONICAL_PROJECTS.map((project) => `${project.label}: ${project.repo}`).join(" | ")
     ),
     check(
@@ -254,21 +254,21 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
         "identity.private_owner_console",
         "Private owner-console identity",
         "verified",
-        "Jarvis identifies as Javier's private owner console, not a public SaaS product.",
+        "Rune identifies as Javier's private owner console, not a public SaaS product.",
         capabilityTruth.identity.productIntent
       ),
       check(
         "identity.default_repo",
         "Default self-repo",
         "verified",
-        `Jarvis self-repo resolves to ${RUNE_DEFAULT_REPO}.`,
+        `Rune self-repo resolves to ${RUNE_DEFAULT_REPO}.`,
         "Brain Patch 1 project registry"
       ),
       check(
         "identity.project_count",
         "Known projects",
         "verified",
-        `Jarvis knows ${RUNE_CANONICAL_PROJECTS.length} canonical project scopes.`,
+        `Rune knows ${RUNE_CANONICAL_PROJECTS.length} canonical project scopes.`,
         RUNE_CANONICAL_PROJECTS.map((project) => project.label).join(", ")
       ),
     ],
@@ -285,7 +285,7 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
       ? `Self-audit complete: ${summary.missing} missing setup item(s) need attention.`
       : summary.partial > 0
         ? `Self-audit complete: core brain is working; ${summary.partial} partial/optional item(s) need polish.`
-        : "Self-audit complete: Jarvis brain foundation is verified.";
+        : "Self-audit complete: Rune brain foundation is verified.";
 
   const snapshot: SelfAuditSnapshot = {
     generatedAt,
@@ -298,10 +298,10 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
     recommendedNextPatch: {
       title: "Hands Phase 1 — Approval-Gated Action Executor",
       reason:
-        "The Brain foundation is now in place: identity, project registry, capability truth, self-audit, reasoning router, and project-aware memory. The next safe step is giving Jarvis controlled hands through explicit approval-gated execution paths.",
+        "The Rune foundation is now in place: identity, project registry, capability truth, self-audit, reasoning router, and project-aware memory. The next safe step is giving Jarvis controlled hands through explicit approval-gated execution paths.",
       acceptanceCriteria: [
         "Every sensitive action starts with Findings → Plan.",
-        "No external/code/customer/financial action executes without exact Javier approval.",
+        "No external/code/customer/financial action executes without explicit Javier approval.",
         "Approved actions are written to the audit log before and after execution.",
         "Failures include a clear rollback or recovery note.",
       ],
