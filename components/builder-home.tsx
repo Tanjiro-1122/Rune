@@ -25,24 +25,26 @@ interface BuilderHomeProps {
 }
 
 export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
-  const [input, setInput] = useState("");
-  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
 
-  // Auto-resize textarea
-  useEffect(() => {
+  // Auto-resize textarea on input
+  function handleInput() {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-  }, [input]);
+  }
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
-    onSubmit(trimmed);
-    setInput("");
+    const value = textareaRef.current?.value.trim() ?? "";
+    if (!value || isLoading) return;
+    onSubmit(value);
+    if (textareaRef.current) {
+      textareaRef.current.value = "";
+      textareaRef.current.style.height = "auto";
+    }
   }
 
   function handleChip(prompt: string) {
@@ -55,6 +57,13 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
       e.preventDefault();
       handleSubmit();
     }
+  }
+
+  // Force button state update on every keystroke since input is uncontrolled
+  const [hasText, setHasText] = useState(false);
+  function handleChange() {
+    setHasText((textareaRef.current?.value.trim().length ?? 0) > 0);
+    handleInput();
   }
 
   return (
@@ -81,17 +90,12 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
                   <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
               </defs>
-              {/* Othala ᚩ — diamond arch + two hanging legs */}
+              {/* Othala — diamond arch + two hanging legs */}
               <g filter="url(#ember-glow)" stroke="url(#ember-grad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none">
-                {/* Diamond / arch: top → right → bottom → left → top */}
                 <polyline points="20,3 36,18 20,33 4,18 20,3" />
-                {/* Left leg: from left diamond point down */}
                 <line x1="4" y1="18" x2="9" y2="49" />
-                {/* Right leg: from right diamond point down */}
                 <line x1="36" y1="18" x2="31" y2="49" />
-                {/* Left foot serif */}
                 <line x1="9" y1="49" x2="3" y2="49" />
-                {/* Right foot serif */}
                 <line x1="31" y1="49" x2="37" y2="49" />
               </g>
             </svg>
@@ -114,9 +118,8 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
             ref={textareaRef}
             className="builder-textarea"
             placeholder="Describe what you want to do or build…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onChange={handleChange}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             rows={2}
@@ -133,7 +136,7 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
               <button
                 type="submit"
                 className="builder-send-btn"
-                disabled={!input.trim() || isLoading}
+                disabled={!hasText || isLoading}
                 aria-label="Send prompt"
               >
                 {isLoading ? (
