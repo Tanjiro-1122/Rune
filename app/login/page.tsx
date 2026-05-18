@@ -38,7 +38,13 @@ export default function LoginPage() {
   return (
     <main className="page">
       <header className="hero">
-        <h1>Rune</h1>
+        <h1 className="rune-wordmark-title">
+          <img
+            src="/images/rune-wordmark.png"
+            alt="Rune"
+            className="rune-wordmark-img"
+          />
+        </h1>
         <span className="hero-divider" aria-hidden="true">·</span>
         <p>Sign in to continue</p>
       </header>
