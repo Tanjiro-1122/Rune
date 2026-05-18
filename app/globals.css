@@ -2976,3 +2976,36 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Rune Wordmark ─────────────────────────────────────── */
+.rune-wordmark-title {
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  border: none;
+  background: none;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.rune-wordmark-img {
+  display: block;
+  height: 56px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(200, 60, 20, 0.5));
+}
+
+@media (max-width: 480px) {
+  .rune-wordmark-img {
+    height: 44px;
+  }
+}
+/* ─────────────────────────────────────────────────────── */
+
+.rune-wordmark-sidebar {
+  height: 36px;
+  margin-bottom: 2px;
+  filter: drop-shadow(0 0 8px rgba(200, 60, 20, 0.45));
+}
+

@@ -2250,11 +2250,12 @@ export function Chat() {
       <aside className={`workspace-sidebar ${showWorkspaceDrawer ? "workspace-sidebar--open" : ""}`}>
         <div className="workspace-sidebar-top">
           <div className="workspace-brand">
-            <span className="workspace-brand-mark">J</span>
-            <div>
-              <div className="workspace-brand-title">Jarvis</div>
-              <p className="workspace-brand-subtitle">AI workspace</p>
-            </div>
+            <img
+              src="/images/rune-wordmark.png"
+              alt="Rune"
+              className="rune-wordmark-img rune-wordmark-sidebar"
+            />
+            <p className="workspace-brand-subtitle">AI workspace</p>
           </div>
 
           {workspaceNotice && (
