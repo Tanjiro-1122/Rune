@@ -21,6 +21,18 @@ const ACCEPTED_TYPES = [
   "text/markdown",
 ];
 
+const STREAM_FINALIZATION_RECOVERY_MS = 12_000;
+
+function getAssistantTextFromMessage(message: { role?: string; content?: unknown; parts?: Array<{ type?: string; text?: string }> } | undefined) {
+  if (!message || message.role !== "assistant") return "";
+  if (typeof message.content === "string") return message.content;
+  return (message.parts ?? [])
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
 // ─── Tool display helpers ────────────────────────────────────────────────────
 
 interface WorkspaceConversationSummary {
@@ -848,6 +860,8 @@ export function Chat() {
   const operatorProposalsRef = useRef<HTMLDivElement>(null);
   const operatorTasksRef = useRef<HTMLDivElement>(null);
   const taskRefreshInFlightRef = useRef(false);
+  const streamRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [streamFinalizationRecovered, setStreamFinalizationRecovered] = useState(false);
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
   const selectedArtifact =
@@ -1731,12 +1745,50 @@ export function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isChatRequestInFlight = status === "submitted" || status === "streaming";
+  const latestAssistantText = getAssistantTextFromMessage(messages[messages.length - 1]);
+  const hasAssistantTextWhileStreaming = isChatRequestInFlight && latestAssistantText.trim().length > 0;
+  const isStreamFinalizing = isChatRequestInFlight && streamFinalizationRecovered;
+  const isLoading = (isChatRequestInFlight && !isStreamFinalizing) || isUploadingAttachment;
+  const showBusyStatus = isChatRequestInFlight || isUploadingAttachment;
+
   // Scroll to bottom when a response finishes or a new message is added.
   useEffect(() => {
     if (status === "ready" || status === "error") {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [status, messages.length]);
+
+  useEffect(() => {
+    if (!isChatRequestInFlight || !hasAssistantTextWhileStreaming) {
+      if (streamRecoveryTimerRef.current) {
+        clearTimeout(streamRecoveryTimerRef.current);
+        streamRecoveryTimerRef.current = null;
+      }
+      setStreamFinalizationRecovered(false);
+      return;
+    }
+
+    if (streamFinalizationRecovered || streamRecoveryTimerRef.current) return;
+
+    streamRecoveryTimerRef.current = setTimeout(() => {
+      streamRecoveryTimerRef.current = null;
+      setStreamFinalizationRecovered(true);
+    }, STREAM_FINALIZATION_RECOVERY_MS);
+
+    return () => {
+      if (streamRecoveryTimerRef.current) {
+        clearTimeout(streamRecoveryTimerRef.current);
+        streamRecoveryTimerRef.current = null;
+      }
+    };
+  }, [hasAssistantTextWhileStreaming, isChatRequestInFlight, streamFinalizationRecovered]);
+
+  useEffect(() => {
+    if (streamFinalizationRecovered && sessionId && workspaceId) {
+      void refreshTasks(sessionId, workspaceId, conversationId);
+    }
+  }, [streamFinalizationRecovered, sessionId, workspaceId, conversationId]);
 
   useEffect(() => {
     if (status === "ready" && sessionId && workspaceId) {
@@ -1814,10 +1866,8 @@ export function Chat() {
     router.refresh();
   }
 
-  const isLoading = status === "submitted" || status === "streaming" || isUploadingAttachment;
-
   // Determine the active tool name while streaming
-  const activeToolName = isLoading
+  const activeToolName = showBusyStatus
     ? (() => {
         const last = messages[messages.length - 1];
         if (!last || last.role !== "assistant") return null;
@@ -2244,14 +2294,14 @@ export function Chat() {
             <span className="chat-header-title">Jarvis</span>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
-              {isLoading ? " · thinking" : ""}
+              {showBusyStatus ? (isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
             </p>
           </div>
           <div className="chat-header-right">
-            {isLoading && (
+            {showBusyStatus && (
               <span className="status-badge">
                 <span className="status-dot" />
-                {activeToolName ? activeToolName.replace(/_/g, " ") : "Thinking…"}
+                {isStreamFinalizing ? "Finalizing answer…" : activeToolName ? activeToolName.replace(/_/g, " ") : "Thinking…"}
               </span>
             )}
             {resumeTaskId && !isLoading && (
@@ -2504,7 +2554,7 @@ export function Chat() {
             {jobBusy ? "Queuing…" : "Queue"}
           </button>
           <button type="submit" className="send-button" disabled={isLoading}>
-            {isUploadingAttachment ? "Uploading…" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
+            {isUploadingAttachment ? "Uploading…" : isStreamFinalizing ? "Send" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
           </button>
         </form>
       </section>
