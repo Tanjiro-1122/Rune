@@ -22,6 +22,8 @@ const ACCEPTED_TYPES = [
 ];
 
 const STREAM_FINALIZATION_RECOVERY_MS = 12_000;
+const STREAM_STALL_WATCHDOG_MS = 18_000;
+const STREAM_STALL_SECONDARY_RECOVERY_MS = 10_000;
 
 function getAssistantTextFromMessage(message: { role?: string; content?: unknown; parts?: Array<{ type?: string; text?: string }> } | undefined) {
   if (!message || message.role !== "assistant") return "";
@@ -861,7 +863,12 @@ export function Chat() {
   const operatorTasksRef = useRef<HTMLDivElement>(null);
   const taskRefreshInFlightRef = useRef(false);
   const streamRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamStallWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamStallSecondaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamStallRecoveryInFlightRef = useRef(false);
   const [streamFinalizationRecovered, setStreamFinalizationRecovered] = useState(false);
+  const [streamStallRecovered, setStreamStallRecovered] = useState(false);
+  const [streamRecoveryNotice, setStreamRecoveryNotice] = useState("");
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
   const selectedArtifact =
@@ -1748,8 +1755,10 @@ export function Chat() {
   const isChatRequestInFlight = status === "submitted" || status === "streaming";
   const latestAssistantText = getAssistantTextFromMessage(messages[messages.length - 1]);
   const hasAssistantTextWhileStreaming = isChatRequestInFlight && latestAssistantText.trim().length > 0;
+  const hasVisibleAssistantMessage = latestAssistantText.trim().length > 0;
   const isStreamFinalizing = isChatRequestInFlight && streamFinalizationRecovered;
-  const isLoading = (isChatRequestInFlight && !isStreamFinalizing) || isUploadingAttachment;
+  const isStreamStalled = isChatRequestInFlight && streamStallRecovered && !hasVisibleAssistantMessage;
+  const isLoading = (isChatRequestInFlight && !isStreamFinalizing && !isStreamStalled) || isUploadingAttachment;
   const showBusyStatus = isChatRequestInFlight || isUploadingAttachment;
 
   // Scroll to bottom when a response finishes or a new message is added.
@@ -1758,6 +1767,29 @@ export function Chat() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [status, messages.length]);
+
+  async function recoverStalledChatStream(reason: "watchdog" | "secondary") {
+    if (!sessionId || !workspaceId || streamStallRecoveryInFlightRef.current) return;
+
+    streamStallRecoveryInFlightRef.current = true;
+    try {
+      setStreamRecoveryNotice(
+        reason === "watchdog"
+          ? "Checking for completed answer…"
+          : "Response stalled. I refreshed saved chat state so you can continue."
+      );
+      await Promise.all([
+        loadConversation(sessionId, workspaceId, conversationId),
+        refreshTasks(sessionId, workspaceId, conversationId),
+      ]);
+    } catch {
+      setStreamRecoveryNotice(
+        "Response stalled. The saved answer could not be refreshed automatically — you can send again."
+      );
+    } finally {
+      streamStallRecoveryInFlightRef.current = false;
+    }
+  }
 
   useEffect(() => {
     if (!isChatRequestInFlight || !hasAssistantTextWhileStreaming) {
@@ -1789,6 +1821,43 @@ export function Chat() {
       void refreshTasks(sessionId, workspaceId, conversationId);
     }
   }, [streamFinalizationRecovered, sessionId, workspaceId, conversationId]);
+
+  useEffect(() => {
+    if (!isChatRequestInFlight || hasVisibleAssistantMessage) {
+      if (streamStallWatchdogTimerRef.current) {
+        clearTimeout(streamStallWatchdogTimerRef.current);
+        streamStallWatchdogTimerRef.current = null;
+      }
+      if (streamStallSecondaryTimerRef.current) {
+        clearTimeout(streamStallSecondaryTimerRef.current);
+        streamStallSecondaryTimerRef.current = null;
+      }
+      setStreamStallRecovered(false);
+      if (!isChatRequestInFlight) setStreamRecoveryNotice("");
+      return;
+    }
+
+    if (streamStallRecovered || streamStallWatchdogTimerRef.current) return;
+
+    streamStallWatchdogTimerRef.current = setTimeout(() => {
+      streamStallWatchdogTimerRef.current = null;
+      setStreamStallRecovered(true);
+      void recoverStalledChatStream("watchdog");
+
+      streamStallSecondaryTimerRef.current = setTimeout(() => {
+        streamStallSecondaryTimerRef.current = null;
+        void recoverStalledChatStream("secondary");
+      }, STREAM_STALL_SECONDARY_RECOVERY_MS);
+    }, STREAM_STALL_WATCHDOG_MS);
+
+    return () => {
+      if (streamStallWatchdogTimerRef.current) {
+        clearTimeout(streamStallWatchdogTimerRef.current);
+        streamStallWatchdogTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasVisibleAssistantMessage, isChatRequestInFlight, streamStallRecovered, sessionId, workspaceId, conversationId]);
 
   useEffect(() => {
     if (status === "ready" && sessionId && workspaceId) {
@@ -2072,7 +2141,7 @@ export function Chat() {
   }
 
   const showTypingIndicator =
-    isLoading && messages[messages.length - 1]?.role !== "assistant";
+    isLoading && !isStreamStalled && messages[messages.length - 1]?.role !== "assistant";
 
   function fillStarterPrompt(prompt: string) {
     if (isLoading) return;
@@ -2294,14 +2363,14 @@ export function Chat() {
             <span className="chat-header-title">Jarvis</span>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
-              {showBusyStatus ? (isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
+              {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
             </p>
           </div>
           <div className="chat-header-right">
             {showBusyStatus && (
               <span className="status-badge">
                 <span className="status-dot" />
-                {isStreamFinalizing ? "Finalizing answer…" : activeToolName ? activeToolName.replace(/_/g, " ") : "Thinking…"}
+                {isStreamStalled ? "Checking for completed answer…" : isStreamFinalizing ? "Finalizing answer…" : activeToolName ? activeToolName.replace(/_/g, " ") : "Thinking…"}
               </span>
             )}
             {resumeTaskId && !isLoading && (
@@ -2499,6 +2568,7 @@ export function Chat() {
 
         {fileError && <div className="file-error">{fileError}</div>}
         {jobStatus && <div className="file-error">{jobStatus}</div>}
+        {streamRecoveryNotice && <div className="file-error">{streamRecoveryNotice}</div>}
         {(chatErrorMessage || chatError) && (
           <div className="chat-error-banner" role="alert">
             <strong>Jarvis paused.</strong>
@@ -2554,7 +2624,7 @@ export function Chat() {
             {jobBusy ? "Queuing…" : "Queue"}
           </button>
           <button type="submit" className="send-button" disabled={isLoading}>
-            {isUploadingAttachment ? "Uploading…" : isStreamFinalizing ? "Send" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
+            {isUploadingAttachment ? "Uploading…" : isStreamStalled ? "Send" : isStreamFinalizing ? "Send" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
           </button>
         </form>
       </section>
