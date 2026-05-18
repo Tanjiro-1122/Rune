@@ -1761,6 +1761,44 @@ function getAgentTools({
         return { ok: true, forgotten: title };
       },
     }),
+
+    run_lifecycle: tool({
+      description:
+        "Execute the full Rune PR lifecycle: branch → commit files → open PR → self-check → merge → redeploy → verify. " +
+        "Use this when Javier says APPROVE RUNE: <task> or asks Rune to ship a change end-to-end. " +
+        "Never call this without an explicit approval phrase from Javier.",
+      parameters: z.object({
+        taskSlug: z.string().describe("Short kebab-case slug, e.g. 'add-dark-mode'"),
+        title: z.string().describe("PR title"),
+        body: z.string().describe("PR description / what changed and why"),
+        commitMessage: z.string().describe("Git commit message"),
+        files: z.array(
+          z.object({
+            path: z.string().describe("File path relative to repo root"),
+            content: z.string().describe("Full file content"),
+          })
+        ).describe("Files to create or update in this PR"),
+      }),
+      execute: async ({ taskSlug, title, body, commitMessage, files }) => {
+        const { runLifecycle } = await import("@/lib/rune-lifecycle");
+        const result = await runLifecycle({ taskSlug, title, body, commitMessage, files });
+        return result;
+      },
+    }),
+
+    rollback_rune: tool({
+      description:
+        "Immediately roll back Rune's production deployment to the previous build. " +
+        "Use only when Javier says ROLLBACK RUNE or reports a broken production deploy.",
+      parameters: z.object({
+        confirm: z.boolean().describe("Must be true to proceed with rollback."),
+      }),
+      execute: async ({ confirm }) => {
+        if (!confirm) return { ok: false, error: "Rollback not confirmed." };
+        const { rollbackProduction } = await import("@/lib/rune-lifecycle");
+        return rollbackProduction();
+      },
+    }),
   };
 }
 
