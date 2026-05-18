@@ -101,7 +101,7 @@ function emptyResult(error: string): SessionFragmentAuditResult {
 export async function auditRuneSessionFragments(): Promise<SessionFragmentAuditResult> {
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return emptyResult("Supabase is not configured, so Jarvis cannot audit persisted session fragments yet.");
+    return emptyResult("Supabase is not configured, so Rune cannot audit persisted session fragments yet.");
   }
 
   const [conversationResponse, messageResponse, workspaceResponse, mappingResponse] = await Promise.all([
@@ -185,7 +185,7 @@ export async function auditRuneSessionFragments(): Promise<SessionFragmentAuditR
     sessions: orderedSessions.slice(0, 20),
     recommendedNextStep: fragmentedSessions.length > 0
       ? "Review these counts first. If they look right, prepare a separate approval-gated merge plan."
-      : "Use Jarvis normally across devices and confirm new messages appear under the unified owner session.",
+      : "Use Rune normally across devices and confirm new messages appear under the unified owner session.",
     safeBoundaries: [
       "Read-only Supabase select queries only.",
       "No message content is returned.",
@@ -393,7 +393,7 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
 
   const supabase = getSupabaseClient();
   if (!supabase) {
-    return blockedMergeExecution("Supabase is not configured, so Jarvis cannot execute the session merge.");
+    return blockedMergeExecution("Supabase is not configured, so Rune cannot execute the session merge.");
   }
 
   const before = await planRuneSessionFragmentMerge();
