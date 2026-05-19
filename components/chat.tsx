@@ -7,6 +7,10 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { BuilderHome } from "./builder-home";
 import dynamic from "next/dynamic";
+const SelfTestPanel = dynamic(
+  () => import("./self-test/SelfTestPanel").then(m => ({ default: m.SelfTestPanel })),
+  { ssr: false }
+);
 // Vault nav + ChatInputBar are lazy-loaded — never part of initial chat bundle
 const ChatInputBar = dynamic(
   () => import("./chat/chat-input-bar").then(m => ({ default: m.ChatInputBar })),
@@ -424,7 +428,7 @@ const PROJECT_MEMORY_OPTIONS = [
 ];
 
 
-type CabinetDrawerKey = "operator" | "memory" | "health" | "repo" | "build" | "activity" | "files" | "tasks";
+type CabinetDrawerKey = "operator" | "memory" | "health" | "repo" | "build" | "activity" | "files" | "tasks" | "self_test";
 
 const CABINET_DRAWERS: Array<{ key: CabinetDrawerKey; label: string; hint: string }> = [
   { key: "operator", label: "Operator", hint: "Command view" },
@@ -435,6 +439,7 @@ const CABINET_DRAWERS: Array<{ key: CabinetDrawerKey; label: string; hint: strin
   { key: "activity", label: "Activity", hint: "Audit trail" },
   { key: "files", label: "Files", hint: "Artifacts + docs" },
   { key: "tasks", label: "Tasks", hint: "Timeline" },
+  { key: "self_test", label: "Self-Test", hint: "System checks" },
 ];
 
 function dedupeMessages<T extends { id?: string; role?: string; content?: string }>(items: T[]): T[] {
@@ -3674,6 +3679,20 @@ export function Chat() {
                   Activity appears here after Rune saves, edits, archives, proposes, or executes important actions.
                 </div>
               )}
+            </div>
+            )}
+
+            {activeCabinetDrawer === "self_test" && (
+            <div className={toolsSectionClassName("context-panel-section filing-cabinet-content")}>
+              <div className="context-panel-header">
+                <div>
+                  <div className="side-section-label">System Self-Test</div>
+                  <p className="side-section-copy">
+                    Run live checks across memory, Supabase, GitHub, Vercel, vault, chat API, and more.
+                  </p>
+                </div>
+              </div>
+              <SelfTestPanel sessionId={sessionId} />
             </div>
             )}
 
