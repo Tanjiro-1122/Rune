@@ -206,12 +206,13 @@ export async function upsertMemory(input: SeedMemoryInput) {
     return { ok: false, error: error.message };
   }
 
-  await logMemoryEvent({
+  // Fire-and-forget — don't add a second Supabase round-trip to every memory save
+  void logMemoryEvent({
     memoryId: data?.id ?? null,
     eventType: "memory.saved",
     summary: `Memory saved: ${title}`,
     metadata: { title, projectKey: payload.project_key, kind: payload.kind, source: payload.source },
-  });
+  }).catch(() => {});
 
   return { ok: true, memory: data };
 }
