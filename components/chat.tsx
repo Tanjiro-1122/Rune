@@ -7,6 +7,41 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { BuilderHome } from "./builder-home";
 
+
+// ── Premium code block renderer ──────────────────────────────────────────────
+function RuneCodeBlock({ inline, className, children, ...props }: {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+  [key: string]: unknown;
+}) {
+  const [copied, setCopied] = useState(false);
+  const lang = (className?.replace("language-", "") || "").toLowerCase();
+  const code = String(children ?? "").replace(/\n$/, "");
+  if (inline) {
+    return <code className={className} {...props}>{children}</code>;
+  }
+  function copyCode() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <div className="rune-code-block">
+      <div className="rune-code-header">
+        <span className="lang-label">{lang || "code"}</span>
+        <button className={`rune-code-copy${copied ? " copied" : ""}`} onClick={copyCode}>
+          {copied ? "✓ copied" : "copy"}
+        </button>
+      </div>
+      <pre><code className={className} {...props}>{code}</code></pre>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 const STORAGE_KEY_SESSION_ID = "rune_session_id";
@@ -2480,7 +2515,7 @@ export function Chat() {
                             key={`${message.id}-${index}`}
                             className="markdown-body"
                           >
-                            <ReactMarkdown>{part.text}</ReactMarkdown>
+                            <ReactMarkdown components={{ code: RuneCodeBlock as React.ComponentType<React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & { inline?: boolean }> }}>{part.text}</ReactMarkdown>
                           </div>
                         );
                       }
