@@ -3523,3 +3523,66 @@ button:disabled {
   display: none !important;
 }
 
+
+/* ── Code block syntax highlighting ── */
+.rune-code-block {
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0.75rem 0;
+  font-size: 0.82rem;
+}
+.rune-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.9rem;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-size: 0.72rem;
+  color: #8b949e;
+  font-family: var(--font-mono, monospace);
+}
+.rune-code-header .lang-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #c9d1d9;
+}
+.rune-code-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #8b949e;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.rune-code-copy:hover { background: rgba(255,255,255,0.08); color: #e6edf3; }
+.rune-code-copy.copied { color: #3fb950; }
+.rune-code-block pre {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.rune-code-block code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 0.82rem;
+  color: #e6edf3;
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+/* Inline code */
+.rune-message p code, .rune-message li code {
+  background: rgba(110, 118, 129, 0.18);
+  border: 1px solid rgba(110, 118, 129, 0.25);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82em;
+  color: #e6edf3;
+}
