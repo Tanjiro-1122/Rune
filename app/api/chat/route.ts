@@ -76,7 +76,7 @@ const MAX_SESSION_ID_LENGTH = 128;
 const CHAT_RATE_WINDOW_MS = 60_000;
 const MAX_TRACKED_CHAT_SESSIONS = 2_000;
 const MAX_EVENT_ERROR_MESSAGE_LENGTH = 280;
-const CHAT_FINISH_PERSISTENCE_TIMEOUT_MS = 8_000;
+const CHAT_FINISH_PERSISTENCE_TIMEOUT_MS = 12_000; // Pro plan allows longer onFinish
 
 class ChatFinishPersistenceTimeoutError extends Error {
   constructor(label: string, timeoutMs: number) {
@@ -2285,7 +2285,7 @@ ${retrievalHits
 
     const result = streamText({
       model: openai(CHAT_MODEL),
-      maxTokens: 8192,
+      maxTokens: 16384, // Pro plan: richer responses
       temperature: 0.55,
       system: `You are Rune. Javier's private AI — his operator console, developer agent, and co-pilot all in one.
 
@@ -2399,7 +2399,7 @@ ${plannerOutput.steps
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
       tools: agentTools,
       toolChoice: forcedToolChoice ?? "auto",
-      maxSteps: 8, // increased: complex tool chains (self-audit, lifecycle, repo scan) need more steps
+      maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       onFinish: async ({ text }) => {
         if (!lastUserMessage) return;
 
