@@ -1,5 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase";
-import { JARVIS_OWNER_SESSION_ID } from "@/lib/owner-session";
+import { RUNE_OWNER_SESSION_ID } from "@/lib/owner-session";
 
 type ConversationRow = { id: string; session_id: string; created_at: string | null };
 type MessageRow = { conversation_id: string; created_at: string | null };
@@ -61,7 +61,7 @@ function earliestDate(left: string | null, right: string | null) {
 function blankSession(sessionId: string): SessionFragmentSummary {
   return {
     sessionId,
-    isOwnerSession: sessionId === JARVIS_OWNER_SESSION_ID,
+    isOwnerSession: sessionId === RUNE_OWNER_SESSION_ID,
     workspaceCount: 0,
     conversationCount: 0,
     mappedConversationCount: 0,
@@ -78,7 +78,7 @@ function emptyResult(error: string): SessionFragmentAuditResult {
     success: false,
     readOnly: true,
     generatedAt: new Date().toISOString(),
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     summary: error,
     totals: { sessions: 0, fragmentedSessions: 0, workspaces: 0, conversations: 0, messages: 0, fragmentedConversations: 0, fragmentedMessages: 0 },
     sessions: [],
@@ -171,7 +171,7 @@ export async function auditRuneSessionFragments(): Promise<SessionFragmentAuditR
     success: true,
     readOnly: true,
     generatedAt: new Date().toISOString(),
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     summary,
     totals: {
       sessions: orderedSessions.length,
@@ -231,7 +231,7 @@ function blockedMergePlan(error: string): SessionFragmentMergePlanResult {
     dryRun: true,
     readOnly: true,
     generatedAt: new Date().toISOString(),
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     summary: error,
     sourceSessionIds: [],
     proposedChanges: {
@@ -280,14 +280,14 @@ export async function planRuneSessionFragmentMerge(): Promise<SessionFragmentMer
 
   const summary = fragments.length === 0
     ? "No fragmented browser-local sessions need merging."
-    : `Dry-run plan prepared: ${fragments.length} old browser-local session${fragments.length === 1 ? "" : "s"} would be consolidated into ${JARVIS_OWNER_SESSION_ID}, making ${conversationsToReassign} conversation${conversationsToReassign === 1 ? "" : "s"} and ${messagesMadeVisibleViaConversationMove} message record${messagesMadeVisibleViaConversationMove === 1 ? "" : "s"} visible from the owner session.`;
+    : `Dry-run plan prepared: ${fragments.length} old browser-local session${fragments.length === 1 ? "" : "s"} would be consolidated into ${RUNE_OWNER_SESSION_ID}, making ${conversationsToReassign} conversation${conversationsToReassign === 1 ? "" : "s"} and ${messagesMadeVisibleViaConversationMove} message record${messagesMadeVisibleViaConversationMove === 1 ? "" : "s"} visible from the owner session.`;
 
   return {
     success: true,
     dryRun: true,
     readOnly: true,
     generatedAt: new Date().toISOString(),
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     summary,
     sourceSessionIds,
     proposedChanges: {
@@ -348,7 +348,7 @@ function blockedMergeExecution(error: string, sourceSessionIds: string[] = []): 
   return {
     success: false,
     executed: false,
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     generatedAt: new Date().toISOString(),
     summary: error,
     requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
@@ -401,13 +401,13 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
     return { ...blockedMergeExecution(before.error ?? before.summary, before.sourceSessionIds), before };
   }
 
-  const sourceSessionIds = before.sourceSessionIds.filter((sessionId) => sessionId && sessionId !== JARVIS_OWNER_SESSION_ID);
+  const sourceSessionIds = before.sourceSessionIds.filter((sessionId) => sessionId && sessionId !== RUNE_OWNER_SESSION_ID);
   if (sourceSessionIds.length === 0) {
     const after = await auditRuneSessionFragments();
     return {
       success: true,
       executed: false,
-      ownerSessionId: JARVIS_OWNER_SESSION_ID,
+      ownerSessionId: RUNE_OWNER_SESSION_ID,
       generatedAt: new Date().toISOString(),
       summary: "No fragmented sessions needed merging.",
       requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
@@ -448,7 +448,7 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
   if (workspaceIds.length > 0) {
     const membershipRows = workspaceIds.map((workspaceId) => ({
       workspace_id: workspaceId,
-      session_id: JARVIS_OWNER_SESSION_ID,
+      session_id: RUNE_OWNER_SESSION_ID,
       role: "owner",
     }));
     const membershipResponse = await supabase
@@ -463,7 +463,7 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
 
   const conversationUpdate = await supabase
     .from("conversations")
-    .update({ session_id: JARVIS_OWNER_SESSION_ID })
+    .update({ session_id: RUNE_OWNER_SESSION_ID })
     .in("session_id", sourceSessionIds)
     .select("id");
   if (conversationUpdate.error) {
@@ -472,7 +472,7 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
 
   const workspaceUpdate = await supabase
     .from("workspaces")
-    .update({ session_id: JARVIS_OWNER_SESSION_ID })
+    .update({ session_id: RUNE_OWNER_SESSION_ID })
     .in("session_id", sourceSessionIds)
     .select("id");
   if (workspaceUpdate.error) {
@@ -481,7 +481,7 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
 
   const eventUpdate = await supabase
     .from("workspace_events")
-    .update({ session_id: JARVIS_OWNER_SESSION_ID })
+    .update({ session_id: RUNE_OWNER_SESSION_ID })
     .in("session_id", sourceSessionIds)
     .select("id");
   if (eventUpdate.error) {
@@ -496,9 +496,9 @@ export async function executeRuneSessionFragmentMerge(approvalPhrase: string): P
   return {
     success: true,
     executed: true,
-    ownerSessionId: JARVIS_OWNER_SESSION_ID,
+    ownerSessionId: RUNE_OWNER_SESSION_ID,
     generatedAt: new Date().toISOString(),
-    summary: `Approved metadata merge executed: ${conversationsReassigned} conversation${conversationsReassigned === 1 ? "" : "s"} and ${workspacesReassigned} workspace${workspacesReassigned === 1 ? "" : "s"} were reassigned to ${JARVIS_OWNER_SESSION_ID}. Message rows were not edited.`,
+    summary: `Approved metadata merge executed: ${conversationsReassigned} conversation${conversationsReassigned === 1 ? "" : "s"} and ${workspacesReassigned} workspace${workspacesReassigned === 1 ? "" : "s"} were reassigned to ${RUNE_OWNER_SESSION_ID}. Message rows were not edited.`,
     requiredApprovalPhrase: "APPROVE RUNE SESSION MERGE",
     sourceSessionIds,
     before,
