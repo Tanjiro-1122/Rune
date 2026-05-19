@@ -2253,7 +2253,7 @@ ${retrievalHits
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
-    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4o-mini";
+    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4o";
     const ownerMemorySection = getOwnerMemorySection();
     const inferredMemoryProject = inferProjectFromText(latestUserText);
     const memoryProjectKey = inferredMemoryProject?.key ?? (workspaceId ? "rune" : null);
