@@ -14,7 +14,7 @@ function getRevenueCatApiKey() {
   return (
     process.env.REVENUECAT_API_KEY?.trim() ||
     process.env.REVENUECAT_SECRET_KEY?.trim() ||
-    process.env.JARVIS_REVENUECAT_API_KEY?.trim() ||
+    process.env.RUNE_REVENUECAT_API_KEY ?? process.env.JARVIS_REVENUECAT_API_KEY?.trim() ||
     ""
   );
 }
