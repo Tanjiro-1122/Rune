@@ -23,3 +23,5 @@ CREATE POLICY IF NOT EXISTS vault_service_only
   ON phrourio_vault
   FOR ALL
   USING (auth.role() = 'service_role');
+
+-- deploy trigger 1779162879
