@@ -2099,32 +2099,25 @@ export async function POST(req: Request) {
       };
     });
 
-    if (workspaceId) {
-      await assertWorkspaceAccess({
-        sessionId,
-        workspaceId,
-        requiredRole: "editor",
-      });
-    }
-    if (conversationId) {
-      await assertConversationAccess({
-        sessionId,
-        conversationId,
-        workspaceId,
-        requiredRole: "editor",
-      });
-    }
+    // Run access checks in parallel to cut pre-stream latency
+    await Promise.all([
+      workspaceId
+        ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" })
+        : Promise.resolve(),
+      conversationId
+        ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" })
+        : Promise.resolve(),
+    ]);
 
-    await recordWorkspaceEvent({
+    // Fire-and-forget: event recording should not block stream start
+    void recordWorkspaceEvent({
       sessionId,
       workspaceId,
       conversationId,
       eventType: "chat.request",
       status: "started",
-      details: {
-        messageCount: messages.length,
-      },
-    });
+      details: { messageCount: messages.length },
+    }).catch((e) => logError("chat.recordEvent.started", e));
 
     const codeExecution = getCodeExecutionAvailability();
     const codeExecutionSummary = formatCodeExecutionSummary(codeExecution);
@@ -2190,20 +2183,21 @@ export async function POST(req: Request) {
     activeTaskId = taskId;
 
     if (taskId) {
-      await updateWorkspaceTaskStep({
+      // Fire-and-forget: progress step updates don't need to block stream start
+      void updateWorkspaceTaskStep({
         taskId,
         stepKey: "capture_request",
         status: "completed",
         detail: `${agentWorkLoop.progressLabel}. Intent: ${plannerOutput.intent}; route: ${plannerOutput.reasoningRoute}.`,
         progress: 18,
-      });
-      await updateWorkspaceTaskStep({
+      }).catch(() => {});
+      void updateWorkspaceTaskStep({
         taskId,
         stepKey: "retrieve_workspace_context",
         status: "running",
         detail: "Scanning indexed project files, artifacts, and prior chat memory.",
         progress: 24,
-      });
+      }).catch(() => {});
     }
 
     // ── Parallel pre-flight: retrieval + memory + attachments ──────────────────
