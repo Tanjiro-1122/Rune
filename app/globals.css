@@ -607,6 +607,27 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
+.queue-button {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid rgba(100, 100, 120, 0.35);
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.queue-button:hover:not(:disabled) {
+  background: rgba(100, 100, 120, 0.12);
+  color: var(--text-secondary, #aaa);
+}
+.queue-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .chat-error-banner,
 .workspace-notice {
   margin: 0;
