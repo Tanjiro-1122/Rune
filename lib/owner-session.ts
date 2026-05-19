@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getSessionSecret, SESSION_COOKIE, verifySessionCookie } from "@/lib/auth";
 
-export const JARVIS_OWNER_SESSION_ID = "owner:javier" as const;
+export const RUNE_OWNER_SESSION_ID = "owner:javier" as const;
 
 const MAX_SESSION_ID_LENGTH = 160;
 const FALLBACK_SESSION_PREFIX = "local-";
@@ -53,11 +53,11 @@ export async function resolveOwnerSessionId(
   const cookieValue = getSessionCookieValue(req);
   if (secret) {
     const verification = await verifySessionCookie(cookieValue, secret);
-    if (verification.ok) return JARVIS_OWNER_SESSION_ID;
+    if (verification.ok) return RUNE_OWNER_SESSION_ID;
   }
 
   const cleaned = cleanClientSessionId(clientSessionId);
   if (cleaned) return cleaned;
 
-  return `${FALLBACK_SESSION_PREFIX}${JARVIS_OWNER_SESSION_ID}`;
+  return `${FALLBACK_SESSION_PREFIX}${RUNE_OWNER_SESSION_ID}`;
 }
