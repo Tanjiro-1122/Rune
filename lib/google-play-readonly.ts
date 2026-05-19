@@ -231,7 +231,7 @@ export async function getGooglePlayReadOnlySummary(packageNameOverride?: string 
         blockedCapabilities: [
           {
             name: "Release track visibility",
-            reason: "Google Play release tracks are exposed through the edits.tracks API, which requires creating an edit session. Jarvis blocks that until Javier explicitly approves a separate edit-session reader design.",
+            reason: "Google Play release tracks are exposed through the edits.tracks API, which requires creating an edit session. Rune blocks that until Javier explicitly approves a separate edit-session reader design.",
           },
         ],
       },
