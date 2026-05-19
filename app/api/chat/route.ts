@@ -1659,6 +1659,25 @@ function getAgentTools({
     }),
 
 
+    prepare_repo_deployment_handoff: tool({
+      description:
+        "Prepare a deployment approval handoff package for a ready Repo Control PR. It reads existing PR readiness metadata and returns the PR URL, branch, readiness summary, required approval phrase, and next safe action. It never merges, deploys, redeploys, rolls back, queues runner jobs, or mutates production.",
+      parameters: z.object({
+        proposalId: z.string().min(1).max(120),
+      }),
+      execute: async ({ proposalId }) => {
+        if (!isRepoActionProposalId(proposalId)) {
+          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "Deployment handoff did not start. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
+        }
+        const result = await prepareRepoDeploymentHandoff({ proposalId });
+        return {
+          success: result.ready,
+          ...result,
+          message: result.message || "Deployment handoff prepared in metadata-only mode. No deployment happened.",
+        };
+      },
+    }),
+
     proposeHandsAction: tool({
       description:
         "Propose a sensitive action (code change, deploy, PR, merge, schema change, " +
@@ -1696,27 +1715,6 @@ function getAgentTools({
       execute: async ({ limit }) => {
         const proposals = await listHandsProposals(limit ?? 10);
         return proposals.map((p) => ({ id: p.id, title: p.title, status: p.status, gatePhrase: p.gate_phrase, resultSummary: p.result_summary }));
-      },
-    }),
-
-
-
-    prepare_repo_deployment_handoff: tool({
-      description:
-        "Prepare a deployment approval handoff package for a ready Repo Control PR. It reads existing PR readiness metadata and returns the PR URL, branch, readiness summary, required approval phrase, and next safe action. It never merges, deploys, redeploys, rolls back, queues runner jobs, or mutates production.",
-      parameters: z.object({
-        proposalId: z.string().min(1).max(120),
-      }),
-      execute: async ({ proposalId }) => {
-        if (!isRepoActionProposalId(proposalId)) {
-          return { success: false, invalidProposalId: true, proposalId, error: repoActionProposalIdError(proposalId), message: "Deployment handoff did not start. Use a proposal UUID from the Repo Control card, not a GitHub Actions run ID." };
-        }
-        const result = await prepareRepoDeploymentHandoff({ proposalId });
-        return {
-          success: result.ready,
-          ...result,
-          message: result.message || "Deployment handoff prepared in metadata-only mode. No deployment happened.",
-        };
       },
     }),
 
