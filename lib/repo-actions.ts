@@ -99,7 +99,7 @@ function getGitHubClient() {
   const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
   return new Octokit({
     ...(token ? { auth: token } : {}),
-    userAgent: "Jarvis-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Rune)",
+    userAgent: "Rune-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Rune)",
   });
 }
 
@@ -671,7 +671,7 @@ function buildDraftPreview(proposal: RepoActionProposalRow, files: RepoActionFil
     "--- a/<target-file>",
     "+++ b/<target-file>",
     "@@",
-    "+ Proposed changes will appear here after Jarvis inspects the files and Javier approves execution scope.",
+    "+ Proposed changes will appear here after Rune inspects the files and Javier approves execution scope.",
     "```",
     "",
     "Approval checkpoint: Javier must approve the real diff before commit/push.",
@@ -833,7 +833,7 @@ export async function inspectRepoActionFiles(options: { id: string }) {
     "## Current file snippets",
     ...inspections.filter((item) => item.snippet).flatMap((item) => [`### ${item.path}`, "```", item.snippet ?? "", "```", ""]),
     "## Next checkpoint",
-    "Jarvis can now prepare a real proposed code diff from these inspected files, but Javier must approve before any file change, commit, push, or deployment.",
+    "Rune can now prepare a real proposed code diff from these inspected files, but Javier must approve before any file change, commit, push, or deployment.",
   ];
 
   const { data, error } = await supabase
@@ -923,7 +923,7 @@ export async function generateRepoActionProposedDiff(options: { id: string }) {
 
   const model = process.env.JARVIS_PATCH_MODEL || process.env.RUNE_CHAT_MODEL || "gpt-4o-mini";
   const prompt = [
-    "You are Jarvis, Javier's cautious private developer agent.",
+    "You are Rune, Javier's cautious private developer agent.",
     "Create a focused review-only unified diff proposal from the repo files below.",
     "Rules:",
     "- Output ONLY the proposed diff and short inline comments inside the diff when needed.",
@@ -1125,7 +1125,7 @@ export async function sandboxCheckRepoActionDiff(options: { id: string }) {
     "",
     "## Next checkpoint",
     ready
-      ? "Javier can review and approve a future execution step. Jarvis still cannot commit/push from this checkpoint."
+      ? "Javier can review and approve a future execution step. Rune still cannot commit/push from this checkpoint."
       : "Resolve risks before approval or execution.",
     "",
     "## Proposed diff under review",
@@ -1356,7 +1356,7 @@ export async function openRepoActionPullRequest(options: { id: string }) {
   const proposal = existing as RepoActionProposalRow;
   const metadata = proposal.draft_metadata || {};
   if (proposal.status !== "approved") {
-    return { ok: false, error: "Proposal must be approved before Jarvis can open a PR." };
+    return { ok: false, error: "Proposal must be approved before Rune can open a PR." };
   }
   if (metadata.temp_workspace_ready !== true) {
     return { ok: false, error: "Temporary workspace build must pass before opening a PR." };
@@ -1418,7 +1418,7 @@ export async function openRepoActionPullRequest(options: { id: string }) {
     steps.push({ step: "git add --all", ...add });
     if (!add.ok) throw new Error("Git add failed.");
 
-    const commitMessage = `Jarvis: ${proposal.title}`.slice(0, 240);
+    const commitMessage = `Rune: ${proposal.title}`.slice(0, 240);
     const commit = await runCommand("git", ["commit", "-m", commitMessage], repoDir, 60000);
     steps.push({ step: "git commit", ...commit });
     if (!commit.ok) throw new Error("Git commit failed.");
@@ -1435,7 +1435,7 @@ export async function openRepoActionPullRequest(options: { id: string }) {
     const pr = await octokit.pulls.create({
       owner,
       repo,
-      title: `Jarvis: ${proposal.title}`.slice(0, 240),
+      title: `Rune: ${proposal.title}`.slice(0, 240),
       head: branch,
       base: defaultBranch,
       body: buildPrBody(proposal, metadata, diffBody),
@@ -1453,8 +1453,8 @@ export async function openRepoActionPullRequest(options: { id: string }) {
       `Opened: ${now}`,
       `Cleanup: pending`,
       "",
-      "Jarvis created a branch and opened a pull request after approval and a passing temporary workspace build.",
-      "No merge was performed. Nothing was deployed by Jarvis.",
+      "Rune created a branch and opened a pull request after approval and a passing temporary workspace build.",
+      "No merge was performed. Nothing was deployed by Rune.",
       "",
       "## PR steps",
       ...steps.map((step) => [`### ${step.ok ? "PASS" : "FAIL"} · ${step.step}`, `Duration: ${step.durationMs}ms`, "```", step.output || "No output.", "```", ""].join("\n")),
@@ -1631,7 +1631,7 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
   ].filter(Boolean) as string[];
   const overallReady = prData.state === "open" && !prData.draft && prData.mergeable !== false && checksPassed && statusesPassed && (!vercel.configured || vercelReady || !vercelDeployment);
   const readinessSummary = overallReady
-    ? "PR is ready for Javier's manual review. Jarvis did not merge or deploy anything."
+    ? "PR is ready for Javier's manual review. Rune did not merge or deploy anything."
     : `PR is not ready yet: ${readinessReasons.join(" ") || "waiting for GitHub/Vercel signals."}`;
   const now = new Date().toISOString();
 
@@ -1644,7 +1644,7 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
     `Overall: ${overallReady ? "READY FOR HUMAN REVIEW" : "NEEDS REVIEW / WAITING"}`,
     `Summary: ${readinessSummary}`,
     "",
-    "Jarvis inspected the pull request, GitHub checks/statuses, and optional Vercel preview deployment. No branch, merge, deployment, or repo change was made.",
+    "Rune inspected the pull request, GitHub checks/statuses, and optional Vercel preview deployment. No branch, merge, deployment, or repo change was made.",
     "",
     "## Pull request",
     `- State: ${prData.state}`,
@@ -1669,7 +1669,7 @@ export async function trackRepoActionPullRequest(options: { id: string }) {
     "",
     "## Next checkpoint",
     overallReady
-      ? "Review the PR and preview manually. Jarvis still will not merge or deploy automatically."
+      ? "Review the PR and preview manually. Rune still will not merge or deploy automatically."
       : "Wait for checks/preview or inspect failures before merging.",
   ].join("\n");
 
@@ -1879,7 +1879,7 @@ export async function prepareRepoDeploymentHandoff(options: { id: string } | { p
       proposalId: "id" in options ? options.id : options.proposalId,
       ready: false,
       requiredApprovalPhrase: "APPROVE RUNE REDEPLOY",
-      nextAction: "Configure Supabase so Jarvis can read proposal metadata.",
+      nextAction: "Configure Supabase so Rune can read proposal metadata.",
       safety: "metadata_only_no_deploy",
       message: "Deployment handoff could not be prepared because Supabase is not configured.",
       error: "Supabase is not configured.",
@@ -2116,7 +2116,7 @@ export async function runRepoControlFlow(options: { id: string; openPr?: boolean
       mode: "safe_ladder",
       steps,
       stoppedAt: "stoppedAt" in executor ? executor.stoppedAt || "approved_executor" : "approved_executor",
-      nextAction: "Approve the proposal in Repo Control, then rerun this flow to open/track a PR. Jarvis still will not merge or deploy.",
+      nextAction: "Approve the proposal in Repo Control, then rerun this flow to open/track a PR. Rune still will not merge or deploy.",
       safety: "approval_required_no_merge_no_deploy",
       message: "Safe ladder completed, then stopped at the approval/PR gate. No merge or deployment happened.",
     };
