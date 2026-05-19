@@ -31,3 +31,4 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+# build-trigger 1779149791
