@@ -2484,7 +2484,33 @@ export function Chat() {
                           </div>
                         );
                       }
-                      return <p key={`${message.id}-${index}`}>{part.text}</p>;
+                      // User messages: render markdown so pasted image links
+                      // display as inline images instead of raw markdown text.
+                      const cleanedText = part.text
+                        .replace(/!\[pasted screenshot \d+\]\(([^)]+)\)/g, "![]($1)")
+                        .trim();
+                      return (
+                        <div key={`${message.id}-${index}`} className="markdown-body user-markdown">
+                          <ReactMarkdown
+                            components={{
+                              img: ({ src, alt }) => {
+                                if (!src) return null;
+                                return (
+                                  <img
+                                    src={src}
+                                    alt={alt ?? ""}
+                                    className="user-inline-image"
+                                    style={{ maxWidth: "100%", maxHeight: "320px", borderRadius: "8px", marginTop: "6px" }}
+                                  />
+                                );
+                              },
+                              p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+                            }}
+                          >
+                            {cleanedText}
+                          </ReactMarkdown>
+                        </div>
+                      );
                     }
 
                     if (part.type === "tool-invocation") {
