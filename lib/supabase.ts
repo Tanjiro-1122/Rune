@@ -10,7 +10,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
  * local/dev setups that have not added a service key yet.
  */
 export function getSupabaseClient(): SupabaseClient | null {
-  const url = process.env.SUPABASE_URL?.trim();
+  const url = process.env.SUPABASE_URL?.trim()?.replace(/\/rest\/v1\/?$/, '');
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
     process.env.SUPABASE_SECRET_KEY?.trim() ||
