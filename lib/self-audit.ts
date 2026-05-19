@@ -3,10 +3,10 @@ import { getCapabilityTruthSnapshot, type CapabilityTruthSnapshot } from "@/lib/
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 import {
-  JARVIS_APPROVAL_REQUIRED_ACTIONS,
+  RUNE_APPROVAL_REQUIRED_ACTIONS,
   RUNE_CANONICAL_PROJECTS,
   RUNE_DEFAULT_REPO,
-  JARVIS_NOT_CONNECTED_YET,
+  RUNE_NOT_CONNECTED_YET,
 } from "@/lib/project-registry";
 
 export type SelfAuditStatus = "verified" | "partial" | "missing" | "not_connected" | "requires_approval" | "unknown";
@@ -211,7 +211,7 @@ function codebaseChecks(): SelfAuditCheck[] {
 }
 
 function safetyChecks(): SelfAuditCheck[] {
-  return JARVIS_APPROVAL_REQUIRED_ACTIONS.map((action) =>
+  return RUNE_APPROVAL_REQUIRED_ACTIONS.map((action) =>
     check(
       `safety.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
       action,
@@ -223,7 +223,7 @@ function safetyChecks(): SelfAuditCheck[] {
 }
 
 function notConnectedChecks(): SelfAuditCheck[] {
-  return JARVIS_NOT_CONNECTED_YET.map((capability) =>
+  return RUNE_NOT_CONNECTED_YET.map((capability) =>
     check(
       `not_connected.${capability.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
       capability,
@@ -298,7 +298,7 @@ export async function getSelfAuditSnapshot(scope: SelfAuditSnapshot["scope"] = "
     recommendedNextPatch: {
       title: "Hands Phase 1 — Approval-Gated Action Executor",
       reason:
-        "The Rune foundation is now in place: identity, project registry, capability truth, self-audit, reasoning router, and project-aware memory. The next safe step is giving Jarvis controlled hands through explicit approval-gated execution paths.",
+        "The Rune foundation is now in place: identity, project registry, capability truth, self-audit, reasoning router, and project-aware memory. The next safe step is giving Rune controlled hands through explicit approval-gated execution paths.",
       acceptanceCriteria: [
         "Every sensitive action starts with Findings → Plan.",
         "No external/code/customer/financial action executes without explicit Javier approval.",
