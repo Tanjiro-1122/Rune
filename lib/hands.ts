@@ -102,7 +102,7 @@ export async function proposeAction(input: ProposeActionInput): Promise<{
   };
 
   const { data, error } = await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .insert(row)
     .select()
     .single();
@@ -141,7 +141,7 @@ export async function approveProposal(proposalId: string): Promise<{
   if (!supabase) return { ok: false, error: "Supabase not configured." };
 
   const { data, error } = await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .update({ status: "approved", approved_at: new Date().toISOString() })
     .eq("id", proposalId)
     .eq("status", "proposed")
@@ -181,7 +181,7 @@ export async function executeProposal<T>(
 
   // Verify approved
   const { data: proposal } = await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .select()
     .eq("id", proposalId)
     .single();
@@ -193,7 +193,7 @@ export async function executeProposal<T>(
 
   // Mark executing
   await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .update({ status: "executing" })
     .eq("id", proposalId);
 
@@ -214,7 +214,7 @@ export async function executeProposal<T>(
     const { ok, result, summary } = await executor();
 
     await supabase
-      .from("rune_hands_proposals")
+      .from("jarvis_repo_action_proposals")
       .update({
         status: ok ? "executed" : "failed",
         result_summary: summary.slice(0, 1000),
@@ -239,7 +239,7 @@ export async function executeProposal<T>(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await supabase
-      .from("rune_hands_proposals")
+      .from("jarvis_repo_action_proposals")
       .update({ status: "failed", result_summary: msg.slice(0, 1000), executed_at: new Date().toISOString() })
       .eq("id", proposalId);
 
@@ -268,7 +268,7 @@ export async function listHandsProposals(limit = 20): Promise<HandsProposal[]> {
   if (!supabase) return [];
 
   const { data } = await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .select()
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -283,7 +283,7 @@ export async function getHandsProposal(proposalId: string): Promise<HandsProposa
   const supabase = getSupabaseClient();
   if (!supabase) return null;
   const { data } = await supabase
-    .from("rune_hands_proposals")
+    .from("jarvis_repo_action_proposals")
     .select()
     .eq("id", proposalId)
     .single();
