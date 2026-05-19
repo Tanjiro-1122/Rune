@@ -9,14 +9,14 @@ export type BuilderCategory = {
 };
 
 const BUILDER_CATEGORIES: BuilderCategory[] = [
-  { label: "App Health", prompt: "Run a full health snapshot across all my projects.", emoji: "🩺" },
-  { label: "Repo Control", prompt: "Show me the latest Repo Control proposals and PR status.", emoji: "🔧" },
-  { label: "Build Intel", prompt: "What's the latest build and deployment intelligence for my apps?", emoji: "🏗️" },
-  { label: "Memory", prompt: "Show me everything you remember about my projects and decisions.", emoji: "🧠" },
-  { label: "New App", prompt: "I want to build a new app. Walk me through the App Creator pipeline.", emoji: "✨" },
-  { label: "Deploy Status", prompt: "Check deploy health and Vercel status for all active projects.", emoji: "🚀" },
-  { label: "Analytics", prompt: "Pull cross-app intelligence — revenue, retention, and key metrics.", emoji: "📊" },
-  { label: "Daily Brief", prompt: "Give me today's operator briefing — builds, health, and what needs attention.", emoji: "📋" },
+  { label: "Daily Brief", prompt: "Give me today's operator briefing — health, revenue, what needs attention.", emoji: "📋" },
+  { label: "App Health", prompt: "Run a full health snapshot across Unfiltr, Sports Wager Helper, and Rune.", emoji: "🩺" },
+  { label: "Analytics", prompt: "Pull cross-app intelligence — revenue, subscribers, retention, and key metrics for this week.", emoji: "📊" },
+  { label: "Fix Something", prompt: "Audit what's currently broken or degraded across my apps and fix the most critical issue.", emoji: "🔧" },
+  { label: "Deploy", prompt: "Check deploy health and Vercel status for all active projects. Is everything live and healthy?", emoji: "🚀" },
+  { label: "Memory", prompt: "What do you remember? Show me the most important things you know about my projects and decisions.", emoji: "🧠" },
+  { label: "Build App", prompt: "I want to build something new. Ask me what I have in mind and walk me through it.", emoji: "✨" },
+  { label: "Web Search", prompt: "Search the web for something. What do you want me to look up?", emoji: "🔍" },
 ];
 
 interface BuilderHomeProps {
