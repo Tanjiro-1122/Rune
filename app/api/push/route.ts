@@ -34,6 +34,9 @@ function isAuthorized(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
   try {
     const body = await req.json();
     const parsed = SaveSchema.safeParse(body);
@@ -65,6 +68,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
   try {
     const body = await req.json();
     const parsed = DeleteSchema.safeParse(body);
