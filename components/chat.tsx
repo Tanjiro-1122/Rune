@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "ai/react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
