@@ -2671,14 +2671,15 @@ export function Chat() {
           />
           <button
             type="button"
-            className="send-button"
+            className="queue-button"
+            aria-label="Queue as background job"
             disabled={jobBusy || isLoading || !workspaceId || !input.trim()}
             onClick={queueWorkspaceJobFromPrompt}
             title="Queue this request as a safe background job"
           >
             {jobBusy ? "Queuing…" : "Queue"}
           </button>
-          <button type="submit" className="send-button" disabled={isLoading}>
+          <button type="submit" className="send-button" aria-label="Send message" disabled={isLoading}>
             {isUploadingAttachment ? "Uploading…" : isStreamStalled ? "Send" : isStreamFinalizing ? "Send" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
           </button>
         </form>
