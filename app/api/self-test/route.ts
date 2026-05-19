@@ -84,7 +84,8 @@ async function testMemory(): Promise<TestResult[]> {
       source: "self-test",
     });
     if (!r.ok) throw new Error(r.error ?? "upsert failed");
-    return { status: "pass", message: `Written id=${r.id?.slice(0, 8)}` };
+    const memId = (r as { id?: string }).id ?? "?";
+    return { status: "pass", message: `Written id=${memId.slice(0, 8)}` };
   });
 
   const readResult = await timed("memory:read", "memory", async () => {
