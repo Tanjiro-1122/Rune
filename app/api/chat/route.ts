@@ -71,7 +71,7 @@ import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 
-export const maxDuration = 60; // model: gpt-4.1 | upgraded: 2026-05-19T17:10Z // model: gpt-4o | deploy: 2026-05-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
+export const maxDuration = 60; // model: gpt-4.1 | security-patched: 2026-05-19T17:10Z // model: gpt-4o | deploy: 2026-05-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
 const CHAT_RATE_WINDOW_MS = 60_000;
 const MAX_TRACKED_CHAT_SESSIONS = 2_000;
