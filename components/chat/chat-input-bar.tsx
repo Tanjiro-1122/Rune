@@ -44,6 +44,8 @@ interface ChatInputBarProps {
   setFiles: (v: FileList | undefined) => void;
   setPreviewUrls: (v: string[]) => void;
   setIsUploadingAttachment: (v: boolean) => void;
+  pastedImageUrl?: string | null;
+  setPastedImageUrl: (url: string | null) => void;
   onQueueSubmit: () => void;
 }
 
@@ -68,6 +70,8 @@ export function ChatInputBar({
   setInput,
   setFileError,
   setIsUploadingAttachment,
+  pastedImageUrl,
+  setPastedImageUrl,
   setFiles,
   setPreviewUrls,
   onQueueSubmit,
@@ -92,12 +96,13 @@ export function ChatInputBar({
         if (conversationId) fd.append("conversationId", conversationId);
         if (sessionId) fd.append("sessionId", sessionId);
         try {
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
           if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
           const data = await res.json() as { url?: string };
           if (data.url) {
             setFileError("");
-            setInput((prev: string) => `${prev}${prev ? "\n" : ""}![pasted screenshot](${data.url})`);
+            // Show as inline image preview chip instead of raw markdown text
+            setPastedImageUrl(data.url);
           }
         } catch (err) {
           setFileError(err instanceof Error ? err.message : "Upload failed");
@@ -112,7 +117,7 @@ export function ChatInputBar({
     if (workspaceId) fd.append("workspaceId", workspaceId);
     if (conversationId) fd.append("conversationId", conversationId);
     if (sessionId) fd.append("sessionId", sessionId);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
     const data = await res.json() as { url: string; name?: string; mimeType?: string; size?: number };
     return { url: data.url, name: file.name, mimeType: file.type, size: file.size };
@@ -125,13 +130,18 @@ export function ChatInputBar({
       setIsUploadingAttachment(true);
       try {
         const attachments = await Promise.all(Array.from(files).map(uploadImageAttachment));
-        handleSubmit(e, { experimental_attachments: attachments });
+        const pastedAttachment = pastedImageUrl ? [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png" }] : [];
+        handleSubmit(e, { experimental_attachments: [...attachments, ...pastedAttachment] });
+        setPastedImageUrl(null);
       } catch (err) {
         setFileError(err instanceof Error ? err.message : "Upload failed");
       } finally {
         setIsUploadingAttachment(false);
         clearAttachments();
       }
+    } else if (pastedImageUrl) {
+      handleSubmit(e, { experimental_attachments: [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png" }] });
+      setPastedImageUrl(null);
     } else {
       handleSubmit(e);
     }
@@ -157,7 +167,13 @@ export function ChatInputBar({
         <div className="pending-tool-label">{pendingToolLabel}</div>
       )}
       {previewUrls.length > 0 && (
-        <div className="attachment-previews">
+        {pastedImageUrl && (
+        <div className="pasted-image-preview">
+          <img src={pastedImageUrl} alt="pasted screenshot" className="pasted-img-thumb" />
+          <button type="button" className="clear-pasted-btn" onClick={() => setPastedImageUrl(null)}>✕</button>
+        </div>
+      )}
+      <div className="attachment-previews">
           {previewUrls.map((url, i) => (
             <div key={i} className="attachment-preview-item">
               <img src={url} alt={`attachment ${i + 1}`} className="attachment-preview-img" />
