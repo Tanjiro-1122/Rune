@@ -2478,6 +2478,9 @@ export function Chat() {
           )}
         </div>
 
+        {/* Shimmer working bar — visible whenever Rune is processing */}
+        <div className={`chat-working-bar${showBusyStatus ? " active" : ""}`} aria-hidden="true" />
+
         <div className="messages" ref={messagesContainerRef} data-builder-active={historyLoaded && messages.length === 0 ? "true" : undefined}>
           {!historyLoaded ? (
             <div className="empty-state">
