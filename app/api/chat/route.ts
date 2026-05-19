@@ -1693,7 +1693,7 @@ function getAgentTools({
         rollbackNote: z.string().optional(),
       }),
       execute: async ({ actionType, title, findings, plan, riskLevel, projectKey, rollbackNote }) => {
-        const result = await proposeAction({ actionType, title, findings, plan, riskLevel, projectKey, rollbackNote, sessionId: sessionId ?? null, workspaceId: workspaceId ?? null, conversationId: conversationId ?? null });
+        const result = await proposeAction({ actionType, title, findings, plan, riskLevel, projectKey, rollbackNote, sessionId: null, workspaceId: null, conversationId: null });
         if (!result.ok) return { error: result.error };
         return { proposalId: result.proposal!.id, gatePhrase: result.proposal!.gate_phrase, status: "proposed" };
       },
