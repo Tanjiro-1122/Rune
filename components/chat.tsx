@@ -2491,16 +2491,35 @@ export function Chat() {
               >
                 <div className="message-role-row">
                   <div className="message-role">
-                    {message.role === "user" ? "" : "Rune"}
+                    {message.role === "user" ? (
+                      ""
+                    ) : (
+                      <span className="rune-badge">
+                        <span className="ember-dot" />
+                        Rune
+                      </span>
+                    )}
                   </div>
                   {message.role === "assistant" && messageText.trim() && (
-                    <button
-                      type="button"
-                      className="remember-message-button"
-                      onClick={() => stageAssistantMessageAsMemory(messageText)}
-                    >
-                      Remember
-                    </button>
+                    <div className="message-actions">
+                      <button
+                        type="button"
+                        className="msg-action-btn"
+                        onClick={() => {
+                          navigator.clipboard.writeText(messageText);
+                        }}
+                        title="Copy response"
+                      >
+                        copy
+                      </button>
+                      <button
+                        type="button"
+                        className="remember-message-button"
+                        onClick={() => stageAssistantMessageAsMemory(messageText)}
+                      >
+                        Remember
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="message-content">
