@@ -67,8 +67,8 @@ const ACCEPTED_TYPES = [
   "text/markdown",
 ];
 
-const STREAM_FINALIZATION_RECOVERY_MS = 20_000; // extended: finalization needs more time
-const STREAM_STALL_WATCHDOG_MS = 30_000; // extended: tool chains can take up to 30s
+const STREAM_FINALIZATION_RECOVERY_MS = 10_000; // tightened for Pro plan
+const STREAM_STALL_WATCHDOG_MS = 12_000; // Pro plan: 60s functions, UI feedback within 12s
 const STREAM_STALL_SECONDARY_RECOVERY_MS = 10_000;
 
 function getAssistantTextFromMessage(message: { role?: string; content?: unknown; parts?: Array<{ type?: string; text?: string }> } | undefined) {
@@ -2442,14 +2442,14 @@ export function Chat() {
               <a href="/vault" className="vault-nav-chip" title="Open Phrourio Safe">🔐</a>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
-              {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
+              {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : status === "submitted" ? " · working…" : " · thinking") : ""}
             </p>
           </div>
           <div className="chat-header-right">
             {showBusyStatus && (
               <span className="status-badge">
                 <span className="status-dot" />
-                {isStreamStalled ? "Checking for completed answer…" : isStreamFinalizing ? "Finalizing answer…" : activeToolName ? activeToolName.replace(/_/g, " ") : "Thinking…"}
+                {isStreamStalled ? "Checking for completed answer…" : isStreamFinalizing ? "Finalizing answer…" : activeToolName ? activeToolName.replace(/_/g, " ") : status === "submitted" ? "Working on it…" : "Thinking…"}
               </span>
             )}
             {resumeTaskId && !isLoading && (
