@@ -130,7 +130,7 @@ export function ChatInputBar({
       setIsUploadingAttachment(true);
       try {
         const attachments = await Promise.all(Array.from(files).map(uploadImageAttachment));
-        const pastedAttachment = pastedImageUrl ? [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png" }] : [];
+        const pastedAttachment = pastedImageUrl ? [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png", size: 0 }] : [];
         handleSubmit(e, { experimental_attachments: [...attachments, ...pastedAttachment] });
         setPastedImageUrl(null);
       } catch (err) {
@@ -140,7 +140,7 @@ export function ChatInputBar({
         clearAttachments();
       }
     } else if (pastedImageUrl) {
-      handleSubmit(e, { experimental_attachments: [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png" }] });
+      handleSubmit(e, { experimental_attachments: [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png", size: 0 }] });
       setPastedImageUrl(null);
     } else {
       handleSubmit(e);
