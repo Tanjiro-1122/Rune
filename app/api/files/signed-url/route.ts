@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSupabaseClient } from "@/lib/supabase";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
+import { assertWorkspaceAccess } from "@/lib/workspaces";
 
 const SIGNED_URL_SECONDS = Number(process.env.RUNE_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
 
@@ -37,6 +38,15 @@ export async function POST(req: NextRequest) {
 
   const { projectFileId, workspaceId, conversationId, sessionId: clientSessionId } = parsed.data;
   const sessionId = await resolveOwnerSessionId(req, clientSessionId);
+
+  // Guard: if a workspaceId was provided, verify the caller owns it before returning any file URL.
+  if (workspaceId && sessionId) {
+    try {
+      await assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "viewer" });
+    } catch {
+      return NextResponse.json({ error: "Workspace access denied." }, { status: 403 });
+    }
+  }
 
   try {
     let request = supabase
