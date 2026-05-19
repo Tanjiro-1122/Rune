@@ -236,7 +236,7 @@ create index if not exists jarvis_security_events_event_type_created_at_idx
 create index if not exists jarvis_security_events_outcome_created_at_idx
   on jarvis_security_events(outcome, created_at desc);
 
-create table if not exists jarvis_action_events (
+create table if not exists rune_action_events (
   id             uuid primary key default gen_random_uuid(),
   event_type     text not null,
   summary        text not null,
@@ -251,14 +251,14 @@ create table if not exists jarvis_action_events (
   created_at     timestamptz default now()
 );
 
-create index if not exists jarvis_action_events_created_at_idx
-  on jarvis_action_events(created_at desc);
-create index if not exists jarvis_action_events_project_created_at_idx
-  on jarvis_action_events(project_key, created_at desc);
-create index if not exists jarvis_action_events_type_created_at_idx
-  on jarvis_action_events(event_type, created_at desc);
-create index if not exists jarvis_action_events_status_created_at_idx
-  on jarvis_action_events(status, created_at desc);
+create index if not exists rune_action_events_created_at_idx
+  on rune_action_events(created_at desc);
+create index if not exists rune_action_events_project_created_at_idx
+  on rune_action_events(project_key, created_at desc);
+create index if not exists rune_action_events_type_created_at_idx
+  on rune_action_events(event_type, created_at desc);
+create index if not exists rune_action_events_status_created_at_idx
+  on rune_action_events(status, created_at desc);
 
 create table if not exists jarvis_repo_action_proposals (
   id              uuid primary key default gen_random_uuid(),
