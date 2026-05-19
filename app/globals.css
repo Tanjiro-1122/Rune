@@ -3586,3 +3586,62 @@ button:disabled {
   font-size: 0.82em;
   color: #e6edf3;
 }
+
+/* ── Message action buttons (copy, timestamp) ── */
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-top: 0.35rem;
+}
+.message-wrapper:hover .message-actions {
+  opacity: 1;
+}
+.msg-action-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--text-muted, #888);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.msg-action-btn:hover { background: rgba(255,255,255,0.07); color: #e6edf3; }
+.msg-action-btn.copied { color: #3fb950; border-color: #3fb95044; }
+.message-timestamp {
+  font-size: 0.68rem;
+  color: var(--text-muted, #888);
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-left: auto;
+}
+.message-wrapper:hover .message-timestamp {
+  opacity: 1;
+}
+/* ── Rune label badge ── */
+.rune-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #c25f2a;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+.rune-badge .ember-dot {
+  width: 6px; height: 6px;
+  background: radial-gradient(circle, #f97316, #c25f2a);
+  border-radius: 50%;
+  box-shadow: 0 0 6px #f97316aa;
+  animation: pulse-ember 2s ease-in-out infinite;
+}
+@keyframes pulse-ember {
+  0%, 100% { box-shadow: 0 0 6px #f97316aa; }
+  50% { box-shadow: 0 0 14px #f97316cc; }
+}
