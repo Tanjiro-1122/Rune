@@ -889,11 +889,12 @@ export function Chat() {
       resumeTaskId: resumeTaskId ?? undefined,
     },
     onError: (error) => {
-      setChatErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Rune could not complete that response."
-      );
+      const msg = error instanceof Error
+        ? error.message
+        : "Rune could not complete that response.";
+      setChatErrorMessage(msg);
+      // Auto-clear error after 10 seconds so it doesn't get stale
+      setTimeout(() => setChatErrorMessage((prev) => prev === msg ? "" : prev), 10_000);
     },
   });
 
@@ -2702,11 +2703,18 @@ export function Chat() {
         {streamRecoveryNotice && <div className="file-error">{streamRecoveryNotice}</div>}
         {(chatErrorMessage || chatError) && (
           <div className="chat-error-banner" role="alert">
-            <strong>Rune paused.</strong>
+            <strong>Response interrupted.</strong>
             <span>
               {chatErrorMessage || chatError?.message ||
-                "Something interrupted the response. Try sending again."}
+                "The response was cut off. Just send again — Rune will pick up where it left off."}
             </span>
+            <button
+              type="button"
+              style={{ marginLeft: 10, fontSize: 11, fontWeight: 700, opacity: 0.7, cursor: "pointer", background: "none", border: "none", textDecoration: "underline" }}
+              onClick={() => { setChatErrorMessage(""); }}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
