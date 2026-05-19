@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE, verifySessionCookie, getSessionSecret } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 
 // createClient is called inside the handler — never at build time
@@ -18,8 +19,10 @@ function getSupabase() {
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const cookie = req.cookies.get('rune:authenticated:v2');
-  if (!cookie) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const sessionCookieValue = req.cookies.get(SESSION_COOKIE)?.value;
+  const secret = getSessionSecret();
+  const session = secret && sessionCookieValue ? await verifySessionCookie(sessionCookieValue, secret) : null;
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get('search') || '';
@@ -54,8 +57,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const cookie = req.cookies.get('rune:authenticated:v2');
-  if (!cookie) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const sessionCookieValue = req.cookies.get(SESSION_COOKIE)?.value;
+  const secret = getSessionSecret();
+  const session = secret && sessionCookieValue ? await verifySessionCookie(sessionCookieValue, secret) : null;
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const supabase = getSupabase();
@@ -78,8 +83,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const cookie = req.cookies.get('rune:authenticated:v2');
-  if (!cookie) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const sessionCookieValue = req.cookies.get(SESSION_COOKIE)?.value;
+  const secret = getSessionSecret();
+  const session = secret && sessionCookieValue ? await verifySessionCookie(sessionCookieValue, secret) : null;
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const supabase = getSupabase();
