@@ -223,7 +223,7 @@ const context = vm.createContext(sandbox, {
 (async () => {
   try {
     const compiled = new vm.Script(script, {
-      filename: "jarvis-sandbox.js",
+      filename: "rune-sandbox.js",
       displayErrors: true,
     });
 
@@ -285,25 +285,25 @@ function clampNumber(
 function getExecutionLimits(): ExecutionLimits {
   return {
     timeoutMs: clampNumber(
-      process.env.JARVIS_CODE_TIMEOUT_MS,
+      process.env.RUNE_CODE_TIMEOUT_MS ?? process.env.JARVIS_CODE_TIMEOUT_MS,
       DEFAULT_LIMITS.timeoutMs,
       250,
       30_000
     ),
     maxSourceLength: clampNumber(
-      process.env.JARVIS_CODE_MAX_SOURCE_LENGTH,
+      process.env.RUNE_CODE_MAX_SOURCE_LENGTH ?? process.env.JARVIS_CODE_MAX_SOURCE_LENGTH,
       DEFAULT_LIMITS.maxSourceLength,
       200,
       50_000
     ),
     maxOutputChars: clampNumber(
-      process.env.JARVIS_CODE_MAX_OUTPUT_CHARS,
+      process.env.RUNE_CODE_MAX_OUTPUT_CHARS ?? process.env.JARVIS_CODE_MAX_OUTPUT_CHARS,
       DEFAULT_LIMITS.maxOutputChars,
       500,
       80_000
     ),
     maxArtifacts: clampNumber(
-      process.env.JARVIS_CODE_MAX_ARTIFACTS,
+      process.env.RUNE_CODE_MAX_ARTIFACTS ?? process.env.JARVIS_CODE_MAX_ARTIFACTS,
       DEFAULT_LIMITS.maxArtifacts,
       0,
       20
