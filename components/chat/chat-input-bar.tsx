@@ -166,14 +166,14 @@ export function ChatInputBar({
       {pendingToolLabel && isLoaderActive && (
         <div className="pending-tool-label">{pendingToolLabel}</div>
       )}
-      {previewUrls.length > 0 && (
-        {pastedImageUrl && (
+      {pastedImageUrl && (
         <div className="pasted-image-preview">
           <img src={pastedImageUrl} alt="pasted screenshot" className="pasted-img-thumb" />
           <button type="button" className="clear-pasted-btn" onClick={() => setPastedImageUrl(null)}>✕</button>
         </div>
       )}
-      <div className="attachment-previews">
+      {previewUrls.length > 0 && (
+        <div className="attachment-previews">
           {previewUrls.map((url, i) => (
             <div key={i} className="attachment-preview-item">
               <img src={url} alt={`attachment ${i + 1}`} className="attachment-preview-img" />
