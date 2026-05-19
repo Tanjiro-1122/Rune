@@ -15,7 +15,7 @@ const plannerStart = lib.indexOf("export type SessionFragmentMergePlanResult");
 const audit = lib.slice(0, plannerStart > 0 ? plannerStart : undefined);
 
 assert(audit.includes("auditRuneSessionFragments"), "fragment audit library exists");
-assert(audit.includes("JARVIS_OWNER_SESSION_ID"), "audit recognizes unified owner session");
+assert(audit.includes("RUNE_OWNER_SESSION_ID"), "audit recognizes unified owner session");
 assert(audit.includes('from("conversations")'), "audit reads conversations metadata");
 assert(audit.includes('from("messages")'), "audit counts message records");
 assert(audit.includes('select("conversation_id, created_at")'), "audit does not select message content");
