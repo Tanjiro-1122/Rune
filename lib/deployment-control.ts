@@ -28,7 +28,7 @@ function isoFromVercelTimestamp(value: unknown) {
 function getVercelConfig() {
   const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
   const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
-  const teamId = process.env.VERCEL_TEAM_ID || process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID;
+  const teamId = process.env.VERCEL_TEAM_ID || (process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID);
   return { token, project, teamId };
 }
 
@@ -302,7 +302,7 @@ export async function executeDeploymentControlAction(options: {
   }
 
   const queued = await queueCliRunnerJob({
-    workspaceId: options.workspaceId || process.env.RUNE_DEFAULT_WORKSPACE_ID ?? process.env.JARVIS_DEFAULT_WORKSPACE_ID || null,
+    workspaceId: options.workspaceId || (process.env.RUNE_DEFAULT_WORKSPACE_ID ?? process.env.JARVIS_DEFAULT_WORKSPACE_ID) || null,
     conversationId: options.conversationId ?? null,
     title: options.action === "execute_redeploy" ? "Approved Vercel redeploy" : "Approved Vercel rollback",
     command,
