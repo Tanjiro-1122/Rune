@@ -36,6 +36,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+
+  // Allow Vercel cron jobs — routes use CRON_SECRET bearer token internally.
+  if (pathname.startsWith("/api/cron")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
   // Allow an external isolated runner to poll the runner API with a dedicated
   // bearer token. This route still remains closed unless RUNE_RUNNER_TOKEN is set.
   if (pathname.startsWith("/api/runner")) {
