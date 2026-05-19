@@ -62,7 +62,7 @@ export interface BuildIntelligenceSnapshot {
 }
 
 function getRepoSlug(repoOverride?: string | null) {
-  const raw = repoOverride || process.env.RUNE_GITHUB_REPO ?? process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO;
+  const raw = repoOverride || (process.env.RUNE_GITHUB_REPO ?? process.env.JARVIS_GITHUB_REPO) || DEFAULT_REPO;
   const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
   const slug = (match?.[1] || match?.[2] || DEFAULT_REPO).replace(/\.git$/i, "");
   const [owner, repo] = slug.split("/");
@@ -163,7 +163,7 @@ export async function getGitHubIntelligence(repoOverride?: string | null): Promi
 export async function getVercelIntelligence(): Promise<VercelIntelligence> {
   const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
   const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
-  const teamId = process.env.VERCEL_TEAM_ID || process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID;
+  const teamId = process.env.VERCEL_TEAM_ID || (process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID);
 
   if (!token) {
     return {
