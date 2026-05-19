@@ -71,7 +71,7 @@ export async function logActionEvent(input: ActionEventInput) {
   if (!eventType || !summary) return { ok: false, error: "Action event type and summary are required." };
 
   const { data, error } = await supabase
-    .from("jarvis_action_events")
+    .from("rune_action_events")
     .insert({
       event_type: eventType,
       summary,
@@ -105,7 +105,7 @@ export async function listActionEvents(options: {
 
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
   let request = supabase
-    .from("jarvis_action_events")
+    .from("rune_action_events")
     .select("id, event_type, summary, status, approval_stage, risk_level, project_key, session_id, workspace_id, conversation_id, metadata, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
