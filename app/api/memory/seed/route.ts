@@ -4,7 +4,7 @@ import { seedSafeMemories } from "@/lib/memory";
 function isAuthorized(req: NextRequest) {
   const seedToken = process.env.RUNE_MEMORY_SEED_TOKEN;
   if (!seedToken) return true;
-  const provided = req.headers.get("x-jarvis-seed-token") ?? req.nextUrl.searchParams.get("token");
+  const provided = req.headers.get("x-rune-seed-token") ?? req.nextUrl.searchParams.get("token");
   return provided === seedToken;
 }
 
