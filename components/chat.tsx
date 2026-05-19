@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { BuilderHome } from "./builder-home";
+import dynamic from "next/dynamic";
+// Vault nav + ChatInputBar are lazy-loaded — never part of initial chat bundle
+const ChatInputBar = dynamic(
+  () => import("./chat/chat-input-bar").then(m => ({ default: m.ChatInputBar })),
+  { ssr: false }
+);
 
 
 // ── Premium code block renderer ──────────────────────────────────────────────
@@ -2426,6 +2432,7 @@ export function Chat() {
           </button>
           <div className="chat-header-copy">
             <span className="chat-header-title">Rune</span>
+              <a href="/vault" className="vault-nav-chip" title="Open Phrourio Safe">🔐</a>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
               {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : " · thinking") : ""}
