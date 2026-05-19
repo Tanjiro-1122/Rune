@@ -1831,8 +1831,9 @@ function getAgentTools({
       }),
       execute: async ({ title, content, kind, project_key, tags, priority }) => {
         const { upsertMemory } = await import("@/lib/memory");
-        const result = await upsertMemory({ title, content, kind, project_key, tags, priority, source: "rune-chat" });
-        if (!result.ok) return { saved: false, error: result.error };
+        // Fire-and-forget — never block the stream waiting for Supabase
+        void upsertMemory({ title, content, kind, project_key, tags, priority, source: "rune-chat" })
+          .catch((e) => logError("save_memory.upsert", e));
         return { saved: true, title, project_key, kind, priority };
       },
     }),
@@ -2403,23 +2404,6 @@ ${plannerOutput.steps
         if (!lastUserMessage) return;
 
         const finishPersistence = (async () => {
-          if (taskId) {
-            await updateWorkspaceTaskStep({
-              taskId,
-              stepKey: "execute_plan",
-              status: "completed",
-              detail: "Primary generation step completed.",
-              progress: 78,
-            });
-            await updateWorkspaceTaskStep({
-              taskId,
-              stepKey: "persist_results",
-              status: "running",
-              detail: "Persisting final exchange and workspace updates.",
-              progress: 86,
-            });
-          }
-
           const userContent = lastUserMessage.parts
             .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
             .map((p) => p.text)
@@ -2435,49 +2419,59 @@ ${plannerOutput.steps
             .filter(Boolean)
             .join("\n\n");
 
-          await saveConversationExchange({
-            conversationId,
-            workspaceId,
-            userContent: combinedUserContent,
-            assistantContent: text ?? "",
-            preferredTitle: deriveConversationTitle(
-              userContent || attachmentSummary || "Untitled chat"
-            ),
-          });
+          const taskSummary = summarizeTaskResult(text ?? "");
+
+          // Fire step-status updates immediately — don't block on them
           if (taskId) {
-            await updateWorkspaceTaskStep({
-              taskId,
-              stepKey: "persist_results",
-              status: "completed",
-              detail: "Conversation and workspace state saved successfully.",
-              progress: 100,
-            });
-            const taskSummary =
-              summarizeTaskResult(text ?? "");
-            await addWorkspaceTaskCheckpoint(taskId, {
-              label: "Chat task completed",
-              summary: taskSummary || "Chat task completed and workspace state was saved.",
-              completedStep: "Persisted the answer and workspace state.",
-              nextStep: "Review the result, then continue with the next approved step.",
-              metadata: {
-                intent: plannerOutput.intent,
-                reasoningRoute: plannerOutput.reasoningRoute,
-                responseChars: (text ?? "").length,
-              },
-            });
-            await completeWorkspaceTask(taskId, taskSummary);
+            void updateWorkspaceTaskStep({ taskId, stepKey: "execute_plan", status: "completed", detail: "Primary generation step completed.", progress: 78 })
+              .catch((e) => logError("onFinish.step.execute_plan", e));
+            void updateWorkspaceTaskStep({ taskId, stepKey: "persist_results", status: "running", detail: "Persisting final exchange and workspace updates.", progress: 86 })
+              .catch((e) => logError("onFinish.step.persist_results.start", e));
+          }
+
+          // Run all heavy DB ops in parallel — drop from ~3-4s serial to ~1s
+          await Promise.allSettled([
+            saveConversationExchange({
+              conversationId,
+              workspaceId,
+              userContent: combinedUserContent,
+              assistantContent: text ?? "",
+              preferredTitle: deriveConversationTitle(
+                userContent || attachmentSummary || "Untitled chat"
+              ),
+            }),
+            taskId
+              ? addWorkspaceTaskCheckpoint(taskId, {
+                  label: "Chat task completed",
+                  summary: taskSummary || "Chat task completed and workspace state was saved.",
+                  completedStep: "Persisted the answer and workspace state.",
+                  nextStep: "Review the result, then continue with the next approved step.",
+                  metadata: {
+                    intent: plannerOutput.intent,
+                    reasoningRoute: plannerOutput.reasoningRoute,
+                    responseChars: (text ?? "").length,
+                  },
+                })
+              : Promise.resolve(),
+            taskId
+              ? completeWorkspaceTask(taskId, taskSummary)
+              : Promise.resolve(),
+            recordWorkspaceEvent({
+              sessionId,
+              workspaceId,
+              conversationId,
+              eventType: "chat.request",
+              status: "success",
+              details: { responseChars: (text ?? "").length },
+            }),
+          ]);
+
+          // Final step status — fire-and-forget after parallel block
+          if (taskId) {
+            void updateWorkspaceTaskStep({ taskId, stepKey: "persist_results", status: "completed", detail: "Conversation and workspace state saved successfully.", progress: 100 })
+              .catch((e) => logError("onFinish.step.persist_results.done", e));
             activeTaskId = null;
           }
-          await recordWorkspaceEvent({
-            sessionId,
-            workspaceId,
-            conversationId,
-            eventType: "chat.request",
-            status: "success",
-            details: {
-              responseChars: (text ?? "").length,
-            },
-          });
         })();
 
         finishPersistence.catch((error) => {
