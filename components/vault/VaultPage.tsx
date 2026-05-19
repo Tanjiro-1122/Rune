@@ -166,7 +166,7 @@ export default function VaultPage() {
   const [editItem, setEditItem] = useState<VaultItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
