@@ -2639,9 +2639,14 @@ export function Chat() {
 
           {showTypingIndicator && (
             <div className="message assistant message--typing">
-              <div className="message-role">Rune</div>
+              <div className="message-role">
+                <span className="rune-badge">
+                  <span className="ember-dot" />
+                  Rune
+                </span>
+              </div>
               <div
-                className="typing-indicator"
+                className="typing-dots"
                 role="status"
                 aria-live="polite"
                 aria-label="Rune is thinking"
