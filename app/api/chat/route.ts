@@ -1,3 +1,4 @@
+import { loadEnabledSkills } from "@/lib/skills";
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { proposeAction, approveProposal, listHandsProposals } from "@/lib/hands";
@@ -2413,6 +2414,9 @@ ${retrievalHits
 - No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
 
     const agentTools = getAgentTools({ workspaceId, conversationId });
+  // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
+  const skillTools = await loadEnabledSkills();
+  const allTools = { ...agentTools, ...skillTools };
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
@@ -2541,7 +2545,7 @@ ${plannerOutput.steps
       // `content: string` in TypeScript but handles array content correctly at
       // runtime via convertToCoreMessages. The double assertion is intentional.
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
-      tools: agentTools,
+      tools: allTools,
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       onFinish: ({ text }) => {
