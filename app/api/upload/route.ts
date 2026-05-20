@@ -5,7 +5,7 @@ import { logError } from "@/lib/errors";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const MAX_UPLOAD_BYTES = Number(process.env.RUNE_MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
-const DEFAULT_BUCKET = "rune-uploads";
+const DEFAULT_BUCKET = "rune-uploads-public";
 const SIGNED_URL_SECONDS = Number(process.env.RUNE_UPLOAD_SIGNED_URL_SECONDS || 60 * 60 * 24 * 7);
 const SAFE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
@@ -43,7 +43,7 @@ async function ensureBucket(bucket: string) {
   if (buckets?.some((item) => item.name === bucket)) return { ok: true, supabase };
 
   const { error: createError } = await supabase.storage.createBucket(bucket, {
-    public: false,
+    public: true,
     fileSizeLimit: MAX_UPLOAD_BYTES,
     allowedMimeTypes: Array.from(SAFE_IMAGE_TYPES),
   });
@@ -100,10 +100,11 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) throw uploadError;
 
-    const { data: signed, error: signedError } = await configured.supabase.storage
+    // Use public URL — no expiry, works with AI vision models
+    const { data: publicUrlData } = configured.supabase.storage
       .from(bucket)
-      .createSignedUrl(storagePath, SIGNED_URL_SECONDS);
-    if (signedError) throw signedError;
+      .getPublicUrl(storagePath);
+    const signed = { signedUrl: publicUrlData.publicUrl };
 
     let projectFileId: string | null = null;
     if (workspaceId) {
