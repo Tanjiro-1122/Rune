@@ -42,6 +42,14 @@ export async function middleware(request: NextRequest) {
     return withSecurityHeaders(NextResponse.next());
   }
 
+  // Bypass middleware for the streaming chat route — the chat route validates
+  // the session cookie internally. Running middleware on a streaming SSE/fetch
+  // response causes iOS Safari/WebKit to abort the stream mid-response, which
+  // shows as "Response interrupted. An error occurred." in the UI.
+  if (pathname === "/api/chat") {
+    return NextResponse.next();
+  }
+
   // Allow an external isolated runner to poll the runner API with a dedicated
   // bearer token. This route still remains closed unless RUNE_RUNNER_TOKEN is set.
   if (pathname.startsWith("/api/runner")) {
