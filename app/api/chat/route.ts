@@ -23,6 +23,7 @@ import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/
 import { getOwnerMemorySection } from "@/lib/owner-memory";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { buildSupabaseMemorySection, buildMemoryContext, saveSemanticMemory } from "@/lib/memory";
+import { cleanupStaleTasks } from "@/lib/task-tracker";
 import { auditRuneSessionFragments, planRuneSessionFragmentMerge, executeRuneSessionFragmentMerge } from "@/lib/session-fragment-audit";
 import {
   buildPlannerOutput,
