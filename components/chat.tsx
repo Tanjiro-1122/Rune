@@ -7,6 +7,12 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { BuilderHome } from "./builder-home";
 import dynamic from "next/dynamic";
+import type { PlanResult } from "./chat/PlanModal";
+const PlanModal = dynamic(
+  () => import("./chat/PlanModal").then(m => ({ default: m.PlanModal })),
+  { ssr: false }
+);
+
 const SelfTestPanel = dynamic(
   () => import("./self-test/SelfTestPanel").then(m => ({ default: m.SelfTestPanel })),
   { ssr: false }
@@ -749,6 +755,9 @@ export function Chat() {
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
   const [artifactPreviewId, setArtifactPreviewId] = useState<string | null>(null);
   const [showInfoSidebar, setShowInfoSidebar] = useState(false);
+  const [planResult, setPlanResult] = useState<PlanResult | null>(null);
+  const [planInput, setPlanInput] = useState("");
+  const [planLoading, setPlanLoading] = useState(false);
   const [isMobileToolsMode, setIsMobileToolsMode] = useState(false);
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
@@ -2181,6 +2190,42 @@ export function Chat() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  async function handlePlan() {
+    const inputText = input.trim();
+    if (!inputText || isLoading) return;
+    setPlanLoading(true);
+    setPlanInput(inputText);
+    try {
+      const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: inputText }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Plan fetch failed");
+      const data: PlanResult = await res.json();
+      setPlanResult(data);
+    } catch (err) {
+      console.error("Plan fetch error:", err);
+    } finally {
+      setPlanLoading(false);
+    }
+  }
+
+  function handlePlanRun(finalInput: string) {
+    setPlanResult(null);
+    setInput(finalInput);
+    // Submit on next tick after input is set
+    setTimeout(() => {
+      formRef.current?.requestSubmit();
+    }, 0);
+  }
+
+  function handlePlanEdit() {
+    setPlanResult(null);
+    // Input is already set, user can edit freely
+  }
+
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (isLoading) return;
@@ -2778,6 +2823,17 @@ export function Chat() {
           </button>
         </form>
       </section>
+
+      {/* ⚡ Plan Modal */}
+      {planResult && (
+        <PlanModal
+          plan={planResult}
+          originalInput={planInput}
+          onRun={handlePlanRun}
+          onEdit={handlePlanEdit}
+          onClose={() => setPlanResult(null)}
+        />
+      )}
 
       {showInfoSidebar && (
         <button
