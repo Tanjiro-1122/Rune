@@ -19,7 +19,6 @@ import {
   saveConversationExchange,
 } from "@/lib/workspaces";
 import { logError } from "@/lib/errors";
-import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/lib/agent-work-loop";
 import { getOwnerMemorySection } from "@/lib/owner-memory";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { buildSupabaseMemorySection, buildMemoryContext, saveSemanticMemory } from "@/lib/memory";
@@ -2676,7 +2675,6 @@ ${ownerMemorySection}` : ""}
 ${supabaseMemorySection ? `
 ${supabaseMemorySection}` : ""}
 
-${agentWorkLoopSection}
 
 
 - CONTEXT ECONOMY: Never repeat large blocks of tool output verbatim in your reply. Summarize tool results in 1-3 sentences. This preserves context window space for actual work.### Private owner-console safety model
