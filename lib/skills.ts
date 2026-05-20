@@ -7,21 +7,25 @@ import { tool } from "ai";
  * Each skill exports a default object with { name, tool }.
  * Enable skills via RUNE_ENABLED_SKILLS env var (comma-separated).
  *
- * Available skills: weather, stock_price, news, translate, google_calendar
+ * Available: weather, stock_price, news, translate, google_calendar
  */
 
-const BUILTIN_SKILLS: Record<string, () => Promise<{ name: string; tool: ReturnType<typeof tool> }>> = {
-  weather:          () => import("./skills/weather").then((m) => m.default),
-  stock_price:      () => import("./skills/stock_price").then((m) => m.default),
-  google_calendar:  () => import("./skills/google_calendar").then((m) => m.default),
-  news:             () => import("./skills/news").then((m) => m.default),
-  translate:        () => import("./skills/translate").then((m) => m.default),
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyTool = ReturnType<typeof tool<any, any>>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const BUILTIN_SKILLS: Record<string, () => Promise<{ name: string; tool: AnyTool }>> = {
+  weather:         () => import("./skills/weather").then((m) => m.default as { name: string; tool: AnyTool }),
+  stock_price:     () => import("./skills/stock_price").then((m) => m.default as { name: string; tool: AnyTool }),
+  google_calendar: () => import("./skills/google_calendar").then((m) => m.default as { name: string; tool: AnyTool }),
+  news:            () => import("./skills/news").then((m) => m.default as { name: string; tool: AnyTool }),
+  translate:       () => import("./skills/translate").then((m) => m.default as { name: string; tool: AnyTool }),
 };
 
 /**
  * Load all enabled skills and return as a tools-compatible record.
  */
-export async function loadEnabledSkills(): Promise<Record<string, ReturnType<typeof tool>>> {
+export async function loadEnabledSkills(): Promise<Record<string, AnyTool>> {
   const enabled = (process.env.RUNE_ENABLED_SKILLS ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -29,7 +33,7 @@ export async function loadEnabledSkills(): Promise<Record<string, ReturnType<typ
 
   if (enabled.length === 0) return {};
 
-  const loaded: Record<string, ReturnType<typeof tool>> = {};
+  const loaded: Record<string, AnyTool> = {};
 
   await Promise.allSettled(
     enabled.map(async (skillName) => {
