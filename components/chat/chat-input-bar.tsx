@@ -76,6 +76,7 @@ export function ChatInputBar({
   setFiles,
   setPreviewUrls,
   onQueueSubmit,
+  onPlan,
 }: ChatInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
