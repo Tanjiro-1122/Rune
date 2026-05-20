@@ -2228,17 +2228,7 @@ export function Chat() {
             setFileError("");
             // Add as a proper image attachment so it renders as a preview
             // and gets sent as a vision content part to the AI
-            setAttachments((prev: LightweightAttachment[]) => [
-              ...prev,
-              {
-                id: `paste-${Date.now()}-${itemIndex}`,
-                name: data.name || `pasted-image-${itemIndex + 1}.png`,
-                url: data.url!,
-                mimeType: data.mimeType || "image/png",
-                bytes: data.bytes || 0,
-                kind: "image",
-              } as LightweightAttachment,
-            ]);
+            setPreviewUrls((prev) => [...prev, data.url!]);
           }
         } catch (err) {
           console.error("Failed to upload pasted image:", err);
