@@ -124,7 +124,16 @@ export async function GET(req: NextRequest) {
     // Build the structured WhatsApp message
     const message = buildWhatsAppBriefingMessage({ briefing, rc, previousScore, openAiSpend });
 
-    // Send push notification with structured message
+    // Save briefing to briefing_log for history
+  try {
+    await supabase
+      ?.from("briefing_log")
+      .insert({ content: message, sent_via: "whatsapp" });
+  } catch (logErr) {
+    console.warn("[cron/daily-briefing] briefing_log insert failed:", logErr);
+  }
+
+  // Send push notification with structured message
     const statusEmoji =
       briefing.overallStatus === "healthy" ? "✅" :
       briefing.overallStatus === "warning" ? "⚠️" : "🚨";
