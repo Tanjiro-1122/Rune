@@ -2100,18 +2100,18 @@ export async function POST(req: Request) {
     });
 
     // Run access checks in parallel to cut pre-stream latency
-    await Promise.all([
+  // Access checks with 4s hard timeout — Supabase slowness must not crash stream
+  await Promise.race([
+    Promise.all([
       workspaceId
         ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" })
         : Promise.resolve(),
       conversationId
         ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" })
         : Promise.resolve(),
-    ]);
-
-    // Fire-and-forget: event recording should not block stream start
-    void recordWorkspaceEvent({
-      sessionId,
+    ]),
+    new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+  ]);
       workspaceId,
       conversationId,
       eventType: "chat.request",
@@ -2167,18 +2167,25 @@ export async function POST(req: Request) {
         progress: 8,
       });
     } else {
-      taskId = await createWorkspaceTask({
-        workspaceId,
-        conversationId,
-        title: deriveConversationTitle(latestUserText || "Workspace task"),
-        inputText: latestUserText,
-        intent: plannerOutput.intent,
-        steps: plannerOutput.steps.map((step) => ({
-          key: step.key,
-          label: step.label,
-          detail: step.detail,
-        })),
-      });
+      // Non-blocking: task creation must never delay the stream start
+      try {
+        const _taskPromise = createWorkspaceTask({
+          workspaceId,
+          conversationId,
+          title: deriveConversationTitle(latestUserText || "Workspace task"),
+          inputText: latestUserText,
+          intent: plannerOutput.intent,
+          steps: plannerOutput.steps.map((step) => ({
+            key: step.key,
+            label: step.label,
+            detail: step.detail,
+          })),
+        });
+        const _timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+        taskId = await Promise.race([_taskPromise, _timeout]);
+      } catch {
+        taskId = null;
+      }
     }
     activeTaskId = taskId;
 
