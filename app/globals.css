@@ -4632,3 +4632,273 @@ button:disabled {
   .followup-chips { gap: 6px; }
   .followup-chip { font-size: 12px; height: 28px; padding: 0 12px; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   🖼 CANVAS PANE — live preview + editable code split view
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Canvas button on code blocks ──────────────────────────────── */
+.rune-code-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rune-code-canvas-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.07);
+  color: #4f46e5;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.rune-code-canvas-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+/* ── Canvas backdrop ────────────────────────────────────────────── */
+.canvas-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(10, 10, 25, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 3vw, 32px);
+  animation: backdrop-in 0.18s ease;
+}
+
+/* ── Canvas pane card ───────────────────────────────────────────── */
+.canvas-pane {
+  width: min(100%, 1100px);
+  height: min(90dvh, 760px);
+  border-radius: 22px;
+  background: #0f0f1a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Canvas header ──────────────────────────────────────────────── */
+.canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.canvas-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.canvas-icon { font-size: 18px; line-height: 1; }
+.canvas-title {
+  font-size: 14px;
+  font-weight: 750;
+  color: #f1f5f9;
+  letter-spacing: -0.02em;
+}
+.canvas-lang-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  font-size: 10px;
+  font-weight: 700;
+  color: #818cf8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.canvas-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Mode tabs ──────────────────────────────────────────────────── */
+.canvas-mode-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 3px;
+}
+.canvas-mode-tab {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.canvas-mode-tab:hover { color: rgba(255,255,255,0.8); }
+.canvas-mode-tab--active {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+}
+
+/* ── Control buttons ────────────────────────────────────────────── */
+.canvas-ctrl-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.canvas-ctrl-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+.canvas-ctrl-btn--save {
+  background: rgba(99,102,241,0.2);
+  border-color: rgba(99,102,241,0.4);
+  color: #a5b4fc;
+}
+.canvas-ctrl-btn--save:hover {
+  background: rgba(99,102,241,0.35);
+  color: #c7d2fe;
+}
+.canvas-close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+.canvas-close-btn:hover {
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.3);
+  color: #fca5a5;
+}
+
+/* ── Canvas body ────────────────────────────────────────────────── */
+.canvas-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+.canvas-body--preview { flex-direction: column; }
+.canvas-body--code { flex-direction: column; }
+.canvas-body--split { flex-direction: row; }
+
+/* ── Code editor panel ──────────────────────────────────────────── */
+.canvas-code-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  min-width: 0;
+}
+.canvas-code-panel--full {
+  border-right: none;
+}
+.canvas-code-editor {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background: #0a0a18;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  border: none;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  box-sizing: border-box;
+}
+.canvas-code-editor::selection { background: rgba(99,102,241,0.3); }
+
+/* ── Preview panel ──────────────────────────────────────────────── */
+.canvas-preview-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  background: #fff;
+}
+.canvas-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #1e1e2e;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.canvas-preview-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.canvas-preview-dot--red    { background: #ff5f57; }
+.canvas-preview-dot--yellow { background: #febc2e; }
+.canvas-preview-dot--green  { background: #28c840; }
+.canvas-preview-url {
+  flex: 1;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  font-family: ui-monospace, monospace;
+  margin-left: 8px;
+}
+.canvas-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: white;
+}
+
+/* Mobile — stack vertically in split mode */
+@media (max-width: 820px) {
+  .canvas-pane { border-radius: 16px; height: min(92dvh, 700px); }
+  .canvas-body--split { flex-direction: column; }
+  .canvas-code-panel { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); max-height: 40%; }
+  .canvas-preview-panel { flex: 1; }
+  .canvas-mode-tabs { display: none; }
+}
