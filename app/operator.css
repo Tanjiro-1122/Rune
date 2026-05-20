@@ -1,7 +1,4 @@
 /* Mobile Tools tile board — phone-first nested tiles, desktop unchanged */
-.mobile-tools-board-intro {
-  display: none;
-}
 
 @media (max-width: 820px) {
   .context-sidebar.context-sidebar--open.mobile-tools-shell {
@@ -49,7 +46,6 @@
     background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0));
   }
 
-
   .mobile-tools-board-intro {
     display: grid;
     gap: 0.25rem;
@@ -86,30 +82,6 @@
     border-radius: 24px !important;
     padding: 12px !important;
     background: rgba(255, 255, 255, 0.66) !important;
-  }
-
-  .mobile-tools-project-tile .context-panel-header {
-    margin-bottom: 0.25rem;
-  }
-
-  .mobile-tools-project-tile .side-section-copy {
-    display: none;
-  }
-
-  .mobile-tools-project-tile .project-switchboard-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .mobile-tools-project-tile .project-switchboard-card {
-    min-height: 104px;
-    border-radius: 20px;
-    padding: 12px 10px 10px 13px;
-  }
-
-  .mobile-tools-project-tile .project-switchboard-card em {
-    display: none;
   }
 
   .mobile-tools-project-tile .context-panel-header {
@@ -156,62 +128,7 @@
     display: none;
   }
 
-  .mobile-tools-top-tiles {
-    position: static !important;
-    top: auto !important;
-    z-index: auto !important;
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-    padding: 0 !important;
-    scroll-margin-top: 96px;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-  }
-
-  .mobile-tools-top-tile {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    justify-content: center !important;
-    gap: 6px !important;
-    min-height: 86px;
-    width: 100%;
-    border: 1px solid rgba(106, 78, 170, 0.14) !important;
-    border-radius: 22px !important;
-    padding: 13px 14px !important;
-    background: rgba(255, 255, 255, 0.7) !important;
-    color: #2f1745 !important;
-    text-align: left !important;
-    overflow: hidden;
-    box-shadow: 0 16px 34px rgba(83, 65, 128, 0.08), inset 0 1px 0 rgba(255,255,255,0.75);
-  }
-
   .mobile-tools-top-tile span,
-  .mobile-tools-top-tile small {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
-
-  .mobile-tools-top-tile span {
-    color: #25153a;
-    font-size: 0.86rem;
-    font-weight: 900;
-    line-height: 1.12;
-    letter-spacing: -0.025em;
-  }
-
-  .mobile-tools-top-tile small {
-    margin-top: 0 !important;
-    color: #7c6b9a;
-    font-size: 0.68rem;
-    font-weight: 750;
-    line-height: 1.22;
-  }
 
   .mobile-tools-top-tile--active {
     border-color: rgba(118, 87, 255, 0.42) !important;
@@ -396,7 +313,6 @@
   }
 }
 
-
 @media (max-width: 380px) {
   .mobile-tools-top-tiles {
     gap: 8px !important;
@@ -426,13 +342,6 @@
 .operator-briefing-card .operator-card-title-row strong {
   max-width: 100%;
   line-height: 1.2;
-}
-
-.operator-briefing-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
-  margin-top: 0.75rem;
 }
 
 .operator-briefing-meta span {
