@@ -447,3 +447,35 @@ create index if not exists rune_tasks_workspace_idx on rune_tasks(workspace_id);
 alter table rune_tasks enable row level security;
 create policy "service_role_all" on rune_tasks
   for all using (true) with check (true);
+
+-- === REMINDERS (added 2026-05-20) ===
+create table if not exists rune_reminders (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  body       text,
+  fire_at    timestamptz not null,
+  timezone   text default 'America/New_York',
+  repeat     text check (repeat in ('daily','weekly')),
+  status     text default 'pending' check (status in ('pending','sent','cancelled')),
+  created_at timestamptz default now()
+);
+create index if not exists rune_reminders_fire_at_idx on rune_reminders(fire_at) where status = 'pending';
+alter table rune_reminders enable row level security;
+create policy "service_role_all" on rune_reminders for all using (true) with check (true);
+
+-- === EMAIL OUTBOX (added 2026-05-20) ===
+create table if not exists rune_outbox (
+  id         uuid primary key default gen_random_uuid(),
+  to_addr    text not null,
+  subject    text not null,
+  body       text,
+  html       text,
+  from_addr  text default 'huertasfam@gmail.com',
+  status     text default 'queued' check (status in ('queued','sent','failed')),
+  error      text,
+  sent_at    timestamptz,
+  created_at timestamptz default now()
+);
+create index if not exists rune_outbox_status_idx on rune_outbox(status);
+alter table rune_outbox enable row level security;
+create policy "service_role_all" on rune_outbox for all using (true) with check (true);
