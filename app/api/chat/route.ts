@@ -23,6 +23,8 @@ import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/
 import { getOwnerMemorySection } from "@/lib/owner-memory";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 import { buildSupabaseMemorySection, buildMemoryContext, saveSemanticMemory } from "@/lib/memory";
+import { sendEmail } from "@/lib/email";
+import { createReminder, listReminders, cancelReminder } from "@/lib/reminders";
 import { cleanupStaleTasks } from "@/lib/task-tracker";
 import { auditRuneSessionFragments, planRuneSessionFragmentMerge, executeRuneSessionFragmentMerge } from "@/lib/session-fragment-audit";
 import {
@@ -1971,6 +1973,153 @@ function getAgentTools({
         return id
           ? { saved: true, id, content: content.slice(0, 100) + (content.length > 100 ? "..." : "") }
           : { saved: false, error: "Memory save failed — check Supabase connection" };
+      },
+    }),
+
+
+    // ── send_email ─────────────────────────────────────────────────────────────
+    send_email: tool({
+      description:
+        "Send an email from Rune to any address. Use when Javier asks to send an email, " +
+        "draft and send a message, or email himself a summary or reminder. " +
+        "Queues through rune_outbox — delivers via Gmail (huertasfam@gmail.com).",
+      parameters: z.object({
+        to: z.string().describe("Recipient email address"),
+        subject: z.string().describe("Email subject line"),
+        body: z.string().describe("Plain text email body"),
+        html: z.string().optional().describe("Optional HTML version of the email body"),
+      }),
+      execute: async ({ to, subject, body, html }) => {
+        return await sendEmail({ to, subject, body, html });
+      },
+    }),
+
+    // ── schedule_reminder ──────────────────────────────────────────────────────
+    schedule_reminder: tool({
+      description:
+        "Schedule a reminder for Javier. Rune will send a push notification at the specified time. " +
+        "Use when Javier says 'remind me to...', 'set a reminder for...', or 'alert me at...'. " +
+        "Always convert times to America/New_York timezone. Supports daily and weekly repeats.",
+      parameters: z.object({
+        title: z.string().describe("Short reminder title, e.g. 'Review Unfiltr metrics'"),
+        body: z.string().optional().describe("Optional longer detail message"),
+        fire_at: z.string().describe("ISO 8601 datetime when to fire, e.g. '2026-05-20T09:00:00'"),
+        repeat: z.enum(["daily", "weekly"]).optional().describe("Repeat cadence — omit for one-time"),
+      }),
+      execute: async ({ title, body, fire_at, repeat }) => {
+        const result = await createReminder({ title, body, fire_at, repeat: repeat ?? null });
+        if (result.error) return { scheduled: false, error: result.error };
+        return {
+          scheduled: true,
+          id: result.id,
+          title,
+          fire_at,
+          repeat: repeat ?? "one-time",
+        };
+      },
+    }),
+
+    // ── list_reminders ─────────────────────────────────────────────────────────
+    list_reminders: tool({
+      description:
+        "List Javier's upcoming scheduled reminders. Use when asked 'what reminders do I have' " +
+        "or 'show my scheduled alerts'.",
+      parameters: z.object({
+        status: z.enum(["pending", "sent", "cancelled"]).optional().default("pending"),
+      }),
+      execute: async ({ status = "pending" }) => {
+        const reminders = await listReminders(status);
+        return { reminders, count: reminders.length };
+      },
+    }),
+
+    // ── cancel_reminder ────────────────────────────────────────────────────────
+    cancel_reminder: tool({
+      description: "Cancel a scheduled reminder by its ID. Use when Javier says 'cancel that reminder' or 'remove the alert'.",
+      parameters: z.object({
+        id: z.string().describe("The reminder ID to cancel"),
+      }),
+      execute: async ({ id }) => {
+        const ok = await cancelReminder(id);
+        return ok ? { cancelled: true, id } : { cancelled: false, error: "Reminder not found or already sent" };
+      },
+    }),
+
+    // ── query_database ─────────────────────────────────────────────────────────
+    query_database: tool({
+      description:
+        "Read or write data in any Supabase table Rune has access to. " +
+        "Use for generic data operations — checking records, updating values, inserting rows. " +
+        "For SELECT: provide table + optional filters. For INSERT/UPDATE/DELETE: provide operation + data. " +
+        "Tables available: rune_tasks, rune_reminders, rune_outbox, agent_memories, rune_memory_vectors, " +
+        "rune_workspaces, rune_conversations, rune_messages, rune_tasks, and any Unfiltr/SWH tables.",
+      parameters: z.object({
+        operation: z.enum(["select", "insert", "update", "delete"]).describe("SQL operation type"),
+        table: z.string().describe("Table name, e.g. rune_tasks"),
+        filters: z.record(z.string(), z.unknown()).optional().describe("Column=value filters for WHERE clause"),
+        data: z.record(z.string(), z.unknown()).optional().describe("Data to insert or update"),
+        limit: z.number().min(1).max(100).optional().default(20).describe("Max rows for SELECT"),
+        order_by: z.string().optional().describe("Column to sort by, prefix with - for descending"),
+        select_columns: z.string().optional().default("*").describe("Columns to select, e.g. 'id,title,status'"),
+      }),
+      execute: async ({ operation, table, filters, data, limit = 20, order_by, select_columns = "*" }) => {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const sb = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+
+          // Allowlist to prevent abuse
+          const ALLOWED_TABLES = [
+            "rune_tasks", "rune_reminders", "rune_outbox", "agent_memories",
+            "rune_memory_vectors", "rune_workspaces", "rune_conversations",
+            "rune_messages", "rune_action_events", "rune_app_metadata",
+          ];
+          if (!ALLOWED_TABLES.includes(table)) {
+            return { error: `Table '${table}' is not in the allowed list. Ask Javier to add it if needed.` };
+          }
+
+          if (operation === "select") {
+            let q = sb.from(table).select(select_columns).limit(limit);
+            if (filters) {
+              for (const [col, val] of Object.entries(filters)) q = q.eq(col, val);
+            }
+            if (order_by) {
+              const desc = order_by.startsWith("-");
+              q = q.order(desc ? order_by.slice(1) : order_by, { ascending: !desc });
+            }
+            const { data: rows, error } = await q;
+            if (error) return { error: error.message };
+            return { rows: rows ?? [], count: rows?.length ?? 0 };
+
+          } else if (operation === "insert") {
+            if (!data) return { error: "data is required for insert" };
+            const { data: inserted, error } = await sb.from(table).insert(data).select();
+            if (error) return { error: error.message };
+            return { inserted: inserted ?? [], success: true };
+
+          } else if (operation === "update") {
+            if (!data || !filters) return { error: "data and filters are required for update" };
+            let q = sb.from(table).update(data);
+            for (const [col, val] of Object.entries(filters)) q = q.eq(col, val as string);
+            const { data: updated, error } = await q.select();
+            if (error) return { error: error.message };
+            return { updated: updated ?? [], success: true };
+
+          } else if (operation === "delete") {
+            if (!filters) return { error: "filters are required for delete (safety)" };
+            let q = sb.from(table).delete();
+            for (const [col, val] of Object.entries(filters)) q = q.eq(col, val as string);
+            const { error } = await q;
+            if (error) return { error: error.message };
+            return { deleted: true };
+          }
+
+          return { error: "Unknown operation" };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Database operation failed" };
+        }
       },
     }),
 
