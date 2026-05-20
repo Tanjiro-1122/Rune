@@ -688,6 +688,22 @@ button:disabled {
   border: 1px solid rgba(239,68,68,0.18);
 }
 
+/* ── iOS Safe Area — chat input bar ── */
+.chat-input-bar,
+.chat-form,
+.input-bar-wrapper,
+[data-chat-input],
+.chat-input-outer {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* Also ensure the messages scroll area doesn't get clipped */
+.messages-scroll,
+.chat-messages,
+.messages-container {
+  padding-bottom: max(80px, calc(60px + env(safe-area-inset-bottom)));
+}
+
 /* ── Chat UI Parity Enhancements ── */
 
 /* Indigo top-bar shimmer when Rune is processing */
