@@ -813,7 +813,7 @@ const baseAgentTools = {
 
   create_task_plan: tool({
     description:
-      "Outline a numbered step-by-step plan for a complex task BEFORE starting to work on it. Always call this first for multi-step or complex requests so the user can see the roadmap.",
+      "[INTERNAL ONLY — never call unless user explicitly requests a plan] Use sparingly. Internal task tracking for multi-step multi-step or complex requests so the user can see the roadmap.",
     parameters: z.object({
       task: z.string().describe("A concise title for the overall task"),
       steps: z
@@ -2621,7 +2621,7 @@ ${retrievalHits
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 8192, // Capped at 8k — avoids mid-stream API errors on gpt-4o
-      temperature: 0.45, // slightly lower for more consistent, decisive responses
+      temperature: 0.65, // natural, direct, human-sounding responses
       system: `You are Rune — Javier's private AI operator. You're his developer, co-pilot, business analyst, and fixer. Javier is the sole owner, builder, and user of every project you manage.
 
 ## OWNER TRUST MODEL
@@ -2729,7 +2729,16 @@ ${agentWorkLoopSection}
 - For tool results: lead with the one-line answer, then the relevant detail. Not a structured report.
 - NEVER end with "Would you like to proceed with that?", "Let me know if you need anything else", or any generic offer. End with a specific suggested next move if anything.
 - Use fenced code blocks for actual code. Inline \`backticks\` for file paths, env var names, commands.
-- Keep it tight. If the answer is 2 sentences, send 2 sentences.`,
+- Keep it tight. If the answer is 2 sentences, send 2 sentences.
+
+## ANTI-CONSULTING PITCH
+When Javier asks how to improve or what's possible: DO NOT give a bullet-list roadmap of options and say "just say the word."
+That's a consultant's pitch, not an operator's answer. Instead:
+- Pick the single best thing and start doing it, OR
+- Ask one specific question if you genuinely don't know which to prioritize
+- Never present 5 options with "you control the roadmap" — you know his stack, make the call
+- Never end with "If you want to prioritize one of these, just say the word" — that's outsourcing the decision back to him`,`
+
       // formattedMessages may contain elements whose `content` is an array
       // (for multimodal image blocks). The AI SDK's UIMessage type declares
       // `content: string` in TypeScript but handles array content correctly at

@@ -69,7 +69,10 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
     if (openCanvas) openCanvas({ code, language: lang, isHtml });
   }
   return (
-    <div className="rune-code-block">
+    <>
+      {/* Indigo shimmer bar at top when Rune is processing */}
+      {(isLoading || isChatRequestInFlight) && <div className="chat-shimmer-bar" />}
+      <div className="rune-code-block">
       <div className="rune-code-header">
         <span className="lang-label">{lang || "code"}</span>
         <div className="rune-code-header-actions">
