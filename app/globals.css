@@ -4235,3 +4235,400 @@ button:disabled {
   color: #f0ede8;
   border-color: rgba(180,80,40,0.6);
 }
+
+/* ════════════════════════════════════════════════════════════════
+   ⚡ PLAN SYSTEM — modal, input button, follow-up chips
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Plan button in input bar ───────────────────────────────────── */
+.chat-plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 13px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1.5px solid rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+}
+.chat-plan-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.65);
+}
+.chat-plan-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.chat-plan-btn--loading {
+  opacity: 0.7;
+}
+.plan-btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(99,102,241,0.3);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Plan modal backdrop ────────────────────────────────────────── */
+.plan-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 15, 35, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 4vw, 40px);
+  animation: backdrop-in 0.18s ease;
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Plan modal card ────────────────────────────────────────────── */
+.plan-modal {
+  width: min(100%, 640px);
+  max-height: min(90dvh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(100, 116, 166, 0.2);
+  box-shadow: 0 32px 80px rgba(30, 40, 90, 0.28), 0 0 0 1px rgba(255,255,255,0.6) inset;
+  display: flex;
+  flex-direction: column;
+  animation: modal-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.94) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Modal header ───────────────────────────────────────────────── */
+.plan-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 24px 24px 0;
+}
+.plan-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.plan-modal-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.plan-modal-title {
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  color: #1a1a2e;
+  margin: 0;
+}
+.plan-modal-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 3px 0 0;
+}
+.plan-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(100,116,166,0.18);
+  background: rgba(248,250,252,0.9);
+  font-size: 14px;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.plan-modal-close:hover { background: #f1f5f9; }
+
+/* ── Meta chips row ─────────────────────────────────────────────── */
+.plan-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 24px 0;
+}
+.plan-meta-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(100, 116, 166, 0.14);
+  min-width: 90px;
+}
+.plan-meta-chip--risk {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+}
+.plan-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+}
+.plan-meta-chip strong {
+  font-size: 12.5px;
+  font-weight: 750;
+  color: #1f2937;
+}
+.plan-risk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Request preview ────────────────────────────────────────────── */
+.plan-request-preview {
+  margin: 14px 24px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+.plan-preview-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 5px;
+}
+.plan-preview-text {
+  font-size: 13.5px;
+  color: #374151;
+  margin: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ── Steps list ─────────────────────────────────────────────────── */
+.plan-steps {
+  padding: 16px 24px 0;
+}
+.plan-steps-label {
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9ca3af;
+  margin-bottom: 10px;
+}
+.plan-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid rgba(100, 116, 166, 0.1);
+  transition: background 0.12s;
+}
+.plan-step-item:hover { background: rgba(240, 244, 248, 0.95); }
+.plan-step-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.plan-step-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.plan-step-body { min-width: 0; }
+.plan-step-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 750;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+.plan-step-detail {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ── Notes ──────────────────────────────────────────────────────── */
+.plan-notes-section {
+  padding: 14px 24px 0;
+}
+.plan-notes-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.plan-notes-label span {
+  font-weight: 400;
+  color: #9ca3af;
+}
+.plan-notes-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 116, 166, 0.2);
+  background: rgba(248, 250, 252, 0.9);
+  font-size: 13px;
+  color: #1f2937;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.plan-notes-input:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+}
+.plan-notes-input::placeholder { color: #d1d5db; }
+
+/* ── Actions ────────────────────────────────────────────────────── */
+.plan-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 24px;
+}
+.plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  border: 1.5px solid transparent;
+}
+.plan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.plan-btn--edit {
+  background: rgba(248, 250, 252, 0.9);
+  border-color: rgba(100, 116, 166, 0.2);
+  color: #374151;
+}
+.plan-btn--edit:hover:not(:disabled) { background: #f1f5f9; }
+.plan-btn--run {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+}
+.plan-btn--run:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 6px 20px rgba(99,102,241,0.45);
+}
+.plan-run-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Follow-up chips ────────────────────────────────────────────── */
+.followup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 8px;
+  align-self: flex-start;
+  max-width: 100%;
+  animation: chips-in 0.25s ease;
+}
+@keyframes chips-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.followup-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1.5px solid rgba(99, 102, 241, 0.22);
+  color: #4f46e5;
+  transition: background 0.13s, border-color 0.13s, transform 0.1s;
+  letter-spacing: -0.01em;
+}
+.followup-chip:hover {
+  background: rgba(99, 102, 241, 0.07);
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+}
+.followup-chip:active { transform: translateY(0); }
+
+/* Mobile adjustments */
+@media (max-width: 820px) {
+  .plan-modal { border-radius: 20px; }
+  .plan-modal-header,
+  .plan-modal-meta,
+  .plan-request-preview,
+  .plan-steps,
+  .plan-notes-section,
+  .plan-modal-actions { padding-left: 18px; padding-right: 18px; }
+  .plan-modal-actions { flex-direction: column-reverse; }
+  .plan-btn { width: 100%; justify-content: center; }
+  .chat-plan-btn { padding: 0 10px; font-size: 12px; }
+  .followup-chips { gap: 6px; }
+  .followup-chip { font-size: 12px; height: 28px; padding: 0 12px; }
+}
