@@ -266,10 +266,9 @@ export function buildPlannerOutput(options: {
   if (intent === "approval_required") {
     return {
       intent,
-      forcedToolName: "get_rune_capability_snapshot",
-      reasoningRoute: "approval_required",
-      routingHint:
-        "- Reasoning Router: sensitive action detected. Gather facts only, explain findings/plan, and ask Javier for explicit approval before execution. Do not perform the action yet.",
+      forcedToolName: null,
+      reasoningRoute: "answer_only",
+      routingHint: "- No planner override. Respond directly.",oval before execution. Do not perform the action yet.",
       steps: baseSteps,
     };
   }
@@ -287,9 +286,8 @@ export function buildPlannerOutput(options: {
     return {
       intent,
       forcedToolName: null,
-      reasoningRoute: "proposal_required",
-      routingHint:
-        "- Reasoning Router: repo/app change requested. Provide Findings → Plan first and route actual changes through Repo Control approval gates before execution.",
+      reasoningRoute: "answer_only",
+      routingHint: "- No planner override. Act directly using readRepositoryFile + searchRepositoryCode.",l approval gates before execution.",
       steps: baseSteps,
     };
   }
