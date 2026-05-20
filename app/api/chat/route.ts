@@ -2406,8 +2406,13 @@ ${plannerOutput.steps
       tools: agentTools,
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
-      onFinish: async ({ text }) => {
+      onFinish: ({ text }) => {
         if (!lastUserMessage) return;
+
+        // IMPORTANT: onFinish must be synchronous and never throw.
+        // Any await here can cause the Vercel AI SDK to surface errors
+        // to the client as "Response interrupted" on iOS Safari/WebKit.
+        // All persistence is fire-and-forget via void.
 
         const finishPersistence = (async () => {
           const userContent = lastUserMessage.parts
@@ -2480,7 +2485,8 @@ ${plannerOutput.steps
           }
         })();
 
-        finishPersistence.catch((error) => {
+        // Fire-and-forget — never await in onFinish
+        void finishPersistence.catch((error) => {
           logError("api.chat.onFinish.persistence", error);
           if (activeTaskId) {
             const errMsg =
@@ -2491,11 +2497,6 @@ ${plannerOutput.steps
             activeTaskId = null;
           }
         });
-
-        await withChatFinishTimeout(
-          finishPersistence,
-          "chat finish persistence and task completion"
-        );
       },
       onError: ({ error }) => {
         // Mid-stream errors cannot change the HTTP status (headers already sent
