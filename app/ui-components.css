@@ -9,14 +9,6 @@
   font-weight: inherit;
 }
 
-.rune-wordmark-img {
-  display: block;
-  height: 56px;
-  width: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 0 12px rgba(200, 60, 20, 0.5));
-}
-
 @media (max-width: 480px) {
   .rune-wordmark-img {
     height: 44px;
@@ -167,20 +159,6 @@
    BUILDER HOME — Hero prompt surface (Base44-style)
    ═══════════════════════════════════════════════════════════════ */
 
-.builder-home {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Fill the messages container exactly — no scrollbar */
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding: 32px 20px 40px;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
 /* Hide the bottom chat input bar when builder home is showing */
 .chat-panel:has(.builder-home) .input-form,
 .chat-panel:has(.builder-home) .attachment-preview,
@@ -228,16 +206,6 @@
 }
 
 /* Content wrapper */
-.builder-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 680px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 28px;
-}
 
 /* Wordmark */
 .builder-wordmark-wrap {
@@ -293,15 +261,6 @@
 }
 
 /* Headline */
-.builder-headline {
-  font-size: clamp(26px, 5vw, 40px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--navy);
-  text-align: center;
-  margin: 0;
-  line-height: 1.18;
-}
 
 /* Input card */
 .builder-input-card {
@@ -436,30 +395,6 @@
   color: var(--muted-2);
   margin: 0;
 }
-.builder-chips-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
-.builder-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 100px;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1.5px solid var(--border);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(62, 77, 128, 0.07);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
 .builder-chip:hover:not(:disabled) {
   background: rgba(118, 87, 255, 0.08);
   border-color: rgba(118, 87, 255, 0.35);
@@ -520,7 +455,6 @@
 .chat-panel:has(.messages[data-builder-active="true"]) .stream-recovery {
   display: none !important;
 }
-
 
 /* ── Code block syntax highlighting ── */
 .rune-code-block {
@@ -643,7 +577,6 @@
   0%, 100% { box-shadow: 0 0 6px #f97316aa; }
   50% { box-shadow: 0 0 14px #f97316cc; }
 }
-
 
 /* Tool-running chip — shown in typing indicator when a specific tool is active */
 .tool-running-chip {
