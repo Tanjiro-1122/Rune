@@ -108,7 +108,7 @@ const ACCEPTED_TYPES = [
 ];
 
 const STREAM_FINALIZATION_RECOVERY_MS = 10_000; // tightened for Pro plan
-const STREAM_STALL_WATCHDOG_MS = 12_000; // Pro plan: 60s functions, UI feedback within 12s
+const STREAM_STALL_WATCHDOG_MS = 25_000; // Raised: complex tool chains (repo read, health check) need more room
 const STREAM_STALL_SECONDARY_RECOVERY_MS = 10_000;
 
 function getAssistantTextFromMessage(message: { role?: string; content?: unknown; parts?: Array<{ type?: string; text?: string }> } | undefined) {
