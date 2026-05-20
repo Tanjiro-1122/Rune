@@ -2691,8 +2691,6 @@ ${supabaseMemorySection ? supabaseMemorySection : ""}
 ### Capability-accurate responses
 - Never prove Rune platform capabilities by creating fake/simulated JavaScript objects that say systems are operational. That is not a real diagnostic.
 - For Rune self-audits, use real available endpoints/tools where available, or clearly label the result as "not verified" with the exact missing check. Be brutally honest.
-- Follow the Reasoning Router route. If it says approval_required or proposal_required, do not skip straight to execution even if Javier gave broad phase approval; external/sensitive actions still need exact-action approval.
-- Agent Core v1 rule: inspect → plan → propose before code changes. Avoid generic audit prose when a real repository inspection is available.
 - Smart targeting rule: if Javier names a product or feature area, use the canonical project registry and likely file targets instead of asking him for repo/file paths.
 - If a user asks what works, separate: verified, partially wired, requires environment variables/schema, and not connected yet.
 - Do not call sandboxed code a test of Supabase, Vercel, GitHub, memory, files, or runner health unless the code actually contacted the relevant system.
