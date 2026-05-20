@@ -1937,6 +1937,42 @@ function getAgentTools({
         return rollbackProduction();
       },
     }),
+
+    // ── save_semantic_memory ───────────────────────────────────────────────────
+    save_semantic_memory: tool({
+      description:
+        "Save an important fact, decision, architectural choice, bug fix, or preference " +
+        "to Rune's permanent semantic memory for future recall. Use this when Javier " +
+        "confirms a decision, you fix a recurring issue, or something important should " +
+        "be remembered across sessions. Categories: decision, bug_fix, architecture, " +
+        "preference, project, general.",
+      parameters: z.object({
+        content: z.string().describe("The fact, decision, or memory to save"),
+        category: z
+          .enum(["decision", "bug_fix", "architecture", "preference", "project", "general"])
+          .optional()
+          .default("general"),
+        project: z
+          .enum(["rune", "unfiltr", "swh", "global"])
+          .optional()
+          .default("global"),
+        importance: z
+          .number()
+          .min(0)
+          .max(1)
+          .optional()
+          .default(0.7)
+          .describe("0=trivial, 1=critical"),
+        tags: z.array(z.string()).optional().default([]),
+      }),
+      execute: async ({ content, category = "general", project = "global", importance = 0.7, tags = [] }) => {
+        const id = await saveSemanticMemory({ content, category, project, importance, tags });
+        return id
+          ? { saved: true, id, content: content.slice(0, 100) + (content.length > 100 ? "..." : "") }
+          : { saved: false, error: "Memory save failed — check Supabase connection" };
+      },
+    }),
+
     // ── generate_image ─────────────────────────────────────────────────────────
     generate_image: tool({
       description:
