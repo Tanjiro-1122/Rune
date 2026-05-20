@@ -22,7 +22,7 @@ import { logError } from "@/lib/errors";
 import { buildAgentWorkLoopSnapshot, formatAgentWorkLoopPromptSection } from "@/lib/agent-work-loop";
 import { getOwnerMemorySection } from "@/lib/owner-memory";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
-import { buildSupabaseMemorySection } from "@/lib/memory";
+import { buildSupabaseMemorySection, buildMemoryContext, saveSemanticMemory } from "@/lib/memory";
 import { auditRuneSessionFragments, planRuneSessionFragmentMerge, executeRuneSessionFragmentMerge } from "@/lib/session-fragment-audit";
 import {
   buildPlannerOutput,
