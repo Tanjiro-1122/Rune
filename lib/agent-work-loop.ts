@@ -1,7 +1,7 @@
 import { inferProjectFromText, RUNE_DEFAULT_REPO, resolveCanonicalRepo, splitRepoSlug } from "@/lib/project-registry";
 import { type DetectedIntent, type ReasoningRoute, needsRepositoryInspection } from "@/lib/orchestration";
 
-export type AgentWorkPhase = "understand" | "inspect" | "plan" | "propose" | "verify" | "respond";
+export type AgentWorkPhase = "understand" | "inspect" | "propose" | "verify" | "respond"; // "plan" phase removed
 
 export interface AgentWorkLoopSnapshot {
   projectKey: string | null;
@@ -37,7 +37,7 @@ export function buildAgentWorkLoopSnapshot(options: {
 
   const phases: AgentWorkPhase[] = ["understand"];
   if (inspectionRequired) phases.push("inspect");
-  if (options.reasoningRoute === "plan_first" || repoControlRequired || exactApprovalRequired) phases.push("plan");
+  // plan phase removed — planning is UI-only via ⚡ Plan button
   if (repoControlRequired) phases.push("propose");
   if (inspectionRequired || repoControlRequired) phases.push("verify");
   phases.push("respond");

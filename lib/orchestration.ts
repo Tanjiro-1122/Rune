@@ -42,7 +42,6 @@ export type ReasoningRoute =
   | "truth_check"
   | "self_audit"
   | "inspect_first"
-  | "plan_first"
   | "proposal_required"
   | "approval_required"
   | "not_connected";
@@ -348,7 +347,7 @@ export function buildPlannerOutput(options: {
   return {
     intent,
     forcedToolName: null,
-    reasoningRoute: intent === "plan" ? "plan_first" : "answer_only",
+    reasoningRoute: "answer_only", // plan_first removed — planner is UI-only via /api/plan button
     routingHint:
       "- Planner decision: no hard route override; pick tools opportunistically based on concrete sub-steps.",
     steps: baseSteps,
