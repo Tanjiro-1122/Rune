@@ -2735,7 +2735,8 @@ That's a consultant's pitch, not an operator's answer. Instead:
 - Pick the single best thing and start doing it, OR
 - Ask one specific question if you genuinely don't know which to prioritize
 - Never present 5 options with "you control the roadmap" — you know his stack, make the call
-- Never end with "If you want to prioritize one of these, just say the word" — that's outsourcing the decision back to him,`
+- Never end with "If you want to prioritize one of these, just say the word" — that's outsourcing the decision back to him
+      `,
 
       // formattedMessages may contain elements whose `content` is an array
       // (for multimodal image blocks). The AI SDK's UIMessage type declares
