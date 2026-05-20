@@ -1936,6 +1936,144 @@ function getAgentTools({
         return rollbackProduction();
       },
     }),
+    // ── generate_image ─────────────────────────────────────────────────────────
+    generate_image: tool({
+      description:
+        "Generate an image using OpenAI DALL-E 3. Use when Javier asks to create, " +
+        "draw, design, or generate any visual — logos, mockups, marketing assets, " +
+        "illustrations, UI concepts. Returns a URL to the generated image.",
+      parameters: z.object({
+        prompt: z.string().describe("Detailed description of the image to generate"),
+        size: z
+          .enum(["1024x1024", "1792x1024", "1024x1792"])
+          .optional()
+          .default("1024x1024")
+          .describe("Image dimensions. Use 1792x1024 for landscape, 1024x1792 for portrait."),
+        quality: z
+          .enum(["standard", "hd"])
+          .optional()
+          .default("standard")
+          .describe("standard is faster, hd is more detailed"),
+      }),
+      execute: async ({ prompt, size = "1024x1024", quality = "standard" }) => {
+        try {
+          const apiKey = process.env.OPENAI_API_KEY;
+          if (!apiKey) return { error: "OPENAI_API_KEY not configured" };
+          const res = await fetch("https://api.openai.com/v1/images/generations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size, quality }),
+          });
+          const data = await res.json() as { data?: { url: string }[]; error?: { message: string } };
+          if (data.error) return { error: data.error.message };
+          const url = data.data?.[0]?.url;
+          return url ? { url, prompt, size } : { error: "No image returned" };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Image generation failed" };
+        }
+      },
+    }),
+
+    // ── send_whatsapp ──────────────────────────────────────────────────────────
+    send_whatsapp: tool({
+      description:
+        "Send a WhatsApp message to Javier proactively — for alerts, reminders, " +
+        "summaries, or when asked to send a WhatsApp. Uses the configured WHATSAPP " +
+        "credentials. Only send to the owner phone number.",
+      parameters: z.object({
+        message: z.string().describe("The message content to send"),
+      }),
+      execute: async ({ message }) => {
+        try {
+          const { sendWhatsAppBriefing } = await import("@/lib/whatsapp-briefing");
+          const result = await sendWhatsAppBriefing(message);
+          return result ?? { sent: true };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "WhatsApp send failed" };
+        }
+      },
+    }),
+
+    // ── query_unfiltr_data ─────────────────────────────────────────────────────
+    query_unfiltr_data: tool({
+      description:
+        "Query live Unfiltr app data from Supabase — journal entries, chat history, " +
+        "mood entries, purchase audit, error logs. Use to check how users are engaging, " +
+        "find issues, or pull stats on demand.",
+      parameters: z.object({
+        table: z
+          .enum(["JournalEntry", "ChatHistory", "MoodEntry", "PurchaseAudit", "ErrorLog", "TrackedBet", "SavedOdds"])
+          .describe("Which Unfiltr table to query"),
+        limit: z.number().min(1).max(50).optional().default(10).describe("Max rows to return"),
+        filter_field: z.string().optional().describe("Optional field to filter by"),
+        filter_value: z.string().optional().describe("Optional value to match"),
+      }),
+      execute: async ({ table, limit = 10, filter_field, filter_value }) => {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          if (!url || !key) return { error: "Supabase not configured" };
+          const sb = createClient(url, key);
+          let q = sb.from(table).select("*").limit(limit).order("created_date", { ascending: false });
+          if (filter_field && filter_value) {
+            q = q.eq(filter_field, filter_value);
+          }
+          const { data, error, count } = await q;
+          if (error) return { error: error.message };
+          return { table, rows: data, count: data?.length ?? 0 };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Query failed" };
+        }
+      },
+    }),
+
+    // ── get_unfiltr_stats ──────────────────────────────────────────────────────
+    get_unfiltr_stats: tool({
+      description:
+        "Get a live summary of Unfiltr app stats — total users, active today, " +
+        "journal entries, moods logged, purchases, and recent errors. " +
+        "Use whenever Javier asks how the app is doing, how many users, revenue, etc.",
+      parameters: z.object({}),
+      execute: async () => {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          if (!url || !key) return { error: "Supabase not configured" };
+          const sb = createClient(url, key);
+          const today = new Date().toISOString().split("T")[0];
+          const [journals, moods, chats, purchases, errors] = await Promise.allSettled([
+            sb.from("JournalEntry").select("id, created_date", { count: "exact" }),
+            sb.from("MoodEntry").select("id, created_date", { count: "exact" }),
+            sb.from("ChatHistory").select("id, apple_user_id", { count: "exact" }),
+            sb.from("PurchaseAudit").select("id, product_id, amount, status", { count: "exact" }),
+            sb.from("ErrorLog").select("id, severity, resolved", { count: "exact" }).eq("resolved", false),
+          ]);
+          const j = journals.status === "fulfilled" ? journals.value : null;
+          const m = moods.status === "fulfilled" ? moods.value : null;
+          const c = chats.status === "fulfilled" ? chats.value : null;
+          const p = purchases.status === "fulfilled" ? purchases.value : null;
+          const e = errors.status === "fulfilled" ? errors.value : null;
+          const uniqueUsers = c?.data ? new Set(c.data.map((r: { apple_user_id: string }) => r.apple_user_id)).size : 0;
+          const totalRevenue = p?.data
+            ? p.data.filter((r: { status: string }) => r.status === "success").reduce((sum: number, r: { amount?: number }) => sum + (r.amount ?? 0), 0)
+            : 0;
+          return {
+            total_users: uniqueUsers,
+            journal_entries: j?.count ?? 0,
+            mood_entries: m?.count ?? 0,
+            chat_sessions: c?.count ?? 0,
+            total_purchases: p?.count ?? 0,
+            total_revenue_usd: totalRevenue,
+            open_errors: e?.count ?? 0,
+            as_of: new Date().toISOString(),
+          };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Stats failed" };
+        }
+      },
+    }),
   };
 }
 
@@ -2278,7 +2416,7 @@ ${retrievalHits
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
-    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4o";
+    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
     const ownerMemorySection = getOwnerMemorySection();
     const memoryRoutingSection = `## Memory Routing
 - Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
