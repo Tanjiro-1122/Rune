@@ -687,3 +687,111 @@ button:disabled {
   color: var(--danger);
   border: 1px solid rgba(239,68,68,0.18);
 }
+
+/* ── Chat UI Parity Enhancements ── */
+
+/* Indigo top-bar shimmer when Rune is processing */
+.chat-shimmer-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9999;
+  background: linear-gradient(90deg, transparent 0%, #6366f1 40%, #a78bfa 60%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer-bar 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer-bar {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Tool running chip pulse — match Saving Grace style */
+.tool-running-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: #a5b4fc;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.tool-running-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #818cf8;
+  animation: pulse-tool 1s ease-in-out infinite;
+}
+
+@keyframes pulse-tool {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* Message bubble — assistant hover lift */
+.message.assistant .message-content {
+  transition: box-shadow 0.15s ease;
+}
+.message.assistant .message-content:hover {
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.12);
+}
+
+/* Follow-up chips — better mobile sizing */
+.followup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 16px 12px;
+}
+
+.followup-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.08);
+  color: #a5b4fc;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.followup-chip:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+/* Code blocks — tighter, more readable */
+.message-content pre {
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+/* Stronger ember dot when active */
+.ember-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #fbbf24, #ef4444);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+  display: inline-block;
+  animation: ember-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ember-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
+  50% { box-shadow: 0 0 12px rgba(251, 191, 36, 0.9), 0 0 20px rgba(239, 68, 68, 0.4); }
+}
