@@ -2456,8 +2456,10 @@ ${retrievalHits
 
     const agentTools = getAgentTools({ workspaceId, conversationId });
   // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
-  const skillTools = await loadEnabledSkills();
-  const allTools = { ...agentTools, ...skillTools };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const skillTools: Record<string, any> = await loadEnabledSkills();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allTools: Record<string, any> = { ...agentTools, ...skillTools };
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
