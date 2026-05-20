@@ -3692,6 +3692,41 @@ button:disabled {
   50% { box-shadow: 0 0 14px #f97316cc; }
 }
 
+
+/* Tool-running chip — shown in typing indicator when a specific tool is active */
+.tool-running-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  font-size: 12px;
+  font-weight: 650;
+  color: #4f46e5;
+  letter-spacing: -0.01em;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: tool-chip-in 0.18s ease-out;
+}
+
+.tool-running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6366f1;
+  flex-shrink: 0;
+  animation: pulse-dot 0.9s ease-in-out infinite;
+}
+
+@keyframes tool-chip-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* ── Typing indicator — three ember dots ── */
 .typing-dots {
   display: inline-flex;
