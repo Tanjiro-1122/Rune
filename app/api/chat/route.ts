@@ -2011,22 +2011,23 @@ function getAgentTools({
       },
     }),
 
-    // ── send_whatsapp ──────────────────────────────────────────────────────────
-    send_whatsapp: tool({
+    // ── send_push_notification ─────────────────────────────────────────────────
+    send_push_notification: tool({
       description:
-        "Send a WhatsApp message to Javier proactively — for alerts, reminders, " +
-        "summaries, or when asked to send a WhatsApp. Uses the configured WHATSAPP " +
-        "credentials. Only send to the owner phone number.",
+        "Send a push notification to Javier's devices — for alerts, reminders, " +
+        "summaries, or when Javier asks Rune to send him a notification. " +
+        "Uses the PWA push system. Only sends to the owner.",
       parameters: z.object({
-        message: z.string().describe("The message content to send"),
+        title: z.string().describe("Notification title, e.g. 'Rune Alert'"),
+        body: z.string().describe("The notification body message"),
       }),
-      execute: async ({ message }) => {
+      execute: async ({ title, body }) => {
         try {
-          const { sendWhatsAppBriefing } = await import("@/lib/whatsapp-briefing");
-          const result = await sendWhatsAppBriefing(message);
+          const { sendPushNotificationsToAll } = await import("@/lib/push-notify");
+          const result = await sendPushNotificationsToAll({ title, body });
           return result ?? { sent: true };
         } catch (e) {
-          return { error: e instanceof Error ? e.message : "WhatsApp send failed" };
+          return { error: e instanceof Error ? e.message : "Push notification failed" };
         }
       },
     }),
