@@ -2210,7 +2210,10 @@ export function Chat() {
   }
 
   const showTypingIndicator =
-    isLoading && !isStreamStalled && messages[messages.length - 1]?.role !== "assistant";
+    isChatRequestInFlight &&
+    !isStreamStalled &&
+    !hasVisibleAssistantMessage &&
+    !isStreamFinalizing;
 
   function fillStarterPrompt(prompt: string) {
     if (isLoading) return;
