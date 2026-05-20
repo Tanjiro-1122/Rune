@@ -383,3 +383,96 @@ export async function seedSafeMemories() {
   }
   return results;
 }
+
+// ── SEMANTIC MEMORY (pgvector) ─────────────────────────────────────────────
+
+async function getEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.OPENAI_API_KEY!;
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "text-embedding-3-small", input: text.slice(0, 8000) }),
+  });
+  const data = await res.json() as { data: { embedding: number[] }[]; error?: { message: string } };
+  if (data.error) throw new Error(data.error.message);
+  return data.data[0].embedding;
+}
+
+export interface SemanticMemoryEntry {
+  id?: string;
+  content: string;
+  category?: string;
+  project?: string;
+  tags?: string[];
+  importance?: number;
+  created_at?: string;
+  similarity?: number;
+}
+
+export async function saveSemanticMemory(entry: SemanticMemoryEntry): Promise<string | null> {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const embedding = await getEmbedding(entry.content);
+    const { data, error } = await sb
+      .from("rune_memory_vectors")
+      .insert({
+        content: entry.content,
+        category: entry.category ?? "general",
+        project: entry.project ?? "global",
+        tags: entry.tags ?? [],
+        importance: entry.importance ?? 0.5,
+        embedding: JSON.stringify(embedding),
+        created_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) { console.error("[memory] saveSemanticMemory:", error.message); return null; }
+    return data?.id ?? null;
+  } catch (e) {
+    console.error("[memory] saveSemanticMemory exception:", e);
+    return null;
+  }
+}
+
+export async function searchSemanticMemory(
+  query: string,
+  options: { limit?: number; project?: string; threshold?: number } = {}
+): Promise<SemanticMemoryEntry[]> {
+  const { limit = 6, project, threshold = 0.3 } = options;
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const embedding = await getEmbedding(query);
+    const { data, error } = await sb.rpc("match_rune_memories", {
+      query_embedding: embedding,
+      match_threshold: threshold,
+      match_count: limit,
+      filter_project: project ?? null,
+      filter_category: null,
+    });
+    if (error) { console.warn("[memory] pgvector search failed:", error.message); return []; }
+    return data ?? [];
+  } catch (e) {
+    console.error("[memory] searchSemanticMemory:", e);
+    return [];
+  }
+}
+
+export async function buildMemoryContext(
+  userMessage: string,
+  options: { semanticLimit?: number; episodicLimit?: number; project?: string } = {}
+): Promise<string> {
+  const { semanticLimit = 5, project } = options;
+  try {
+    const results = await searchSemanticMemory(userMessage, { limit: semanticLimit, project });
+    if (!results.length) return "";
+    const lines = results.map((m) => {
+      const date = m.created_at ? new Date(m.created_at).toLocaleDateString() : "";
+      return `- [${m.category ?? "memory"}] ${m.content.slice(0, 300)} ${date ? `(${date})` : ""}`;
+    });
+    return `## Semantic Memory (relevant past context)\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
