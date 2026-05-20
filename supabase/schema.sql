@@ -343,3 +343,76 @@ where project_key is null;
 
 alter table agent_memories
   alter column project_key set not null;
+
+-- === MEMORY VECTORS (added 2026-05-20) ===
+-- Rune Deep Memory: pgvector extension + rune_memory_vectors table
+-- Run this in Supabase SQL editor
+
+-- Enable pgvector if not already enabled
+create extension if not exists vector;
+
+-- Semantic memory table with embeddings
+create table if not exists rune_memory_vectors (
+  id           uuid primary key default gen_random_uuid(),
+  content      text not null,
+  category     text default 'general',
+  project      text default 'global',
+  tags         text[] default '{}',
+  importance   float default 0.5,
+  embedding    vector(1536),
+  created_at   timestamptz default now()
+);
+
+-- Index for fast cosine similarity search
+create index if not exists rune_memory_vectors_embedding_idx
+  on rune_memory_vectors
+  using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
+
+create index if not exists rune_memory_vectors_project_idx on rune_memory_vectors(project);
+create index if not exists rune_memory_vectors_category_idx on rune_memory_vectors(category);
+
+-- RPC function for semantic search
+create or replace function match_rune_memories(
+  query_embedding vector(1536),
+  match_threshold float default 0.3,
+  match_count     int default 8,
+  filter_project  text default null,
+  filter_category text default null
+)
+returns table (
+  id          uuid,
+  content     text,
+  category    text,
+  project     text,
+  tags        text[],
+  importance  float,
+  created_at  timestamptz,
+  similarity  float
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    rmv.id,
+    rmv.content,
+    rmv.category,
+    rmv.project,
+    rmv.tags,
+    rmv.importance,
+    rmv.created_at,
+    1 - (rmv.embedding <=> query_embedding) as similarity
+  from rune_memory_vectors rmv
+  where
+    1 - (rmv.embedding <=> query_embedding) > match_threshold
+    and (filter_project is null or rmv.project = filter_project)
+    and (filter_category is null or rmv.category = filter_category)
+  order by rmv.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+alter table rune_memory_vectors enable row level security;
+create policy "service_role_all" on rune_memory_vectors
+  for all using (true) with check (true);
