@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/session";
+import { getSessionSecret, SESSION_COOKIE, verifySessionCookie } from "@/lib/auth";
 import { buildPlannerOutput } from "@/lib/orchestration";
 
 /**
@@ -9,7 +9,13 @@ import { buildPlannerOutput } from "@/lib/orchestration";
  * Powers the ⚡ Plan button in the input bar.
  */
 export async function POST(req: NextRequest) {
-  const session = await validateSession(req);
+  // Auth check — same pattern as middleware
+  const secret = getSessionSecret();
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!cookie || !secret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const session = await verifySessionCookie(cookie, secret);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -34,7 +40,6 @@ export async function POST(req: NextRequest) {
 
   const plan = buildPlannerOutput({ input, capabilities });
 
-  // Map intent → human-readable label
   const intentLabels: Record<string, string> = {
     self_audit: "System self-audit",
     tool_lifecycle_diagnostic: "Lifecycle diagnostic",
@@ -62,12 +67,11 @@ export async function POST(req: NextRequest) {
     not_connected: "Connection needed",
   };
 
-  // Estimate time based on step count + route complexity
   const complexRoutes = ["self_audit", "proposal_required", "approval_required"];
   const isComplex = complexRoutes.includes(plan.reasoningRoute);
   const estimatedSeconds = isComplex ? "15–45s" : plan.steps.length <= 3 ? "2–6s" : "6–15s";
 
-  const riskLevel =
+  const riskLevel: "low" | "medium" | "high" =
     plan.reasoningRoute === "approval_required" || plan.reasoningRoute === "proposal_required"
       ? "high"
       : plan.reasoningRoute === "inspect_first" || plan.reasoningRoute === "plan_first"
