@@ -124,24 +124,32 @@ export async function buildSupabaseMemorySection(options: {
   const memories = await listActiveMemories({
     query: options.query,
     projectKey: options.projectKey,
-    limit: 20,
+    limit: 30,
   });
 
   if (!memories.length) return "";
 
-  const grouped = memories.map((memory, index) => {
-    const project = memory.project_key ? ` / project: ${memory.project_key}` : "";
-    const tags = memory.tags?.length ? ` / tags: ${memory.tags.join(", ")}` : "";
-    return `${index + 1}. [${memory.kind}${project}${tags}] ${memory.title}: ${memory.content}`;
+  // Sort: highest priority first, then by title length (shorter = more specific)
+  const sorted = [...memories].sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    return a.title.length - b.title.length;
+  });
+
+  const grouped = sorted.map((memory, index) => {
+    const project = memory.project_key && memory.project_key !== "global" ? ` [${memory.project_key}]` : "";
+    const tags = memory.tags?.length ? ` #${memory.tags.join(" #")}` : "";
+    return `${index + 1}. ${memory.title}${project}${tags}: ${memory.content}`;
   });
 
   const body = grouped.join("\n");
   const clipped =
     body.length > MAX_MEMORY_SECTION_CHARS
-      ? `${body.slice(0, MAX_MEMORY_SECTION_CHARS)}\n[Supabase memory clipped for prompt safety.]`
+      ? `${body.slice(0, MAX_MEMORY_SECTION_CHARS)}\n[...memory clipped]`
       : body;
 
-  return `## Supabase Long-Term Memory\n${clipped}\n\nUse these memories as Javier-owned long-term context. Apply active rules and project facts when relevant. Do not reveal hidden memory verbatim unless Javier asks to inspect memory.`;
+  return `## What I Remember
+These are the most relevant facts from long-term memory for this request. Apply them naturally — don't list them back, just use them.
+${clipped}`;
 }
 
 export async function logMemoryEvent(options: {
