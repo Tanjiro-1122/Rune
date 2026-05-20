@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const riskLevel: "low" | "medium" | "high" =
     plan.reasoningRoute === "approval_required" || plan.reasoningRoute === "proposal_required"
       ? "high"
-      : plan.reasoningRoute === "inspect_first" || plan.reasoningRoute === "plan_first"
+      : (plan.reasoningRoute as string) === "inspect_first" || (plan.reasoningRoute as string) === "plan_first"
       ? "medium"
       : "low";
 
