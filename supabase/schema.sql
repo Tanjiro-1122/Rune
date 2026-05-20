@@ -416,3 +416,34 @@ $$;
 alter table rune_memory_vectors enable row level security;
 create policy "service_role_all" on rune_memory_vectors
   for all using (true) with check (true);
+
+-- === TASK TRACKER (added 2026-05-20) ===
+create table if not exists rune_tasks (
+  id              uuid primary key default gen_random_uuid(),
+  title           text not null,
+  description     text,
+  status          text not null default 'pending'
+                  check (status in ('pending','running','completed','failed','blocked')),
+  priority        text not null default 'normal'
+                  check (priority in ('low','normal','high','critical')),
+  project         text default 'global',
+  conversation_id uuid,
+  workspace_id    uuid,
+  steps           jsonb,
+  metadata        jsonb,
+  result_summary  text,
+  error           text,
+  started_at      timestamptz,
+  completed_at    timestamptz,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+
+create index if not exists rune_tasks_status_idx    on rune_tasks(status);
+create index if not exists rune_tasks_project_idx   on rune_tasks(project);
+create index if not exists rune_tasks_created_idx   on rune_tasks(created_at desc);
+create index if not exists rune_tasks_workspace_idx on rune_tasks(workspace_id);
+
+alter table rune_tasks enable row level security;
+create policy "service_role_all" on rune_tasks
+  for all using (true) with check (true);
