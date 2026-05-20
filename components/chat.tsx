@@ -2666,16 +2666,23 @@ export function Chat() {
                   Rune
                 </span>
               </div>
-              <div
-                className="typing-dots"
-                role="status"
-                aria-live="polite"
-                aria-label="Rune is thinking"
-              >
-                <span />
-                <span />
-                <span />
-              </div>
+              {activeToolName ? (
+                <div className="tool-running-chip" role="status" aria-live="polite">
+                  <span className="tool-running-dot" />
+                  <span>{activeToolName.replace(/_/g, " ")}</span>
+                </div>
+              ) : (
+                <div
+                  className="typing-dots"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Rune is thinking"
+                >
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />
