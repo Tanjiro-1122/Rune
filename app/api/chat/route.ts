@@ -2670,10 +2670,8 @@ For code fixes: find the file with listRepositoryTree, read it with readReposito
 GitHub source discipline: use searchRepositoryCode for code evidence, stop after one good search result, never call readRepositoryFile with placeholder paths, never claim file contents without reading them.
 ${workspaceContextSection}
 ${memoryRoutingSection}
-${ownerMemorySection ? `
-${ownerMemorySection}` : ""}
-${supabaseMemorySection ? `
-${supabaseMemorySection}` : ""}
+${ownerMemorySection ? ownerMemorySection : ""}
+${supabaseMemorySection ? supabaseMemorySection : ""}
 
 
 
