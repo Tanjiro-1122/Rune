@@ -2099,19 +2099,22 @@ export async function POST(req: Request) {
       };
     });
 
-    // Run access checks in parallel to cut pre-stream latency
-  // Access checks with 4s hard timeout — Supabase slowness must not crash stream
-  await Promise.race([
-    Promise.all([
-      workspaceId
-        ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" })
-        : Promise.resolve(),
-      conversationId
-        ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" })
-        : Promise.resolve(),
-    ]),
-    new Promise<void>((resolve) => setTimeout(resolve, 4000)),
-  ]);
+    // Access checks with 4s hard timeout — Supabase slowness must not crash stream
+    await Promise.race([
+      Promise.all([
+        workspaceId
+          ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" })
+          : Promise.resolve(),
+        conversationId
+          ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" })
+          : Promise.resolve(),
+      ]),
+      new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+    ]);
+
+    // Fire-and-forget: event recording should not block stream start
+    void recordWorkspaceEvent({
+      sessionId,
       workspaceId,
       conversationId,
       eventType: "chat.request",
