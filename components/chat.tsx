@@ -19,6 +19,11 @@ const CanvasPane = dynamic(
   { ssr: false }
 );
 
+const BuilderSidebar = dynamic(
+  () => import("./chat/BuilderSidebar").then(m => ({ default: m.BuilderSidebar })),
+  { ssr: false }
+);
+
 const SelfTestPanel = dynamic(
   () => import("./self-test/SelfTestPanel").then(m => ({ default: m.SelfTestPanel })),
   { ssr: false }
@@ -851,6 +856,7 @@ export function Chat() {
   const [planInput, setPlanInput] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
   const [canvasContent, setCanvasContent] = useState<CanvasContent | null>(null);
+  const [showBuilderSidebar, setShowBuilderSidebar] = useState(false);
   const [isMobileToolsMode, setIsMobileToolsMode] = useState(false);
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
@@ -2599,10 +2605,20 @@ export function Chat() {
             )}
             <button
               type="button"
+              className={`native-tool-button${showBuilderSidebar ? " native-tool-button--active" : ""}`}
+              aria-label={showBuilderSidebar ? "Hide builder" : "Open builder"}
+              aria-expanded={showBuilderSidebar}
+              onClick={() => { setShowBuilderSidebar((prev) => !prev); setShowInfoSidebar(false); }}
+              title="Project structure — files, artifacts, docs"
+            >
+              🏗 Builder
+            </button>
+            <button
+              type="button"
               className="native-tool-button"
               aria-label={showInfoSidebar ? "Hide tools" : "Open tools"}
               aria-expanded={showInfoSidebar}
-              onClick={() => setShowInfoSidebar((prev) => !prev)}
+              onClick={() => { setShowInfoSidebar((prev) => !prev); setShowBuilderSidebar(false); }}
             >
               Tools
             </button>
@@ -2929,6 +2945,44 @@ export function Chat() {
           </button>
         </form>
       </section>
+
+      {/* 🏗 Builder Sidebar */}
+      <BuilderSidebar
+        files={projectFiles.map((f) => ({
+          id: f.id,
+          path: f.path,
+          displayName: f.displayName,
+          mimeType: f.mimeType,
+          sourceKind: f.sourceKind,
+          bytes: f.bytes,
+          summary: f.summary,
+          createdAt: f.createdAt,
+        }))}
+        artifacts={artifacts.map((a) => ({
+          id: a.id,
+          name: a.name,
+          mimeType: a.mimeType,
+          content: a.content,
+          bytes: a.bytes,
+          createdAt: a.createdAt,
+        }))}
+        documents={documents.map((d) => ({
+          id: d.id,
+          name: d.name,
+          contentType: d.contentType,
+          sourceKind: d.sourceKind,
+          summary: d.summary,
+          createdAt: d.createdAt,
+        }))}
+        isOpen={showBuilderSidebar}
+        onClose={() => setShowBuilderSidebar(false)}
+        onOpenCanvas={(content) => { setCanvasContent(content); setShowBuilderSidebar(false); }}
+        onAskAbout={(prompt) => {
+          setInput(prompt);
+          setShowBuilderSidebar(false);
+          setTimeout(() => formRef.current?.requestSubmit(), 80);
+        }}
+      />
 
       {/* 🖼 Canvas Pane */}
       {canvasContent && (
