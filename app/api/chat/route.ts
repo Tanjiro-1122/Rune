@@ -2462,6 +2462,7 @@ export async function POST(req: Request) {
       (lastUserMessage?.experimental_attachments as
         | Array<{ name?: string; contentType?: string; url?: string }>
         | undefined) ?? [];
+    // Planner runs via /api/plan (UI button only) — not injected into every chat message
     const plannerOutput = buildPlannerOutput({
       input: latestUserText,
       messages,
@@ -2471,22 +2472,10 @@ export async function POST(req: Request) {
         githubAnalysis: true,
       },
     });
-    const plannerForcedToolChoice = plannerOutput.forcedToolName
-      ? { type: "tool" as const, toolName: plannerOutput.forcedToolName }
-      : null;
-    const forcedToolChoice =
-      plannerForcedToolChoice ??
-      getForcedToolChoice(latestUserText, codeExecution.available);
-    const routingHint = `${plannerOutput.routingHint}\n${buildRoutingHint(
-      latestUserText,
-      codeExecution.available
-    )}`;
-    const agentWorkLoop = buildAgentWorkLoopSnapshot({
-      input: latestUserText,
-      intent: plannerOutput.intent,
-      reasoningRoute: plannerOutput.reasoningRoute,
-    });
-    const agentWorkLoopSection = formatAgentWorkLoopPromptSection(agentWorkLoop);
+    // Only use planner for forced special-case tool routing (merge, diagnostic, etc.)
+    // NOT for plan_first / proposal_required routing — those caused outlining
+    const forcedToolChoice = getForcedToolChoice(latestUserText, codeExecution.available);
+    const agentWorkLoopSection = ""; // Agent Work Loop disabled — causes outlining. Plan button handles this via /api/plan.
     let taskId = resumeTaskId ?? null;
 
     if (taskId) {
@@ -2527,7 +2516,7 @@ export async function POST(req: Request) {
         taskId,
         stepKey: "capture_request",
         status: "completed",
-        detail: `${agentWorkLoop.progressLabel}. Intent: ${plannerOutput.intent}; route: ${plannerOutput.reasoningRoute}.`,
+        detail: `Processing request.`,
         progress: 18,
       }).catch(() => {});
       void updateWorkspaceTaskStep({
