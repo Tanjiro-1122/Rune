@@ -2079,6 +2079,9 @@ function getAgentTools({
 }
 
 export async function POST(req: Request) {
+  // Clean up stale running tasks on each request (fire-and-forget)
+  void cleanupStaleTasks(30).catch(() => {});
+
   let requestSessionId: string | null = null;
   let requestWorkspaceId: string | undefined;
   let requestConversationId: string | undefined;
@@ -2422,6 +2425,14 @@ ${retrievalHits
     // deployment can switch to a newer or cheaper model without a code change.
     const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
     const ownerMemorySection = getOwnerMemorySection();
+    // Deep semantic memory — retrieve relevant past context for this message
+    const userMessageText = messages
+      .filter((m) => m.role === "user")
+      .slice(-1)[0]
+      ?.content?.toString()?.slice(0, 500) ?? "";
+    const semanticMemorySection = userMessageText
+      ? await buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }).catch(() => "")
+      : "";
     const memoryRoutingSection = `## Memory Routing
 - Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
 - If the request mentions a known project, prefer memories for that project plus global rules.
