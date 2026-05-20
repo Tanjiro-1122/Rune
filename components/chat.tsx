@@ -8,8 +8,14 @@ import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment,
 import { BuilderHome } from "./builder-home";
 import dynamic from "next/dynamic";
 import type { PlanResult } from "./chat/PlanModal";
+import type { CanvasContent } from "./chat/CanvasPane";
 const PlanModal = dynamic(
   () => import("./chat/PlanModal").then(m => ({ default: m.PlanModal })),
+  { ssr: false }
+);
+
+const CanvasPane = dynamic(
+  () => import("./chat/CanvasPane").then(m => ({ default: m.CanvasPane })),
   { ssr: false }
 );
 
@@ -24,6 +30,12 @@ const ChatInputBar = dynamic(
 );
 
 
+// ── Canvas context — lets RuneCodeBlock open the canvas from deep in the tree ─
+import { createContext, useContext } from "react";
+const CanvasContext = createContext<((content: CanvasContent) => void) | null>(null);
+
+const CANVAS_LANGS = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js", "typescript", "ts"];
+
 // ── Premium code block renderer ──────────────────────────────────────────────
 function RuneCodeBlock({ inline, className, children, ...props }: {
   inline?: boolean;
@@ -32,24 +44,39 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
   [key: string]: unknown;
 }) {
   const [copied, setCopied] = useState(false);
+  const openCanvas = useContext(CanvasContext);
   const lang = (className?.replace("language-", "") || "").toLowerCase();
   const code = String(children ?? "").replace(/\n$/, "");
   if (inline) {
     return <code className={className} {...props}>{children}</code>;
   }
+  const canvasLangs = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js", "typescript", "ts"];
+  const canvasable = canvasLangs.includes(lang) && code.length > 20;
+  const isHtml = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js"].includes(lang);
+
   function copyCode() {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
+  function openInCanvas() {
+    if (openCanvas) openCanvas({ code, language: lang, isHtml });
+  }
   return (
     <div className="rune-code-block">
       <div className="rune-code-header">
         <span className="lang-label">{lang || "code"}</span>
-        <button className={`rune-code-copy${copied ? " copied" : ""}`} onClick={copyCode}>
-          {copied ? "✓ copied" : "copy"}
-        </button>
+        <div className="rune-code-header-actions">
+          {canvasable && openCanvas && (
+            <button className="rune-code-canvas-btn" onClick={openInCanvas} title="Open in canvas">
+              🖼 Canvas
+            </button>
+          )}
+          <button className={`rune-code-copy${copied ? " copied" : ""}`} onClick={copyCode}>
+            {copied ? "✓ copied" : "copy"}
+          </button>
+        </div>
       </div>
       <pre><code className={className} {...props}>{code}</code></pre>
     </div>
@@ -823,6 +850,7 @@ export function Chat() {
   const [planResult, setPlanResult] = useState<PlanResult | null>(null);
   const [planInput, setPlanInput] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
+  const [canvasContent, setCanvasContent] = useState<CanvasContent | null>(null);
   const [isMobileToolsMode, setIsMobileToolsMode] = useState(false);
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
@@ -2665,7 +2693,9 @@ export function Chat() {
                             key={`${message.id}-${index}`}
                             className="markdown-body"
                           >
-                            <ReactMarkdown components={{ code: RuneCodeBlock as React.ComponentType<React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & { inline?: boolean }> }}>{part.text}</ReactMarkdown>
+                            <CanvasContext.Provider value={setCanvasContent}>
+                              <ReactMarkdown components={{ code: RuneCodeBlock as React.ComponentType<React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & { inline?: boolean }> }}>{part.text}</ReactMarkdown>
+                            </CanvasContext.Provider>
                           </div>
                         );
                       }
@@ -2899,6 +2929,14 @@ export function Chat() {
           </button>
         </form>
       </section>
+
+      {/* 🖼 Canvas Pane */}
+      {canvasContent && (
+        <CanvasPane
+          content={canvasContent}
+          onClose={() => setCanvasContent(null)}
+        />
+      )}
 
       {/* ⚡ Plan Modal */}
       {planResult && (
