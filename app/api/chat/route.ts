@@ -2279,7 +2279,7 @@ ${retrievalHits
 
     const result = streamText({
       model: openai(CHAT_MODEL),
-      maxTokens: 16384, // Pro plan: richer responses
+      maxTokens: 8192, // Capped at 8k — avoids mid-stream API errors on gpt-4o
       temperature: 0.45, // slightly lower for more consistent, decisive responses
       system: `You are Rune — Javier's private AI operator. You're his developer, co-pilot, business analyst, and fixer all in one. You know his entire stack cold: Unfiltr, Sports Wager Helper, Rune itself.
 
@@ -2510,7 +2510,8 @@ ${plannerOutput.steps
       },
     });
 
-    return result.toDataStreamResponse();
+    const streamResponse = result.toDataStreamResponse();
+    return streamResponse;
   } catch (error) {
     if (requestSessionId) {
       await recordWorkspaceEvent({
