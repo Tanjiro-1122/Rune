@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 
 export const ACCEPTED_TYPES = [
   "image/jpeg",
@@ -47,6 +47,7 @@ interface ChatInputBarProps {
   pastedImageUrl?: string | null;
   setPastedImageUrl: (url: string | null) => void;
   onQueueSubmit: () => void;
+  onPlan?: () => void;
 }
 
 export function ChatInputBar({
@@ -80,6 +81,17 @@ export function ChatInputBar({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isLoaderActive = (isLoading && !isStreamFinalizing && !isStreamStalled) || isUploadingAttachment;
+  const [isPlanLoading, setIsPlanLoading] = useState(false);
+
+  async function handlePlan() {
+    if (!input.trim() || isLoaderActive || !onPlan) return;
+    setIsPlanLoading(true);
+    try {
+      await onPlan();
+    } finally {
+      setIsPlanLoading(false);
+    }
+  }
 
   const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
@@ -215,6 +227,17 @@ export function ChatInputBar({
           >
             ⏭
           </button>
+          {onPlan && (
+            <button
+              type="button"
+              className={`chat-plan-btn${isPlanLoading ? " chat-plan-btn--loading" : ""}`}
+              onClick={handlePlan}
+              disabled={isLoaderActive || isPlanLoading || !input.trim()}
+              title="Preview execution plan before running"
+            >
+              {isPlanLoading ? <span className="plan-btn-spinner" /> : "⚡ Plan"}
+            </button>
+          )}
           <button
             type="submit"
             className="chat-send-btn"
