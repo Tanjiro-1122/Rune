@@ -70,8 +70,6 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
   }
   return (
     <>
-      {/* Indigo shimmer bar at top when Rune is processing */}
-      {(isLoading || isChatRequestInFlight) && <div className="chat-shimmer-bar" />}
       <div className="rune-code-block">
       <div className="rune-code-header">
         <span className="lang-label">{lang || "code"}</span>
@@ -88,6 +86,7 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
       </div>
       <pre><code className={className} {...props}>{code}</code></pre>
     </div>
+  </>
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
