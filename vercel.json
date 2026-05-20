@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/daily-briefing",
-      "schedule": "0 14 * * *"
+      "schedule": "0 13 * * *"
     }
   ],
   "headers": [
