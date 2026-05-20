@@ -268,7 +268,7 @@ export function buildPlannerOutput(options: {
       intent,
       forcedToolName: null,
       reasoningRoute: "answer_only",
-      routingHint: "- No planner override. Respond directly.",oval before execution. Do not perform the action yet.",
+      routingHint: "- No planner override. Respond directly.",
       steps: baseSteps,
     };
   }
@@ -287,7 +287,7 @@ export function buildPlannerOutput(options: {
       intent,
       forcedToolName: null,
       reasoningRoute: "answer_only",
-      routingHint: "- No planner override. Act directly using readRepositoryFile + searchRepositoryCode.",l approval gates before execution.",
+      routingHint: "- No planner override. Act directly using readRepositoryFile + searchRepositoryCode.",
       steps: baseSteps,
     };
   }
