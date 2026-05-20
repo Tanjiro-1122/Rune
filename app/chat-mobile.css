@@ -910,6 +910,7 @@
 @media (max-width: 640px) {
   .runner-status-grid {
     grid-template-columns: 1fr;
+  }
   .external-service-row {
     flex-direction: column;
   }
