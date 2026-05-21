@@ -474,9 +474,9 @@ export function BuilderSidebar({
         {/* Header */}
         <div className="builder-sidebar-header">
           <div className="builder-sidebar-title-row">
-            <span className="builder-sidebar-icon">🏗</span>
+            <span className="builder-sidebar-icon">▦</span>
             <div>
-              <span className="builder-sidebar-title">Builder</span>
+              <span className="builder-sidebar-title">Structure</span>
               <span className="builder-sidebar-count">{totalItems} items</span>
             </div>
           </div>

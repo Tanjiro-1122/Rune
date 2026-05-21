@@ -2,29 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type BuilderCategory = {
+export type CommandCenterCategory = {
   label: string;
   prompt: string;
   emoji: string;
 };
 
-const BUILDER_CATEGORIES: BuilderCategory[] = [
+const COMMAND_CENTER_CATEGORIES: CommandCenterCategory[] = [
   { label: "Daily Brief", prompt: "Give me today's operator briefing — health, revenue, what needs attention.", emoji: "📋" },
   { label: "App Health", prompt: "Run a full health snapshot across Unfiltr, Sports Wager Helper, and Rune.", emoji: "🩺" },
   { label: "Analytics", prompt: "Pull cross-app intelligence — revenue, subscribers, retention, and key metrics for this week.", emoji: "📊" },
   { label: "Fix Something", prompt: "Audit what's currently broken or degraded across my apps and fix the most critical issue.", emoji: "🔧" },
   { label: "Deploy", prompt: "Check deploy health and Vercel status for all active projects. Is everything live and healthy?", emoji: "🚀" },
   { label: "Memory", prompt: "What do you remember? Show me the most important things you know about my projects and decisions.", emoji: "🧠" },
-  { label: "Build App", prompt: "I want to build something new. Ask me what I have in mind and walk me through it.", emoji: "✨" },
+  { label: "Create", prompt: "I want to create or improve something. Help me shape it and then do the next concrete step.", emoji: "✨" },
   { label: "Web Search", prompt: "Search the web for something. What do you want me to look up?", emoji: "🔍" },
 ];
 
-interface BuilderHomeProps {
+interface CommandCenterHomeProps {
   onSubmit: (prompt: string) => void;
   isLoading?: boolean;
 }
 
-export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
+export function BuilderHome({ onSubmit, isLoading }: CommandCenterHomeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
 
@@ -101,11 +101,11 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
             </svg>
             <span className="builder-wordmark-text">Rune</span>
           </div>
-          <span className="builder-wordmark-sub">private workspace</span>
+          <span className="builder-wordmark-sub">Command Center</span>
         </div>
 
         {/* Hero prompt */}
-        <h1 className="builder-headline">What will you build next?</h1>
+        <h1 className="builder-headline">What needs your attention?</h1>
 
         {/* Main input card */}
         <form
@@ -117,7 +117,7 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
           <textarea
             ref={textareaRef}
             className="builder-textarea"
-            placeholder="Describe what you want to do or build…"
+            placeholder="Ask Rune to check, fix, build, remember, or run something…"
             onKeyDown={handleKeyDown}
             onChange={handleChange}
             onFocus={() => setFocused(true)}
@@ -154,9 +154,9 @@ export function BuilderHome({ onSubmit, isLoading }: BuilderHomeProps) {
 
         {/* Category chips */}
         <div className="builder-chips-section">
-          <p className="builder-chips-label">Jump right in</p>
+          <p className="builder-chips-label">Start here</p>
           <div className="builder-chips-grid">
-            {BUILDER_CATEGORIES.map((cat) => (
+            {COMMAND_CENTER_CATEGORIES.map((cat) => (
               <button
                 key={cat.label}
                 type="button"

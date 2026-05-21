@@ -898,7 +898,7 @@ export function Chat() {
   const [deployHealthStatus, setDeployHealthStatus] = useState("");
   const [jobBusy, setJobBusy] = useState(false);
   const [jobStatus, setJobStatus] = useState("");
-  const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("operator");
+  const [activeCabinetDrawer, setActiveCabinetDrawer] = useState<CabinetDrawerKey>("tasks");
   const mobileToolsTopRef = useRef<HTMLDivElement>(null);
   const mobileActiveDrawerRef = useRef<HTMLDivElement>(null);
 
@@ -2624,12 +2624,12 @@ export function Chat() {
             <button
               type="button"
               className={`native-tool-button${showBuilderSidebar ? " native-tool-button--active" : ""}`}
-              aria-label={showBuilderSidebar ? "Hide builder" : "Open builder"}
+              aria-label={showBuilderSidebar ? "Hide structure" : "Open structure"}
               aria-expanded={showBuilderSidebar}
               onClick={() => { setShowBuilderSidebar((prev) => !prev); setShowInfoSidebar(false); }}
               title="Project structure — files, artifacts, docs"
             >
-              🏗 Builder
+              Structure
             </button>
             <button
               type="button"
@@ -2965,7 +2965,7 @@ export function Chat() {
         </form>
       </section>
 
-      {/* 🏗 Builder Sidebar */}
+      {/* Structure Sidebar */}
       <BuilderSidebar
         files={projectFiles.map((f) => ({
           id: f.id,
