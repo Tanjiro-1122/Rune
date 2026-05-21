@@ -4,6 +4,7 @@ import {
   getProjectByRepo,
   inferProjectFromText,
   resolveCanonicalRepo,
+  resolveProjectContext,
 } from "@/lib/project-registry";
 import { Octokit } from "@octokit/rest";
 import type { RepoActionFileTarget, RepoActionRisk } from "@/lib/repo-actions";
@@ -34,6 +35,7 @@ export function inferRepoActionTargets(input: {
   const inferredProject =
     getProjectByKey(input.projectKey || undefined) ||
     getProjectByRepo(input.repo || undefined) ||
+    resolveProjectContext({ text: requestText }).project ||
     inferProjectFromText(requestText);
   const repo = resolveCanonicalRepo(input.repo || inferredProject?.repo || RUNE_DEFAULT_REPO, requestText);
   const project = getProjectByRepo(repo) || inferredProject;

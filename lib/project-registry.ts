@@ -23,7 +23,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
       "Rune is Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
     safetyLevel: "owner-console",
     platforms: ["web"],
-    aliases: ["jarvis", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console"],
+    aliases: ["rune", "jarvis", "personal ai", "super agent", "private ai", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console", "command center"],
   },
   {
     key: "unfiltr",
@@ -45,7 +45,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
       "SportsWager Helper mobile/web project. Production changes require repo review and approval before execution.",
     safetyLevel: "production-app",
     platforms: ["android", "web"],
-    aliases: ["swh", "sportswager helper", "sports wager helper", "sports app"],
+    aliases: ["swh", "sportswager helper", "sports wager helper", "sports wager", "sports app", "betting app"],
   },
   {
     key: "family",
@@ -133,6 +133,160 @@ export function inferProjectFromText(text: string | null | undefined) {
       })
     ) || null
   );
+}
+
+export type ProjectResolutionConfidence = "high" | "medium" | "low";
+
+export interface ProjectResolutionResult {
+  project: RuneProject | null;
+  projects: RuneProject[];
+  confidence: number;
+  confidenceBand: ProjectResolutionConfidence;
+  source: "explicit" | "alias" | "workspace_alias" | "recent_context" | "global_operation" | "none";
+  reason: string;
+  shouldAct: boolean;
+  shouldMentionAssumption: boolean;
+  shouldClarify: boolean;
+  operation?: "base44_severance" | "general_project";
+}
+
+function confidenceBand(confidence: number): ProjectResolutionConfidence {
+  if (confidence >= 85) return "high";
+  if (confidence >= 60) return "medium";
+  return "low";
+}
+
+function uniqueProjects(projects: RuneProject[]) {
+  const seen = new Set<RuneProjectKey>();
+  return projects.filter((project) => {
+    if (seen.has(project.key)) return false;
+    seen.add(project.key);
+    return true;
+  });
+}
+
+export function resolveProjectContext(input: {
+  text?: string | null;
+  recentProjectKey?: string | null;
+}): ProjectResolutionResult {
+  const raw = input.text || "";
+  const normalized = normalize(raw);
+
+  const empty: ProjectResolutionResult = {
+    project: null,
+    projects: [],
+    confidence: 0,
+    confidenceBand: "low",
+    source: "none",
+    reason: "No project reference was detected.",
+    shouldAct: false,
+    shouldMentionAssumption: false,
+    shouldClarify: true,
+  };
+  if (!normalized) return empty;
+
+  const base44SeverancePattern = /(base44|base 44).*(severance|severed|sever|dependency|dependencies|ties|connection|connections|references?)|(severance|severed|sever).*(base44|base 44)/i;
+  if (base44SeverancePattern.test(raw)) {
+    const projects = RUNE_CANONICAL_PROJECTS.slice();
+    return {
+      project: null,
+      projects,
+      confidence: 94,
+      confidenceBand: "high",
+      source: "global_operation",
+      reason: "Base44 severance is a known all-project dependency audit across Rune, Unfiltr, SWH, and Unfiltr Family.",
+      shouldAct: true,
+      shouldMentionAssumption: false,
+      shouldClarify: false,
+      operation: "base44_severance",
+    };
+  }
+
+  const scored = RUNE_CANONICAL_PROJECTS.map((project) => {
+    const aliases = [project.label, project.canonicalName, project.key, project.repo, ...project.aliases];
+    let best = 0;
+    let reason = "";
+    for (const alias of aliases) {
+      const candidate = normalize(alias);
+      if (!candidate || candidate.length < 3) continue;
+      if (normalized === candidate) {
+        best = Math.max(best, 98);
+        reason = `Exact project reference matched “${alias}”.`;
+      } else if (normalized.includes(candidate)) {
+        const score = candidate.length >= 8 ? 92 : 86;
+        if (score > best) {
+          best = score;
+          reason = `Project alias matched “${alias}”.`;
+        }
+      }
+    }
+    return { project, score: best, reason };
+  }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+
+  if (scored.length > 0) {
+    const top = scored[0];
+    const tied = uniqueProjects(scored.filter((item) => item.score >= top.score - 4).map((item) => item.project));
+    const confidence = tied.length > 1 ? Math.max(60, top.score - 18) : top.score;
+    const band = confidenceBand(confidence);
+    return {
+      project: tied.length === 1 ? tied[0] : null,
+      projects: tied,
+      confidence,
+      confidenceBand: band,
+      source: top.score >= 92 ? "explicit" : "alias",
+      reason: tied.length === 1 ? top.reason : "Multiple project aliases matched with similar confidence.",
+      shouldAct: confidence >= 60,
+      shouldMentionAssumption: confidence >= 60 && confidence < 85,
+      shouldClarify: confidence < 60,
+      operation: "general_project",
+    };
+  }
+
+  const recent = getProjectByKey(input.recentProjectKey || undefined);
+  if (recent) {
+    return {
+      project: recent,
+      projects: [recent],
+      confidence: 70,
+      confidenceBand: "medium",
+      source: "recent_context",
+      reason: `No explicit project was named, so recent project context resolves to ${recent.label}.`,
+      shouldAct: true,
+      shouldMentionAssumption: true,
+      shouldClarify: false,
+      operation: "general_project",
+    };
+  }
+
+  return empty;
+}
+
+export function buildProjectResolutionPromptSection(result: ProjectResolutionResult) {
+  if (result.operation === "base44_severance") {
+    return `## Project Resolution
+- Resolved operation: Base44 severance / dependency audit.
+- Confidence: ${result.confidence}%.
+- Scope: ${result.projects.map((project) => project.label).join(", ")}.
+- Do not ask which project. Do not ask which app. Act on the all-project Base44 dependency audit and mention that scope briefly.`;
+  }
+
+  if (result.project) {
+    return `## Project Resolution
+- Resolved project: ${result.project.label} (${result.project.repo}).
+- Confidence: ${result.confidence}%.
+- Source: ${result.source}.
+- ${result.shouldMentionAssumption ? "Mention the assumption briefly, then act." : "Do not ask for clarification; act on this project."}`;
+  }
+
+  if (result.projects.length > 1 && result.shouldAct) {
+    return `## Project Resolution
+- Multiple likely projects: ${result.projects.map((project) => `${project.label} (${project.repo})`).join(", ")}.
+- Confidence: ${result.confidence}%.
+- Act across these projects unless the request requires a single destructive target.`;
+  }
+
+  return `## Project Resolution
+- No confident project match. Ask one clarifying question only if a project is required to proceed.`;
 }
 
 export function resolveCanonicalRepo(input: string | null | undefined, textHint?: string | null) {
