@@ -987,7 +987,6 @@ export function Chat() {
     input,
     handleInputChange,
     handleSubmit,
-    append,
     status,
     setMessages,
     setInput,
@@ -1015,6 +1014,7 @@ export function Chat() {
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const operatorCommandRef = useRef<HTMLDivElement>(null);
@@ -2367,30 +2367,27 @@ export function Chat() {
     setInput(prompt);
   }
 
-  async function handleBuilderSubmit(prompt: string) {
+  function handleBuilderSubmit(prompt: string) {
     const trimmedPrompt = prompt.trim();
     if (isLoading || !trimmedPrompt) return;
 
-    // Starter prompts live outside the normal controlled chat textarea, so do not
-    // rely on setInput() + requestSubmit(). React may not flush the input state
-    // before the hidden form submits, which made the first prompt appear to do
-    // nothing. Send the message directly through the chat transport instead.
+    // The starter screen sits outside the normal chat textarea. Keep the regular
+    // useChat submit path, but synchronously write the prompt into the real
+    // textarea before requesting submit so the form data cannot race React state.
     setShowBuilderSidebar(false);
     setShowInfoSidebar(false);
     setChatErrorMessage("");
-    setInput("");
     setResumeTaskId(null);
+    setInput(trimmedPrompt);
 
-    try {
-      await append({ role: "user", content: trimmedPrompt });
-    } catch (error) {
-      const msg = error instanceof Error
-        ? error.message
-        : "Rune could not send that starter prompt.";
-      setChatErrorMessage(msg);
-      setInput(trimmedPrompt);
-      setTimeout(() => setChatErrorMessage((prev) => prev === msg ? "" : prev), 10_000);
-    }
+    window.requestAnimationFrame(() => {
+      const textarea = chatTextareaRef.current;
+      if (textarea) {
+        textarea.value = trimmedPrompt;
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      formRef.current?.requestSubmit();
+    });
   }
 
   async function handleWorkspaceSelect(nextWorkspaceId: string) {
@@ -2934,6 +2931,7 @@ export function Chat() {
             Press Enter to send. Press Shift plus Enter for a new line.
           </span>
           <textarea
+            ref={chatTextareaRef}
             id="chat-message-input"
             aria-describedby="chat-input-help"
             name="message"
