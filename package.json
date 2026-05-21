@@ -63,7 +63,8 @@
     "test:project-resolver": "node scripts/project-resolver-smoke-test.mjs",
     "test:pasted-screenshot-submit": "node scripts/pasted-screenshot-submit-smoke-test.mjs",
     "test:app-store-connect-readonly": "node scripts/app-store-connect-readonly-smoke-test.mjs",
-    "test:operator-remediation": "node scripts/operator-remediation-smoke-test.mjs"
+    "test:operator-remediation": "node scripts/operator-remediation-smoke-test.mjs",
+    "test:operator-health-task": "node scripts/operator-health-task-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

@@ -818,7 +818,7 @@ const baseAgentTools = {
 
   get_app_health_snapshot: tool({
     description:
-      "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, health snapshot, Unfiltr health, Sports Wager Helper/SWH health, Rune health, release health, store health, build health, or overall project readiness. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
+      "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, health snapshot, Unfiltr health, Sports Wager Helper/SWH health, Rune health, release health, store health, build health, overall readiness, or diagnosed health problems. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It returns actionable remediation recommendations when known issues are detected, but this base tool never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
     parameters: z.object({
       projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
       repo: optionalNonEmptyString(180).describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
@@ -841,11 +841,13 @@ const baseAgentTools = {
       return {
         success: snapshot.status !== "blocked",
         ...snapshot,
-        message: "App health snapshot completed in read-only mode. No deployment, release, repo, payment, store, or customer mutation happened.",
+        remediationTasks: [],
+        message: snapshot.actionRecommendations?.length
+          ? "App health snapshot completed and found actionable remediation recommendations. In a workspace chat, Rune should create visible Operator Mode tasks for them."
+          : "App health snapshot completed. No known auto-remediation task was needed.",
       };
     },
   }),
-
 
   audit_rune_session_fragments: tool({
     description:
@@ -1438,10 +1440,75 @@ function getAgentTools({
   return {
     ...baseAgentTools,
 
+    get_app_health_snapshot: tool({
+      description:
+        "Generate an app health snapshot and create visible Operator Mode remediation tasks when known safe fixes are available. Use when Javier asks to check health or says to fix a diagnosed health problem. External account mutations still require approval.",
+      parameters: z.object({
+        projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
+        repo: optionalNonEmptyString(180).describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
+        revenueCatAppUserId: optionalNonEmptyString(180).describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
+        appStoreAppId: optionalNonEmptyString(64).describe("Optional App Store Connect app ID override."),
+        googlePlayPackageName: optionalNonEmptyString(220).describe("Optional Google Play package name override. Omit for iOS-only projects like Unfiltr."),
+        createRemediationTask: z.boolean().optional().default(true).describe("Create a visible Operator Mode task for known remediation actions."),
+      }),
+      execute: async ({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName, createRemediationTask }) => {
+        const clean = (value: string | undefined) => {
+          const trimmed = typeof value === "string" ? value.trim() : "";
+          return trimmed.length > 0 ? trimmed : undefined;
+        };
+        const snapshot = await getAppHealthSnapshot({
+          projectKey: clean(projectKey) ?? "unfiltr",
+          repo: clean(repo),
+          revenueCatAppUserId: clean(revenueCatAppUserId),
+          appStoreAppId: clean(appStoreAppId),
+          googlePlayPackageName: clean(googlePlayPackageName),
+        });
 
+        const remediationTasks: Array<{ actionId: string; taskId: string | null; title: string; approvalRequired: boolean }> = [];
+        if (createRemediationTask !== false && workspaceId && snapshot.actionRecommendations?.length) {
+          for (const action of snapshot.actionRecommendations.slice(0, 3)) {
+            const stepLabels = [
+              ...(action.targetFiles?.length ? [`Inspect ${action.targetFiles.join(", ")}`] : []),
+              ...(action.probableFix ?? []),
+              ...(action.verification ?? []),
+            ].slice(0, 8);
+            const taskId = await createWorkspaceTask({
+              workspaceId,
+              conversationId: conversationId ?? null,
+              title: `Operator remediation: ${action.title}`,
+              inputText: `${action.reason}
 
+Action: ${action.id}`,
+              intent: action.type,
+              steps: stepLabels.map((label, index) => ({
+                key: `${action.id}-${index + 1}`.slice(0, 80),
+                label,
+                detail: index === 0
+                  ? action.approvalRequired
+                    ? "External or sensitive remediation requires Javier approval before execution."
+                    : "Safe internal remediation can proceed through Rune's repo workflow."
+                  : null,
+              })),
+            });
+            remediationTasks.push({
+              actionId: action.id,
+              taskId,
+              title: action.title,
+              approvalRequired: action.approvalRequired,
+            });
+          }
+        }
 
-
+        return {
+          success: snapshot.status !== "blocked",
+          ...snapshot,
+          remediationTasks,
+          message: remediationTasks.length > 0
+            ? "App health snapshot completed and Operator Mode created visible remediation task(s). External account changes still require approval."
+            : "App health snapshot completed. No known auto-remediation task was needed.",
+        };
+      },
+    }),
 
     queue_private_app_creator_deploy: tool({
       description:
