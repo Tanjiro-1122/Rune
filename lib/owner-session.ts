@@ -54,6 +54,12 @@ export async function resolveOwnerSessionId(
   if (secret) {
     const verification = await verifySessionCookie(cookieValue, secret);
     if (verification.ok) return RUNE_OWNER_SESSION_ID;
+
+    // Production Rune is private owner-only. If a session secret is configured,
+    // never trust browser-provided session IDs without a valid signed cookie.
+    // This is especially important for /api/chat, which bypasses middleware to
+    // preserve iOS/Safari streaming stability and must enforce auth internally.
+    if (process.env.NODE_ENV === "production") return "";
   }
 
   const cleaned = cleanClientSessionId(clientSessionId);

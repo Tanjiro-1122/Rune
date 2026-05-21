@@ -10,7 +10,7 @@ function assert(condition, message) {
 
 const lib = fs.readFileSync("lib/session-fragment-audit.ts", "utf8");
 const chat = fs.readFileSync("app/api/chat/route.ts", "utf8");
-const ui = fs.readFileSync("components/chat.tsx", "utf8");
+const ui = fs.readFileSync("components/chat/tool-cards.tsx", "utf8");
 const plannerStart = lib.indexOf("export type SessionFragmentMergePlanResult");
 const audit = lib.slice(0, plannerStart > 0 ? plannerStart : undefined);
 
@@ -31,8 +31,8 @@ assert(audit.includes("No merge, update, delete, insert, or schema mutation"), "
 assert(chat.includes("audit_rune_session_fragments"), "chat exposes audit tool");
 assert(chat.includes("execute: async () => auditRuneSessionFragments()"), "chat tool calls read-only audit library");
 assert(chat.includes("never reads message content"), "system prompt documents audit read-only content boundary");
-assert(chat.includes("never reads message content, merges sessions"), "system prompt blocks merge claims");
-assert(ui.includes("SessionFragmentAuditCard"), "UI card exists");
+assert(chat.includes("never reads message content") && chat.includes("never updates message rows"), "system prompt/tooling blocks unsafe merge claims");
+assert(ui.includes("Rune session fragmentation audit"), "UI card exists");
 assert(ui.includes("read-only · no message content"), "UI card shows read-only mode");
 assert(ui.includes("no merge/update/delete/schema changes"), "UI card shows safety boundary");
 console.log("✅ Session fragmentation audit smoke test passed.");
