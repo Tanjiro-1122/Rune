@@ -617,17 +617,19 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
 
   const repoOrCommitIntent = hasAny(["commit", "commits", "github", "repo", "repository", "pull request", " pr", "branch", "release", "deploy"]);
   const knownProjectRepoIntent = repoOrCommitIntent && hasAny(["unfiltr", "rune", "jarvis", "swh", "sportswager", "sports wager", "family"]);
-  const commitHistoryIntent = hasAny(["recent commit", "recent commits", "latest commit", "latest commits", "commit history", "last commit", "last commits"]);
+  const commitHistoryIntent =
+    text.includes("commit") && hasAny(["recent", "latest", "last", "new", "history"]);
 
   if (knownProjectRepoIntent && commitHistoryIntent) {
     add("list_recent_github_commits");
   }
 
-  // Known project repo/commit requests should use GitHub tools, not broad web search.
-  if (knownProjectRepoIntent) {
+  // Known project commit-history requests should use the commit API only.
+  // Do not attach code-search here; models sometimes call it with an empty query.
+  if (knownProjectRepoIntent && !commitHistoryIntent) {
     add("analyze_github_repo");
     add("searchRepositoryCode");
-  } else if (isWebSearchIntent(input)) {
+  } else if (!knownProjectRepoIntent && isWebSearchIntent(input)) {
     add("web_search");
   }
 
@@ -934,7 +936,7 @@ const baseAgentTools = {
         .default(5)
         .describe("Number of results to return (1–10, default 5)"),
     }),
-    execute: async ({ query, max_results = 5 }) => {
+    execute: async ({ cleanQuery, max_results = 5 }) => {
       const apiKey = process.env.TAVILY_API_KEY;
       if (!apiKey) {
         return {
@@ -1323,12 +1325,21 @@ const baseAgentTools = {
     parameters: z.object({
       owner: z.string().optional().default("Tanjiro-1122").describe("The GitHub username. For Rune itself, use 'Tanjiro-1122'."),
       repo: z.string().optional().default("Rune").describe("The repository name. For Rune itself, use 'Rune'."),
-      query: z.string().min(1).max(200).describe("Code search query, such as 'useChat status streaming' or 'sendMessage'."),
+      query: z.string().trim().max(200).optional().default("").describe("Code search query, such as 'useChat status streaming' or 'sendMessage'. Leave empty only if no concrete query is available."),
       path_filter: z.string().max(160).optional().describe("Optional repo path filter, such as 'app/api' or 'components'. Must be a real path prefix, not a placeholder."),
       max_results: z.number().int().min(1).max(10).optional().default(8),
     }),
-    execute: async ({ owner = "Tanjiro-1122", repo = "Rune", query, path_filter, max_results = 8 }) => {
+    execute: async ({ owner = "Tanjiro-1122", repo = "Rune", query = "", path_filter, max_results = 8 }) => {
       try {
+        const cleanQuery = typeof query === "string" ? query.trim() : "";
+        if (!cleanQuery) {
+          return {
+            success: false,
+            error: "No concrete code search query was provided. For recent commits, use list_recent_github_commits instead.",
+            owner,
+            repo,
+          };
+        }
         if (path_filter && isPlaceholderRepoPath(path_filter)) {
           return {
             success: false,
