@@ -2457,6 +2457,16 @@ function getAgentTools({
   };
 }
 
+function shouldCreateWorkspaceTask(input: string, intent: string, resumeTaskId?: string | null) {
+  if (resumeTaskId) return true;
+  const text = input.toLowerCase();
+  if (/\b(app creator|create app|scaffold|repo control|open pr|pull request|merge|deploy|redeploy|rollback|runner|queue private|execute|run checks|build|submit|fix code|patch|implementation)\b/i.test(input)) return true;
+  return [
+    "code_execution",
+    "github_analysis",
+  ].includes(intent) && /\b(change|edit|fix|patch|implement|create|write|run|execute|deploy|pr|pull request)\b/.test(text);
+}
+
 export async function POST(req: Request) {
   // Clean up stale running tasks on each request (fire-and-forget)
   void cleanupStaleTasks(30).catch(() => {});
@@ -2647,6 +2657,7 @@ export async function POST(req: Request) {
     const ownerMemorySection = getOwnerMemorySection();
     const memoryProjectKey = inferProjectFromText(latestUserText)?.key ?? null;
     let taskId: string | null = resumeTaskId ?? null;
+    const shouldTrackWorkspaceTask = shouldCreateWorkspaceTask(latestUserText, plannerOutput.intent, resumeTaskId);
 
     // ── Hard 800ms budget for ALL I/O before stream opens ───────────────────────
     // Fire everything in parallel — take what arrives in time, drop the rest.
@@ -2683,6 +2694,7 @@ export async function POST(req: Request) {
           await startWorkspaceTask(taskId, 5).catch(() => {});
           return taskId;
         }
+        if (!shouldTrackWorkspaceTask) return null;
         return withTimeout(
           createWorkspaceTask({
             workspaceId,
