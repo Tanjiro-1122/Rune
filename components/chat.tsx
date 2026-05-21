@@ -2459,9 +2459,10 @@ export function Chat() {
   }
 
   async function handleResumeTask(task: WorkspaceTaskSummary) {
-    if (!task.id) return;
+    if (!task.id || !sessionId) return;
     try {
-      const response = await fetch("/api/tasks", {
+      const resumeSearch = new URLSearchParams({ sessionId });
+      const response = await fetch(`/api/tasks?${resumeSearch.toString()}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ taskId: task.id }),
