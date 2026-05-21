@@ -740,6 +740,33 @@ function getTaskStatusLabel(status: WorkspaceTaskSummary["status"]) {
   return "Stopped";
 }
 
+function getTaskAgeLabel(updatedAt?: string | null, nowMs = Date.now()) {
+  if (!updatedAt) return "age unknown";
+  const updatedMs = Date.parse(updatedAt);
+  if (!Number.isFinite(updatedMs)) return "age unknown";
+  const diffSeconds = Math.max(0, Math.floor((nowMs - updatedMs) / 1000));
+  if (diffSeconds < 45) return "just now";
+  if (diffSeconds < 90) return "1m ago";
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h ago`;
+}
+
+function isPossiblyStaleTask(task: WorkspaceTaskSummary, nowMs = Date.now()) {
+  const updatedMs = Date.parse(task.updatedAt);
+  if (!Number.isFinite(updatedMs)) return false;
+  return nowMs - updatedMs > 90_000;
+}
+
+function getTaskActivityLabel(task: WorkspaceTaskSummary | null, nowMs = Date.now()) {
+  if (!task) return "No active task";
+  const status = getTaskStatusLabel(task.status);
+  const progress = Number.isFinite(task.progress) ? ` · ${Math.max(0, Math.min(100, Math.round(task.progress)))}%` : "";
+  const age = getTaskAgeLabel(task.updatedAt, nowMs);
+  return `${status}${progress} · ${age}`;
+}
+
 function getRunnerJobLabel(kind?: string) {
   if (kind === "vercel_redeploy") return "Vercel redeploy";
   if (kind === "vercel_rollback") return "Vercel rollback";
@@ -1029,6 +1056,8 @@ export function Chat() {
   const [streamFinalizationRecovered, setStreamFinalizationRecovered] = useState(false);
   const [streamStallRecovered, setStreamStallRecovered] = useState(false);
   const [streamRecoveryNotice, setStreamRecoveryNotice] = useState("");
+  const [taskLastCheckedAt, setTaskLastCheckedAt] = useState<string | null>(null);
+  const [taskClockMs, setTaskClockMs] = useState(() => Date.now());
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
   const selectedArtifact =
@@ -1036,7 +1065,12 @@ export function Chat() {
   const selectedProject =
     PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === selectedProjectKey) ?? PROJECT_SWITCHBOARD_OPTIONS[0];
   const canManageWorkspaces = persistenceEnabled && schemaReady;
-  const activeOperatorTaskCount = tasks.filter((task) => task.status === "queued" || task.status === "running").length;
+  const activeTasks = tasks.filter((task) => task.status === "queued" || task.status === "running");
+  const activeOperatorTaskCount = activeTasks.length;
+  const primaryActiveTask = activeTasks[0] ?? null;
+  const primaryActiveTaskIsStale = primaryActiveTask ? isPossiblyStaleTask(primaryActiveTask, taskClockMs) : false;
+  const primaryActiveTaskLabel = getTaskActivityLabel(primaryActiveTask, taskClockMs);
+  const taskLastCheckedLabel = taskLastCheckedAt ? getTaskAgeLabel(taskLastCheckedAt, taskClockMs) : "not checked yet";
   const latestRepoProposal = repoProposals[0] ?? null;
   const latestRepoProposalMetadata = latestRepoProposal?.draft_metadata ?? {};
   const latestRepoPrReady = latestRepoProposalMetadata.pr_overall_ready === true;
@@ -1121,6 +1155,7 @@ export function Chat() {
   ) {
     if (!nextWorkspaceId) {
       setTasks([]);
+      setTaskLastCheckedAt(null);
       return;
     }
 
@@ -1136,6 +1171,7 @@ export function Chat() {
     if (!response.ok) return;
     const payload = (await response.json()) as { tasks?: WorkspaceTaskSummary[] };
     setTasks(payload.tasks ?? []);
+    setTaskLastCheckedAt(new Date().toISOString());
   }
 
   async function refreshMemories(nextProjectKey = memoryProjectKey, nextQuery = memorySearch) {
@@ -2054,11 +2090,15 @@ export function Chat() {
   }, [status, sessionId, workspaceId, conversationId]);
 
   useEffect(() => {
+    if (!primaryActiveTask) return;
+    const interval = window.setInterval(() => setTaskClockMs(Date.now()), 15_000);
+    return () => window.clearInterval(interval);
+  }, [primaryActiveTask?.id]);
+
+  useEffect(() => {
     if (!sessionId || !workspaceId) return;
 
-    const hasActiveTask = tasks.some(
-      (task) => task.status === "queued" || task.status === "running"
-    );
+    const hasActiveTask = activeTasks.length > 0;
     if (!hasActiveTask && status !== "streaming" && status !== "submitted") {
       return;
     }
@@ -2072,7 +2112,7 @@ export function Chat() {
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [sessionId, workspaceId, conversationId, tasks, status]);
+  }, [sessionId, workspaceId, conversationId, activeTasks.length, status]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -2649,8 +2689,16 @@ export function Chat() {
         <div className="workspace-summary-bar native-status-strip" aria-label="Current workspace status">
           <span className="summary-chip">{selectedWorkspace?.name ?? "General"}</span>
           <span className="summary-chip">{persistenceEnabled && schemaReady ? "Synced" : "Local"}</span>
-          {tasks.some((task) => task.status === "queued" || task.status === "running") && (
-            <span className="summary-chip">Task running</span>
+          {primaryActiveTask && (
+            <span
+              className={`summary-chip task-activity-chip${primaryActiveTaskIsStale ? " task-activity-chip--stale" : ""}`}
+              title={`${primaryActiveTask.title} · last checked ${taskLastCheckedLabel}`}
+              aria-live="polite"
+            >
+              <span className="task-activity-dot" />
+              <span className="task-activity-main">{primaryActiveTaskIsStale ? "Task stale" : primaryActiveTask.status === "queued" ? "Task queued" : "Task working"}</span>
+              <span className="task-activity-detail">{primaryActiveTaskLabel}</span>
+            </span>
           )}
         </div>
 
@@ -3290,8 +3338,8 @@ export function Chat() {
                         {activeOperatorTaskCount ? "active" : "idle"}
                       </span>
                     </div>
-                    <p>{tasks.find((task) => task.status === "queued" || task.status === "running")?.title ?? "No active queued/running tasks in this workspace."}</p>
-                    <small>{tasks.length} recent task{tasks.length === 1 ? "" : "s"}</small>
+                    <p>{primaryActiveTask?.title ?? "No active queued/running tasks in this workspace."}</p>
+                    <small>{primaryActiveTask ? `${primaryActiveTaskLabel} · last checked ${taskLastCheckedLabel}` : `${tasks.length} recent task${tasks.length === 1 ? "" : "s"}`}</small>
                   </article>
                 </div>
 
