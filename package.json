@@ -55,7 +55,8 @@
     "test:source-search-final-answer-contract": "node scripts/source-search-final-answer-contract-smoke-test.mjs",
     "test:pwa-cron": "node scripts/pwa-cron-smoke-test.mjs",
     "test:command-center-polish": "node scripts/command-center-polish-smoke-test.mjs",
-    "test:task-activity-chip": "node scripts/task-activity-chip-smoke-test.mjs"
+    "test:task-activity-chip": "node scripts/task-activity-chip-smoke-test.mjs",
+    "test:chat-task-completion": "node scripts/chat-task-completion-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
