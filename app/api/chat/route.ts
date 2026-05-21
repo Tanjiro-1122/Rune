@@ -2587,11 +2587,11 @@ ${retrievalHits
 - No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
 
     const agentTools = getAgentTools({ workspaceId, conversationId });
-  // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const skillTools: Record<string, any> = await loadEnabledSkills();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allTools: Record<string, any> = { ...agentTools, ...skillTools };
+    // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const skillTools: Record<string, any> = await loadEnabledSkills().catch(() => ({}));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allTools: Record<string, any> = { ...agentTools, ...skillTools };
 
     // Allow the chat model to be overridden via environment variable so the
     // deployment can switch to a newer or cheaper model without a code change.
