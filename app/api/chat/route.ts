@@ -2444,7 +2444,7 @@ export async function POST(req: Request) {
     const forcedToolChoice = getForcedToolChoice(latestUserText, codeExecution.available);
     const agentTools = getAgentTools({ workspaceId, conversationId });
     const ownerMemorySection = getOwnerMemorySection();
-    const memoryProjectKey = inferProjectFromText(latestUserText);
+    const memoryProjectKey = inferProjectFromText(latestUserText)?.key ?? null;
     let taskId: string | null = resumeTaskId ?? null;
 
     // ── Hard 800ms budget for ALL I/O before stream opens ───────────────────────
@@ -2476,8 +2476,8 @@ export async function POST(req: Request) {
           : Promise.resolve(),
       ]).catch(() => {}),
 
-      // 2. Task creation
-      (async () => {
+      // 2. Task creation (typed separately to avoid allSettled union confusion)
+      (async (): Promise<string | null> => {
         if (taskId) {
           await startWorkspaceTask(taskId, 5).catch(() => {});
           return taskId;
@@ -2490,9 +2490,9 @@ export async function POST(req: Request) {
             inputText: latestUserText,
             intent: plannerOutput.intent,
             steps: plannerOutput.steps.map((s) => ({ key: s.key, label: s.label, detail: s.detail })),
-          }).catch(() => null),
+          }).then((id) => (typeof id === "string" ? id : null)).catch(() => null),
           400,
-          null
+          null as string | null
         );
       })(),
 
@@ -2540,9 +2540,8 @@ export async function POST(req: Request) {
       memoryContext.status === "fulfilled" ? memoryContext.value : "";
 
     // Resolve task ID from parallel result
-    if (!taskId && _taskResult.status === "fulfilled") {
-      const maybeId = _taskResult.value as string | null | undefined;
-      if (typeof maybeId === "string") taskId = maybeId;
+    if (!taskId && _taskResult.status === "fulfilled" && typeof _taskResult.value === "string") {
+      taskId = _taskResult.value;
     }
     activeTaskId = taskId;
 
