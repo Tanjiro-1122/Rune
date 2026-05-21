@@ -936,7 +936,7 @@ const baseAgentTools = {
         .default(5)
         .describe("Number of results to return (1–10, default 5)"),
     }),
-    execute: async ({ cleanQuery, max_results = 5 }) => {
+    execute: async ({ query, max_results = 5 }) => {
       const apiKey = process.env.TAVILY_API_KEY;
       if (!apiKey) {
         return {
