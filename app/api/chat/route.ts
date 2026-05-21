@@ -2539,12 +2539,12 @@ export async function POST(req: Request) {
     const [retrievalHits, supabaseMemorySection] = await Promise.all([
       withTimeout(
         getWorkspaceRetrievalContext({ workspaceId, query: latestUserText }),
-        3000,
+        1500,
         [] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>
       ),
       withTimeout(
         buildSupabaseMemorySection({ query: latestUserText, projectKey: memoryProjectKey }),
-        3000,
+        1500,
         ""
       ),
     ]);
@@ -2603,7 +2603,7 @@ ${retrievalHits
       .slice(-1)[0]
       ?.content?.toString()?.slice(0, 500) ?? "";
     const semanticMemorySection = userMessageText
-      ? await withTimeout(buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }), 3000, "").catch(() => "")
+      ? await withTimeout(buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }), 1500, "").catch(() => "")
       : "";
     const memoryRoutingSection = `## Memory Routing
 - Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
