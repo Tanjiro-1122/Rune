@@ -583,7 +583,8 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
 function selectToolsForRequest(input: string, tools: Record<string, any>): Record<string, any> {
   const selected = new Set<string>();
-  const normalizedInput = input.toLowerCase();
+  const text = input.toLowerCase();
+  const hasAny = (terms: string[]) => terms.some((term) => text.includes(term));
   const add = (name: string) => {
     if (tools[name]) selected.add(name);
   };
@@ -591,7 +592,7 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   // Tiny always-on core. Keep this lean: every tool schema costs prompt tokens.
   add("calculate");
 
-  if (/\b(what can you do|capabilit|what are you able|what tools|what setup)\b/i.test(input)) {
+  if (hasAny(["what can you do", "capabilit", "what are you able", "what tools", "what setup"])) {
     add("get_rune_capability_snapshot");
   }
 
@@ -610,14 +611,17 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   }
 
   // Current date/time is injected into the prompt. Only expose the tool when explicitly requested.
-  if (/\b(run|use|call)\b.*\b(datetime|date time|get_current_datetime)\b/i.test(input)) {
+  if (hasAny(["run datetime", "use datetime", "call datetime", "get_current_datetime", "datetime tool"])) {
     add("get_current_datetime");
   }
 
-  const repoOrCommitIntent = /\b(commit|commits|github|repo|repository|pull request|pr|branch|release|deploy)\b/i.test(input);
-  const knownProjectRepoIntent =
-    repoOrCommitIntent &&
-    /\b(unfiltr|rune|jarvis|swh|sportswager|sports wager|family)\b/i.test(input);
+  const repoOrCommitIntent = hasAny(["commit", "commits", "github", "repo", "repository", "pull request", " pr", "branch", "release", "deploy"]);
+  const knownProjectRepoIntent = repoOrCommitIntent && hasAny(["unfiltr", "rune", "jarvis", "swh", "sportswager", "sports wager", "family"]);
+  const commitHistoryIntent = hasAny(["recent commit", "recent commits", "latest commit", "latest commits", "commit history", "last commit", "last commits"]);
+
+  if (knownProjectRepoIntent && commitHistoryIntent) {
+    add("list_recent_github_commits");
+  }
 
   // Known project repo/commit requests should use GitHub tools, not broad web search.
   if (knownProjectRepoIntent) {
@@ -643,15 +647,15 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("listRepositoryTree");
   }
 
-  if (/\b(health check|app health|release health|store health|build health)\b/i.test(input)) {
+  if (hasAny(["health check", "app health", "release health", "store health", "build health"])) {
     add("get_app_health_snapshot");
   }
 
-  if (/\b(operator briefing|self audit|audit yourself|system health)\b/i.test(input)) {
+  if (hasAny(["operator briefing", "self audit", "audit yourself", "system health"])) {
     add("get_rune_self_audit_snapshot");
   }
 
-  if (/\b(revenuecat|subscriber|subscription|customer info|app store connect|testflight|google play)\b/i.test(input)) {
+  if (hasAny(["revenuecat", "subscriber", "subscription", "customer info", "app store connect", "testflight", "google play"])) {
     add("lookup_revenuecat_subscriber");
     add("lookup_app_store_connect_status");
     add("lookup_google_play_status");
@@ -661,7 +665,7 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   for (const name of Object.keys(tools)) {
     if (selected.has(name)) continue;
     const normalizedName = name.replace(/[_-]+/g, " ").toLowerCase();
-    if (normalizedName.length >= 4 && normalizedInput.includes(normalizedName)) {
+    if (normalizedName.length >= 4 && text.includes(normalizedName)) {
       selected.add(name);
     }
   }
@@ -800,12 +804,22 @@ const baseAgentTools = {
     parameters: z.object({
       projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
       repo: z.string().min(1).max(180).optional().describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
-      revenueCatAppUserId: z.string().min(1).max(180).optional().describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
-      appStoreAppId: z.string().min(1).max(64).optional().describe("Optional App Store Connect app ID override."),
-      googlePlayPackageName: z.string().min(1).max(220).optional().describe("Optional Google Play package name override."),
+      revenueCatAppUserId: z.string().trim().min(1).max(180).optional().describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
+      appStoreAppId: z.string().trim().min(1).max(64).optional().describe("Optional App Store Connect app ID override."),
+      googlePlayPackageName: z.string().trim().min(1).max(220).optional().describe("Optional Google Play package name override. Omit for iOS-only projects like Unfiltr."),
     }),
     execute: async ({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName }) => {
-      const snapshot = await getAppHealthSnapshot({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName });
+      const clean = (value: string | undefined) => {
+        const trimmed = typeof value === "string" ? value.trim() : "";
+        return trimmed.length > 0 ? trimmed : undefined;
+      };
+      const snapshot = await getAppHealthSnapshot({
+        projectKey: clean(projectKey) ?? "unfiltr",
+        repo: clean(repo),
+        revenueCatAppUserId: clean(revenueCatAppUserId),
+        appStoreAppId: clean(appStoreAppId),
+        googlePlayPackageName: clean(googlePlayPackageName),
+      });
       return {
         success: snapshot.status !== "blocked",
         ...snapshot,
@@ -972,6 +986,75 @@ const baseAgentTools = {
         return {
           error: err instanceof Error ? err.message : "Search request failed.",
           query,
+        };
+      }
+    },
+  }),
+
+  list_recent_github_commits: tool({
+    description:
+      "List recent commits from a real GitHub repository. Use this when Javier asks for latest/recent commits, commit history, or what changed recently in Rune, Unfiltr, SWH, or Unfiltr Family.",
+    parameters: z.object({
+      repo: z
+        .string()
+        .optional()
+        .default(RUNE_DEFAULT_REPO)
+        .describe("GitHub repository as 'owner/repo', a GitHub URL, or a known project alias like Rune/Unfiltr/SWH/Family."),
+      branch: z.string().min(1).max(120).optional().describe("Optional branch name. If omitted, GitHub uses the default branch."),
+      per_page: z.number().int().min(1).max(10).optional().default(5),
+    }),
+    execute: async ({ repo, branch, per_page = 5 }) => {
+      const ownerRepo = parseOwnerRepo(repo);
+      if (!ownerRepo.includes("/")) {
+        return { success: false, error: "Could not parse repository.", repo };
+      }
+
+      const params = new URLSearchParams();
+      params.set("per_page", String(Math.min(Math.max(per_page, 1), 10)));
+      if (branch && branch.trim()) params.set("sha", branch.trim());
+
+      const headers = getGithubHeaders();
+      try {
+        const response = await fetch(`https://api.github.com/repos/${ownerRepo}/commits?${params.toString()}`, { headers });
+        if (!response.ok) {
+          return {
+            success: false,
+            repo: ownerRepo,
+            status: response.status,
+            error: response.status === 404
+              ? `Repository '${ownerRepo}' not found or not accessible.`
+              : `GitHub API returned ${response.status}: ${response.statusText}`,
+          };
+        }
+
+        const raw = await response.json();
+        const commits = Array.isArray(raw)
+          ? raw.slice(0, Math.min(Math.max(per_page, 1), 10)).map((item) => {
+              const record = item as Record<string, any>;
+              const commit = record.commit as Record<string, any> | undefined;
+              const author = commit?.author as Record<string, any> | undefined;
+              return {
+                sha: typeof record.sha === "string" ? record.sha.slice(0, 7) : null,
+                message: typeof commit?.message === "string" ? commit.message.split("\n")[0] : null,
+                author: typeof author?.name === "string" ? author.name : null,
+                date: typeof author?.date === "string" ? author.date : null,
+                url: typeof record.html_url === "string" ? record.html_url : null,
+              };
+            })
+          : [];
+
+        return {
+          success: true,
+          repo: ownerRepo,
+          branch: branch || "default",
+          count: commits.length,
+          commits,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          repo: ownerRepo,
+          error: error instanceof Error ? error.message : "Failed to list recent commits.",
         };
       }
     },
@@ -2739,7 +2822,7 @@ Act first, report back. Push code, open PRs, fix bugs, read files, run tools —
 ${projectRegistrySection}
 ${currentDateTimeSection}
 
-Tools: only a minimal relevant subset is attached for this request. Use attached tools when clearly needed; otherwise answer directly.
+Tools: only a minimal relevant subset is attached for this request. Use attached tools when clearly needed; otherwise answer directly. For recent/latest commits, use list_recent_github_commits when attached.
 ${codeExecutionSummary}
 ${codeExecutionGuidance}
 
