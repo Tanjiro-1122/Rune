@@ -162,12 +162,17 @@ export async function getAppStoreConnectReadOnlySummary(appIdOverride?: string |
     const appId = config.appId;
     const [appPayload, buildsPayload, versionsPayload] = await Promise.all([
       ascGet<JsonApiSingle>(`/v1/apps/${encodeURIComponent(appId)}?fields[apps]=name,bundleId,sku,primaryLocale`, token),
-      ascGet<JsonApiList>(`/v1/apps/${encodeURIComponent(appId)}/builds?fields[builds]=version,uploadedDate,processingState,expired,minOsVersion&limit=10&sort=-uploadedDate`, token),
-      ascGet<JsonApiList>(`/v1/apps/${encodeURIComponent(appId)}/appStoreVersions?fields[appStoreVersions]=versionString,platform,appStoreState,appVersionState,createdDate&limit=10&sort=-createdDate`, token),
+      // Apple does not allow `sort` on these app relationship endpoints.
+      // Fetch a small read-only page and sort locally below.
+      ascGet<JsonApiList>(`/v1/apps/${encodeURIComponent(appId)}/builds?fields[builds]=version,uploadedDate,processingState,expired,minOsVersion&limit=10`, token),
+      ascGet<JsonApiList>(`/v1/apps/${encodeURIComponent(appId)}/appStoreVersions?fields[appStoreVersions]=versionString,platform,appStoreState,appVersionState,createdDate&limit=10`, token),
     ]);
 
     const appAttrs = appPayload.data?.attributes ?? {};
-    const latestBuilds = (buildsPayload.data ?? []).map((build) => {
+    const latestBuilds = (buildsPayload.data ?? [])
+      .slice()
+      .sort((a, b) => String(b.attributes?.uploadedDate ?? "").localeCompare(String(a.attributes?.uploadedDate ?? "")))
+      .map((build) => {
       const attrs = build.attributes ?? {};
       return {
         id: build.id,
@@ -179,7 +184,10 @@ export async function getAppStoreConnectReadOnlySummary(appIdOverride?: string |
       };
     });
 
-    const latestVersions = (versionsPayload.data ?? []).map((version) => {
+    const latestVersions = (versionsPayload.data ?? [])
+      .slice()
+      .sort((a, b) => String(b.attributes?.createdDate ?? "").localeCompare(String(a.attributes?.createdDate ?? "")))
+      .map((version) => {
       const attrs = version.attributes ?? {};
       return {
         id: version.id,

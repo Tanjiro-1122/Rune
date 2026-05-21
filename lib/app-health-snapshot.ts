@@ -6,6 +6,7 @@ import { getExternalServicesHealth, summarizeExternalServicesHealth, type Projec
 import { getProjectByKey } from "@/lib/project-registry";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
+import { getKnownRemediationActions, type OperatorRemediationAction } from "@/lib/operator-remediation";
 
 export type AppHealthStatus = "healthy" | "warning" | "blocked";
 
@@ -31,6 +32,7 @@ export interface AppHealthSnapshot {
   googlePlay: GooglePlayReadOnlyResult;
   findings: string[];
   blockers: string[];
+  actionRecommendations: OperatorRemediationAction[];
   safeBoundaries: string[];
 }
 
@@ -127,6 +129,12 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
   const googleBlocked = googlePlay.summary?.blockedCapabilities ?? [];
   for (const blocked of googleBlocked) findings.push(`Google Play ${blocked.name}: blocked by design — ${blocked.reason}`);
 
+  const actionRecommendations = [
+    ...getKnownRemediationActions({ service: "App Store Connect", error: appStoreConnect.error }),
+    ...getKnownRemediationActions({ service: "Google Play", error: googlePlay.error }),
+    ...(revenueCat ? getKnownRemediationActions({ service: "RevenueCat subscriber", error: revenueCat.error }) : []),
+  ];
+
   const status = statusFromSignals(blockers, warnings);
   const score = scoreFrom(status, warnings);
   const summary = status === "healthy"
@@ -148,6 +156,7 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
     googlePlay,
     findings,
     blockers: [...blockers, ...warnings],
+    actionRecommendations,
     safeBoundaries: [
       "Read-only health snapshot only.",
       "No repo commits, PRs, merges, deploys, rollbacks, releases, publishing, entitlement grants, refunds, review replies, or product edits.",
@@ -174,6 +183,7 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
         appStoreConnectOk: appStoreConnect.ok,
         googlePlayOk: isIosOnly ? null : googlePlay.ok,
         blockers: snapshot.blockers.slice(0, 8),
+        actionRecommendations: actionRecommendations.map((action) => action.id).slice(0, 8),
       },
     });
   }
