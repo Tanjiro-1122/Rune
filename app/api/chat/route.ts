@@ -581,6 +581,81 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
   return hints.join("\n");
 }
 
+function selectToolsForRequest(input: string, tools: Record<string, any>): Record<string, any> {
+  const selected = new Set<string>();
+  const add = (name: string) => {
+    if (tools[name]) selected.add(name);
+  };
+
+  // Tiny always-on core. Keep this lean: every tool schema costs prompt tokens.
+  add("get_rune_capability_snapshot");
+  add("calculate");
+
+  if (isApprovedRuneSessionMergeIntent(input)) {
+    add("execute_rune_session_merge");
+    add("audit_rune_session_fragments");
+    add("plan_rune_fragmented_session_merge");
+  }
+
+  if (isFrozenDiagnosticIntent(input)) {
+    add("get_tool_lifecycle_diagnostic");
+  }
+
+  if (isCalculationIntent(input)) {
+    add("calculate");
+  }
+
+  // Current date/time is injected into the prompt. Only expose the tool when explicitly requested.
+  if (/\b(run|use|call)\b.*\b(datetime|date time|get_current_datetime)\b/i.test(input)) {
+    add("get_current_datetime");
+  }
+
+  if (isWebSearchIntent(input)) {
+    add("web_search");
+  }
+
+  if (isGitHubSourceInspectionIntent(input)) {
+    add("searchRepositoryCode");
+    add("readRepositoryFile");
+    add("listRepositoryTree");
+  } else if (isGitHubAnalysisIntent(input)) {
+    add("analyze_github_repo");
+    add("searchRepositoryCode");
+  }
+
+  if (isCodeExecutionIntent(input, getCodeExecutionAvailability().available)) {
+    add("execute_code");
+    add("searchRepositoryCode");
+    add("readRepositoryFile");
+    add("listRepositoryTree");
+  }
+
+  if (/\b(health check|app health|release health|store health|build health|operator briefing|self audit|audit yourself|system health)\b/i.test(input)) {
+    add("get_app_health_snapshot");
+    add("get_rune_self_audit_snapshot");
+    add("get_tool_lifecycle_diagnostic");
+  }
+
+  if (/\b(revenuecat|subscriber|subscription|customer info|app store connect|testflight|google play)\b/i.test(input)) {
+    add("lookup_revenuecat_subscriber");
+    add("lookup_app_store_connect_status");
+    add("lookup_google_play_status");
+  }
+
+  // Skill-store/dynamic tools are opt-in by name/intent only. Do not dump them globally.
+  for (const name of Object.keys(tools)) {
+    if (selected.has(name)) continue;
+    const normalizedName = name.replace(/[_-]+/g, " ").toLowerCase();
+    if (normalizedName.length >= 4 && input.toLowerCase().includes(normalizedName)) {
+      selected.add(name);
+    }
+  }
+
+  const subset: Record<string, any> = {};
+  for (const name of selected) subset[name] = tools[name];
+  return subset;
+}
+
 function sanitizeAttachmentName(name: string | undefined) {
   const cleaned = (name ?? "file")
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
@@ -2520,7 +2595,7 @@ export async function POST(req: Request) {
       // 6. Semantic memory context
       latestUserText
         ? withTimeout(
-            buildMemoryContext(latestUserText, { semanticLimit: 5, episodicLimit: 8 }),
+            buildMemoryContext(latestUserText, { semanticLimit: 2, episodicLimit: 3 }),
             PRESTREAM_BUDGET_MS,
             ""
           )
@@ -2529,9 +2604,9 @@ export async function POST(req: Request) {
 
     // Unpack results — use fallbacks for anything that timed out
     const resolvedRetrieval =
-      retrievalHits.status === "fulfilled"
+      (retrievalHits.status === "fulfilled"
         ? retrievalHits.value
-        : ([] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>);
+        : ([] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>)).slice(0, 3);
     const resolvedSupabaseMemory =
       supabaseMemorySection.status === "fulfilled" ? supabaseMemorySection.value : "";
     const resolvedSkillTools: Record<string, any> =
@@ -2578,13 +2653,26 @@ ${resolvedRetrieval
 - If the request mentions a known project, prefer memories for that project plus global rules.
 - Do not use Rune-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
     const allTools: Record<string, any> = { ...agentTools, ...resolvedSkillTools };
-    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
+    const selectedTools = selectToolsForRequest(latestUserText, allTools);
+    const shouldEscalateModel =
+      isCodeExecutionIntent(latestUserText, codeExecution.available) ||
+      /(deep coding|large refactor|multi-file|architecture|architectural|full audit|complex debugging)/i.test(latestUserText);
+    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? (shouldEscalateModel ? "gpt-4.1" : "gpt-4.1-mini");
     const projectRegistrySection = buildProjectRegistryPromptSection();
     const requestNow = new Date();
     const currentDateTimeSection = `## Current Date/Time Context
 - New York time: ${requestNow.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
 - ISO UTC: ${requestNow.toISOString()}
 - If Javier asks what time/date/day it is, answer directly from this context. Do not call get_current_datetime unless the prompt explicitly asks you to run the datetime tool.`;
+    console.log("[chat.routing]", {
+      model: CHAT_MODEL,
+      selectedToolCount: Object.keys(selectedTools).length,
+      selectedTools: Object.keys(selectedTools),
+      retrievalCount: resolvedRetrieval.length,
+      supabaseMemoryChars: resolvedSupabaseMemory.length,
+      semanticMemoryChars: resolvedMemoryContext.length,
+      systemApproxChars: workspaceContextSection.length + memoryRoutingSection.length + ownerMemorySection.length + resolvedSupabaseMemory.length + resolvedMemoryContext.length + projectRegistrySection.length + currentDateTimeSection.length,
+    });
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
@@ -2634,7 +2722,7 @@ Act first, report back. Push code, open PRs, fix bugs, read files, run tools —
 ${projectRegistrySection}
 ${currentDateTimeSection}
 
-Tools: get_current_datetime, calculate, create_task_plan, web_search, analyze_github_repo, searchRepositoryCode, listRepositoryTree, readRepositoryFile, execute_code (if available).
+Tools: only a minimal relevant subset is attached for this request. Use attached tools when clearly needed; otherwise answer directly.
 ${codeExecutionSummary}
 ${codeExecutionGuidance}
 
@@ -2716,7 +2804,7 @@ That's a consultant's pitch, not an operator's answer. Instead:
       // `content: string` in TypeScript but handles array content correctly at
       // runtime via convertToCoreMessages. The double assertion is intentional.
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
-      tools: allTools,
+      tools: selectedTools,
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       // experimental_continueSteps removed — maxSteps handles multi-step continuation in AI SDK 4.xs
