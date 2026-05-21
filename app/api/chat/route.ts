@@ -2891,17 +2891,18 @@ That's a consultant's pitch, not an operator's answer. Instead:
       );
     }
 
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? (error.stack ?? "").slice(0, 500) : "";
     logError("api.chat.POST", error);
+    console.error("[chat.POST.catch]", errMsg, errStack);
     if (activeTaskId) {
       await failWorkspaceTask(
         activeTaskId,
-        error instanceof Error
-          ? error.message
-          : "Task failed while processing the request."
+        errMsg || "Task failed while processing the request."
       );
     }
     return new Response(
-      JSON.stringify({ error: "Something went wrong processing your request." }),
+      JSON.stringify({ error: "Something went wrong processing your request.", detail: errMsg }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
