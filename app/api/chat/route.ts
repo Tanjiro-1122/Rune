@@ -2740,7 +2740,13 @@ That's a consultant's pitch, not an operator's answer. Instead:
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       experimental_continueSteps: true, // Force continuation after tool results — prevents finishReason:"tool-calls" empty stops
-      onFinish: ({ text }) => {
+      onStepFinish: ({ text, finishReason, toolResults }) => {
+      // Log step completion for debugging — finishReason:'tool-calls' means tools ran, next step will synthesize text
+      if (finishReason === "tool-calls" && toolResults && toolResults.length > 0) {
+        console.log(`[rune.step] tool-calls step completed, tools: ${toolResults.map((t: { toolName?: string }) => t.toolName).join(",")} — continuation expected`);
+      }
+    },
+    onFinish: ({ text }) => {
         if (!lastUserMessage) return;
 
         // IMPORTANT: onFinish must be synchronous and never throw.
