@@ -581,6 +581,16 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
   return hints.join("\n");
 }
 
+const optionalNonEmptyString = (max: number) =>
+  z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    },
+    z.string().min(1).max(max).optional()
+  );
+
 function selectToolsForRequest(input: string, tools: Record<string, any>): Record<string, any> {
   const selected = new Set<string>();
   const text = input.toLowerCase();
@@ -805,10 +815,10 @@ const baseAgentTools = {
       "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, Unfiltr health, release health, store health, build health, or overall project readiness. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
     parameters: z.object({
       projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
-      repo: z.string().min(1).max(180).optional().describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
-      revenueCatAppUserId: z.string().trim().min(1).max(180).optional().describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
-      appStoreAppId: z.string().trim().min(1).max(64).optional().describe("Optional App Store Connect app ID override."),
-      googlePlayPackageName: z.string().trim().min(1).max(220).optional().describe("Optional Google Play package name override. Omit for iOS-only projects like Unfiltr."),
+      repo: optionalNonEmptyString(180).describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
+      revenueCatAppUserId: optionalNonEmptyString(180).describe("Optional RevenueCat app user ID to include subscriber health. Omit for general app health."),
+      appStoreAppId: optionalNonEmptyString(64).describe("Optional App Store Connect app ID override."),
+      googlePlayPackageName: optionalNonEmptyString(220).describe("Optional Google Play package name override. Omit for iOS-only projects like Unfiltr."),
     }),
     execute: async ({ projectKey, repo, revenueCatAppUserId, appStoreAppId, googlePlayPackageName }) => {
       const clean = (value: string | undefined) => {
