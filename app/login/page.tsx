@@ -1,13 +1,30 @@
 "use client";
 
-import { useRef, useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useRef, useState, FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function getSafeNextPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  if (value.startsWith("/login")) return "/";
+  return value;
+}
+
+function getReasonMessage(reason: string | null): string {
+  if (reason === "expired") return "Your Rune session expired. Sign in again to continue.";
+  if (reason === "missing") return "Sign in to open Javier’s Command Center.";
+  if (reason === "malformed" || reason === "invalid") return "Your session could not be verified. Sign in again.";
+  if (reason === "missing-session-secret") return "Rune authentication needs server configuration before access can continue.";
+  return "Sign in to continue.";
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const nextPath = useMemo(() => getSafeNextPath(searchParams.get("next")), [searchParams]);
+  const reasonMessage = useMemo(() => getReasonMessage(searchParams.get("reason")), [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -28,7 +45,7 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push("/");
+        router.push(nextPath);
         router.refresh();
       } else {
         const data = await res.json();
@@ -63,7 +80,7 @@ export default function LoginPage() {
           <span className="rune-login-brand-fallback" aria-hidden="true">Rune</span>
         </div>
 
-        <p className="rune-login-subtitle">Sign in to continue</p>
+        <p className="rune-login-subtitle">{reasonMessage}</p>
 
         <form className="rune-login-form" onSubmit={handleSubmit}>
           <input
@@ -81,5 +98,14 @@ export default function LoginPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="rune-login-page"><div className="rune-login-card"><p className="rune-login-subtitle">Loading Rune sign in…</p></div></main>}>
+      <LoginForm />
+    </Suspense>
   );
 }
