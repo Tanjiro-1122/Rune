@@ -2578,6 +2578,7 @@ ${resolvedRetrieval
 - If the request mentions a known project, prefer memories for that project plus global rules.
 - Do not use Rune-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
     const allTools: Record<string, any> = { ...agentTools, ...resolvedSkillTools };
+    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
