@@ -68,7 +68,8 @@
     "test:operator-executor": "node scripts/operator-executor-smoke-test.mjs",
     "test:operator-executor-v2": "node scripts/operator-executor-v2-smoke-test.mjs",
     "test:operator-failure-recovery": "node scripts/operator-failure-recovery-smoke-test.mjs",
-    "test:operator-event-queue": "node scripts/operator-event-queue-smoke-test.mjs"
+    "test:operator-event-queue": "node scripts/operator-event-queue-smoke-test.mjs",
+    "test:operator-event-cron-config": "node scripts/operator-event-cron-config-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
