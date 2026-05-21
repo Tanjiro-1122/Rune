@@ -2,6 +2,7 @@ import {
   addWorkspaceTaskCheckpoint,
   claimWorkspaceTaskForRunner,
   completeWorkspaceTask,
+  createWorkspaceTask,
   failWorkspaceTask,
   getWorkspaceTask,
   updateWorkspaceTaskStep,
@@ -17,6 +18,7 @@ import {
   sandboxCheckRepoActionDiff,
   trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
+import { classifyOperatorFailure, getOperatorRetryDecision, type OperatorFailureClassification } from "@/lib/operator-failure-classifier";
 
 export type OperatorExecutionActionType =
   | "inspect_repo"
@@ -53,6 +55,11 @@ export interface OperatorExecutorResult {
   steps: Array<{ action: string; ok: boolean; proof?: string; error?: string }>;
   message: string;
   error?: string;
+  failureRecovery?: {
+    classification: OperatorFailureClassification;
+    retryPolicy: { maxAttempts: number; attemptedRetries: number };
+    followUpTaskId?: string | null;
+  };
 }
 
 function extractTargetFiles(task: WorkspaceTaskSummary) {
@@ -80,7 +87,7 @@ function extractVerification(task: WorkspaceTaskSummary) {
 
 export function createOperatorExecutionPlan(task: WorkspaceTaskSummary): { ok: true; plan: OperatorExecutionPlan } | { ok: false; error: string } {
   if (task.intent !== "fix_code") {
-    return { ok: false, error: "Executor Bridge v1 only supports fix_code remediation tasks." };
+    return { ok: false, error: "Executor Bridge v3 only supports fix_code remediation tasks." };
   }
 
   const targetFiles = extractTargetFiles(task);
@@ -110,6 +117,68 @@ export function createOperatorExecutionPlan(task: WorkspaceTaskSummary): { ok: t
   };
 }
 
+type OperatorStageResult = { ok: boolean; error?: string; [key: string]: unknown };
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runStageWithRetry<T extends OperatorStageResult>(input: {
+  action: string;
+  maxAttempts: number;
+  steps: OperatorExecutorResult["steps"];
+  proof: (result: T) => string | undefined;
+  run: () => Promise<T>;
+}) {
+  let lastResult: T | null = null;
+  for (let attempt = 1; attempt <= input.maxAttempts; attempt += 1) {
+    const result = await input.run();
+    lastResult = result;
+    const proof = result.ok ? input.proof(result) : undefined;
+    const decision = getOperatorRetryDecision({ error: result.error || `${input.action} failed.`, attempt, maxAttempts: input.maxAttempts });
+    input.steps.push({
+      action: attempt > 1 ? `${input.action}:attempt_${attempt}` : input.action,
+      ok: result.ok,
+      proof,
+      error: result.ok ? undefined : result.error,
+    });
+    if (result.ok) return result;
+    if (!decision.shouldRetry) return result;
+    await sleep(decision.nextRetryDelayMs ?? 0);
+  }
+  return lastResult as T;
+}
+
+async function createFailureFollowUpTask(input: {
+  task: WorkspaceTaskSummary;
+  classification: OperatorFailureClassification;
+  message: string;
+  plan?: OperatorExecutionPlan;
+  steps: OperatorExecutorResult["steps"];
+}) {
+  if (input.classification.disposition !== "non_retryable") return null;
+  if (!["invalid_patch", "build_compile_error", "test_failure", "missing_target_file"].includes(input.classification.failureClass)) return null;
+
+  return createWorkspaceTask({
+    workspaceId: input.task.workspaceId,
+    conversationId: input.task.conversationId,
+    title: `Follow-up remediation: ${input.classification.failureClass.replaceAll("_", " ")}`,
+    inputText: [
+      `Parent task: ${input.task.id}`,
+      `Failure class: ${input.classification.failureClass}`,
+      `Reason: ${input.classification.reason}`,
+      `Error: ${input.message}`,
+    ].join("\n"),
+    intent: "fix_code",
+    steps: [
+      { key: "inspect_failure", label: "Inspect preserved executor failure proof" },
+      ...(input.plan?.targetFiles ?? []).map((path, index) => ({ key: `inspect_target_${index + 1}`, label: `Inspect ${path}` })),
+      { key: "patch_follow_up", label: "Patch the code/test issue that caused executor failure" },
+      { key: "verify_follow_up", label: "Run the failing verification again" },
+    ].slice(0, 8),
+  });
+}
+
 export async function runOperatorExecutorBridge(options: {
   taskId: string;
   workspaceId?: string | null;
@@ -117,6 +186,7 @@ export async function runOperatorExecutorBridge(options: {
   runnerId?: string;
   openPrIfApproved?: boolean;
   trackPrIfOpened?: boolean;
+  maxAttempts?: number;
 }): Promise<OperatorExecutorResult> {
   const runnerId = options.runnerId ?? `operator-executor-${Date.now()}`;
   const steps: OperatorExecutorResult["steps"] = [];
@@ -146,7 +216,12 @@ export async function runOperatorExecutorBridge(options: {
   });
 
   try {
-    const proposalResult = await createRepoActionProposal({
+    const proposalResult = await runStageWithRetry({
+      action: "create_repo_proposal",
+      maxAttempts: options.maxAttempts ?? 3,
+      steps,
+      proof: (result) => result.proposal?.id,
+      run: () => createRepoActionProposal({
       title: claimed.title.replace(/^Operator remediation:\s*/i, ""),
       summary: claimed.inputText.slice(0, 900),
       findings: claimed.inputText,
@@ -162,37 +237,31 @@ export async function runOperatorExecutorBridge(options: {
       files: plan.targetFiles.map((path) => ({ path, operation: "update" as const, note: "Target file from remediation task." })),
       workspaceId: claimed.workspaceId,
       conversationId: claimed.conversationId,
+      }),
     });
-    steps.push({ action: "create_repo_proposal", ok: proposalResult.ok, proof: proposalResult.proposal?.id, error: proposalResult.error });
     if (!proposalResult.ok || !proposalResult.proposal) throw new Error(proposalResult.error || "Repo Control proposal creation failed.");
 
     await updateWorkspaceTaskStep({ taskId: task.id, stepKey: claimed.steps[0]?.key ?? "prepare", status: "completed", detail: `Repo Control proposal created: ${proposalResult.proposal.id}`, progress: 45 });
 
-    const inspect = await inspectRepoActionFiles({ id: proposalResult.proposal.id });
-    steps.push({ action: "inspect_repo", ok: inspect.ok, proof: inspect.ok ? "target files inspected" : undefined, error: inspect.error });
+    const inspect = await runStageWithRetry({ action: "inspect_repo", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "target files inspected", run: () => inspectRepoActionFiles({ id: proposalResult.proposal.id }) });
     if (!inspect.ok) throw new Error(inspect.error || "Repo inspection failed.");
 
-    const draft = await draftRepoActionDiff({ id: proposalResult.proposal.id });
-    steps.push({ action: "draft_diff", ok: draft.ok, proof: draft.ok ? "diff draft prepared" : undefined, error: draft.error });
+    const draft = await runStageWithRetry({ action: "draft_diff", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "diff draft prepared", run: () => draftRepoActionDiff({ id: proposalResult.proposal.id }) });
     if (!draft.ok) throw new Error(draft.error || "Diff draft failed.");
 
-    const generated = await generateRepoActionProposedDiff({ id: proposalResult.proposal.id });
-    steps.push({ action: "generate_diff", ok: generated.ok, proof: generated.ok ? "proposed diff generated" : undefined, error: generated.error });
+    const generated = await runStageWithRetry({ action: "generate_diff", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "proposed diff generated", run: () => generateRepoActionProposedDiff({ id: proposalResult.proposal.id }) });
     if (!generated.ok) throw new Error(generated.error || "Diff generation failed.");
 
-    const sandbox = await sandboxCheckRepoActionDiff({ id: proposalResult.proposal.id });
-    steps.push({ action: "sandbox_check", ok: sandbox.ok, proof: sandbox.ok ? "sandbox checks passed" : undefined, error: sandbox.error });
+    const sandbox = await runStageWithRetry({ action: "sandbox_check", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "sandbox checks passed", run: () => sandboxCheckRepoActionDiff({ id: proposalResult.proposal.id }) });
     if (!sandbox.ok) throw new Error(sandbox.error || "Sandbox check failed.");
 
-    const tempWorkspace = await runTemporaryWorkspaceBuildCheck({ id: proposalResult.proposal.id });
-    steps.push({ action: "temp_workspace_check", ok: tempWorkspace.ok, proof: tempWorkspace.ok ? "temporary workspace check passed" : undefined, error: tempWorkspace.error });
+    const tempWorkspace = await runStageWithRetry({ action: "temp_workspace_check", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "temporary workspace check passed", run: () => runTemporaryWorkspaceBuildCheck({ id: proposalResult.proposal.id }) });
     if (!tempWorkspace.ok) throw new Error(tempWorkspace.error || "Temporary workspace check failed.");
 
     let prUrl: string | undefined;
     if (options.openPrIfApproved) {
-      const pr = await openRepoActionPullRequest({ id: proposalResult.proposal.id });
+      const pr = await runStageWithRetry({ action: "open_pr_if_approved", maxAttempts: options.maxAttempts ?? 3, steps, proof: (result) => "prUrl" in result && typeof result.prUrl === "string" ? result.prUrl : undefined, run: () => openRepoActionPullRequest({ id: proposalResult.proposal.id }) });
       prUrl = "prUrl" in pr && typeof pr.prUrl === "string" ? pr.prUrl : undefined;
-      steps.push({ action: "open_pr_if_approved", ok: pr.ok, proof: prUrl, error: pr.error });
       if (!pr.ok) {
         await addWorkspaceTaskCheckpoint(task.id, {
           label: "Executor stopped at PR gate",
@@ -203,8 +272,7 @@ export async function runOperatorExecutorBridge(options: {
           metadata: { runnerId, proposalId: proposalResult.proposal.id, steps, plan },
         });
       } else if (options.trackPrIfOpened !== false) {
-        const tracked = await trackRepoActionPullRequest({ id: proposalResult.proposal.id });
-        steps.push({ action: "track_pr", ok: tracked.ok, proof: tracked.ok ? "PR tracked" : undefined, error: tracked.error });
+        const tracked = await runStageWithRetry({ action: "track_pr", maxAttempts: options.maxAttempts ?? 3, steps, proof: () => "PR tracked", run: () => trackRepoActionPullRequest({ id: proposalResult.proposal.id }) });
       }
     }
 
@@ -235,13 +303,38 @@ export async function runOperatorExecutorBridge(options: {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operator executor failed.";
+    const classification = classifyOperatorFailure(message);
+    const attemptedRetries = Math.max(0, steps.filter((step) => /:attempt_\d+$/.test(step.action)).length);
+    const followUpTaskId = await createFailureFollowUpTask({ task, classification, message, plan, steps });
     await addWorkspaceTaskCheckpoint(task.id, {
-      label: "Executor stopped with failure",
-      summary: message,
-      blocker: message,
-      metadata: { runnerId, steps, plan },
+      label: "Executor stopped with classified failure",
+      summary: `${classification.failureClass}: ${message}`,
+      blocker: classification.disposition === "blocked" ? classification.reason : message,
+      metadata: {
+        runnerId,
+        steps,
+        plan,
+        failureRecovery: {
+          classification,
+          retryPolicy: { maxAttempts: options.maxAttempts ?? 3, attemptedRetries },
+          followUpTaskId,
+        },
+      },
     });
     await failWorkspaceTask(task.id, message);
-    return { ok: false, taskId: task.id, runnerId, plan, steps, message, error: message };
+    return {
+      ok: false,
+      taskId: task.id,
+      runnerId,
+      plan,
+      steps,
+      message,
+      error: message,
+      failureRecovery: {
+        classification,
+        retryPolicy: { maxAttempts: options.maxAttempts ?? 3, attemptedRetries },
+        followUpTaskId,
+      },
+    };
   }
 }
