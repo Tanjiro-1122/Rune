@@ -570,6 +570,8 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
     hints.push("- Strong routing signal: this request asks for exact source-code evidence, so prefer `searchRepositoryCode` first, then synthesize the final answer from its results. Do not repeatedly call `searchRepositoryCode` with the same request. Only use `readRepositoryFile` with a real path returned by tree/search results. Never invent placeholder paths like path/to/sendMessage.js.");
   } else if (isGitHubAnalysisIntent(input)) {
     hints.push("- Strong routing signal: this request is about a GitHub repository, so use `analyze_github_repo`.");
+  } else if (/\b(health snapshot|health check|app health|overall health|check apps|sports wager helper|swh)\b/i.test(input)) {
+    hints.push("- Strong routing signal: this is an app-health request. Call `get_app_health_snapshot` before answering. If Javier asks across Unfiltr, Sports Wager Helper/SWH, and Rune, summarize each app from available tool output and clearly label any missing external checks as not verified. Do not say 'I will fetch' or 'next I will check' after tool use; finish the answer with what actually ran and what remains unverified.");
   } else if (isWebSearchIntent(input)) {
     hints.push("- Strong routing signal: this request needs fresh/current information, so prefer `web_search`.");
   }
@@ -659,8 +661,10 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("listRepositoryTree");
   }
 
-  if (hasAny(["health check", "app health", "release health", "store health", "build health"])) {
+  if (hasAny(["health check", "health snapshot", "app health", "release health", "store health", "build health", "overall health", "check apps", "check swh", "sports wager helper"])) {
     add("get_app_health_snapshot");
+    add("get_app_intelligence");
+    add("analyze_github_repo");
   }
 
   if (hasAny(["operator briefing", "self audit", "audit yourself", "system health"])) {
@@ -812,7 +816,7 @@ const baseAgentTools = {
 
   get_app_health_snapshot: tool({
     description:
-      "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, Unfiltr health, release health, store health, build health, or overall project readiness. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
+      "Generate a one-command read-only app health snapshot. Use when Javier asks to check app health, health snapshot, Unfiltr health, Sports Wager Helper/SWH health, Rune health, release health, store health, build health, or overall project readiness. This combines GitHub/Vercel readiness with RevenueCat optional subscriber lookup, App Store Connect, and Google Play. It never commits, deploys, releases, publishes, edits products, replies to reviews, changes entitlements, refunds, or mutates external systems.",
     parameters: z.object({
       projectKey: z.string().min(1).max(64).optional().default("unfiltr"),
       repo: optionalNonEmptyString(180).describe("Optional canonical GitHub repo slug override, e.g. Tanjiro-1122/UniltrbyJavierbackup."),
@@ -2890,6 +2894,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 
 ### Final response discipline
 - After tool use, summarize results in owner language: what ran, what passed, where it stopped, and the next safe step.
+- For app health requests, never end with "I will fetch/check next" if no additional tool call is happening. Either call the relevant health/intelligence/repo tool before answering or clearly label the missing check as not verified in this run.
 - For Repo Control, never dump raw tool JSON. Summarize proposal id, repo, files/stages, gate status, and whether any PR/deploy/merge happened.
 - If a ladder stops at a safety gate, say exactly which gate stopped it and what is needed next.
 - For self-audits and capability comparisons, do not just list buckets. Give Javier the honest read first, then 3 compact sections max: current strength, remaining gap, next move.
