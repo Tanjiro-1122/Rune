@@ -2422,41 +2422,16 @@ export async function POST(req: Request) {
       };
     });
 
-    // Access checks with 2s hard timeout — Supabase slowness must never crash stream
-    await Promise.race([
-      Promise.all([
-        workspaceId
-          ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" }).catch(() => {})
-          : Promise.resolve(),
-        conversationId
-          ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" }).catch(() => {})
-          : Promise.resolve(),
-      ]),
-      new Promise<void>((resolve) => setTimeout(resolve, 2000)),
-    ]);
-
-    // Fire-and-forget: event recording should not block stream start
-    void recordWorkspaceEvent({
-      sessionId,
-      workspaceId,
-      conversationId,
-      eventType: "chat.request",
-      status: "started",
-      details: { messageCount: messages.length },
-    }).catch((e) => logError("chat.recordEvent.started", e));
-
+    // ── Sync setup (no I/O, instant) ───────────────────────────────────────────
     const codeExecution = getCodeExecutionAvailability();
     const codeExecutionSummary = formatCodeExecutionSummary(codeExecution);
     const codeExecutionGuidance = getCodeExecutionGuidance(codeExecution.available);
     const latestUserText = getLatestUserText(messages);
-    const lastUserMessage = [...messages]
-      .reverse()
-      .find((message) => message.role === "user");
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     const latestAttachments =
       (lastUserMessage?.experimental_attachments as
         | Array<{ name?: string; contentType?: string; url?: string }>
         | undefined) ?? [];
-    // Planner runs via /api/plan (UI button only) — not injected into every chat message
     const plannerOutput = buildPlannerOutput({
       input: latestUserText,
       messages,
@@ -2466,66 +2441,15 @@ export async function POST(req: Request) {
         githubAnalysis: true,
       },
     });
-    // Only use planner for forced special-case tool routing (merge, diagnostic, etc.)
-    // NOT for plan_first / proposal_required routing — those caused outlining
     const forcedToolChoice = getForcedToolChoice(latestUserText, codeExecution.available);
-    const agentWorkLoopSection = ""; // Agent Work Loop disabled — causes outlining. Plan button handles this via /api/plan.
-    let taskId = resumeTaskId ?? null;
+    const agentTools = getAgentTools({ workspaceId, conversationId });
+    const ownerMemorySection = getOwnerMemorySection();
+    const memoryProjectKey = inferProjectFromText(latestUserText);
+    let taskId: string | null = resumeTaskId ?? null;
 
-    if (taskId) {
-      await startWorkspaceTask(taskId, 5);
-      await updateWorkspaceTaskStep({
-        taskId,
-        stepKey: "capture_request",
-        status: "running",
-        detail: "Resuming task from saved workspace context.",
-        progress: 8,
-      });
-    } else {
-      // Non-blocking: task creation must never delay the stream start
-      try {
-        const _taskPromise = createWorkspaceTask({
-          workspaceId,
-          conversationId,
-          title: deriveConversationTitle(latestUserText || "Workspace task"),
-          inputText: latestUserText,
-          intent: plannerOutput.intent,
-          steps: plannerOutput.steps.map((step) => ({
-            key: step.key,
-            label: step.label,
-            detail: step.detail,
-          })),
-        });
-        const _timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
-        taskId = await Promise.race([_taskPromise, _timeout]);
-      } catch {
-        taskId = null;
-      }
-    }
-    activeTaskId = taskId;
-
-    if (taskId) {
-      // Fire-and-forget: progress step updates don't need to block stream start
-      void updateWorkspaceTaskStep({
-        taskId,
-        stepKey: "capture_request",
-        status: "completed",
-        detail: `Processing request.`,
-        progress: 18,
-      }).catch(() => {});
-      void updateWorkspaceTaskStep({
-        taskId,
-        stepKey: "retrieve_workspace_context",
-        status: "running",
-        detail: "Scanning indexed project files, artifacts, and prior chat memory.",
-        progress: 24,
-      }).catch(() => {});
-    }
-
-    // ── Parallel pre-flight: retrieval + memory + attachments ──────────────────
-    // Run all three concurrently instead of serially to cut pre-stream latency.
-    // Each has a hard timeout so a slow Supabase round-trip never blocks the
-    // stream from starting.
+    // ── Hard 800ms budget for ALL I/O before stream opens ───────────────────────
+    // Fire everything in parallel — take what arrives in time, drop the rest.
+    // Stream opens immediately after regardless.
     function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
       return Promise.race([
         promise.catch(() => fallback),
@@ -2533,90 +2457,114 @@ export async function POST(req: Request) {
       ]);
     }
 
-    const inferredMemoryProject = inferProjectFromText(latestUserText);
-    const memoryProjectKey = inferredMemoryProject?.key ?? (workspaceId ? "rune" : null);
+    const PRESTREAM_BUDGET_MS = 800;
+    const [
+      _accessResult,
+      _taskResult,
+      retrievalHits,
+      supabaseMemorySection,
+      skillTools,
+      memoryContext,
+    ] = await Promise.allSettled([
+      // 1. Access assertions — fire-and-forget, result ignored
+      Promise.all([
+        workspaceId
+          ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" }).catch(() => {})
+          : Promise.resolve(),
+        conversationId
+          ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" }).catch(() => {})
+          : Promise.resolve(),
+      ]).catch(() => {}),
 
-    const [retrievalHits, supabaseMemorySection] = await Promise.all([
+      // 2. Task creation
+      (async () => {
+        if (taskId) {
+          await startWorkspaceTask(taskId, 5).catch(() => {});
+          return taskId;
+        }
+        return withTimeout(
+          createWorkspaceTask({
+            workspaceId,
+            conversationId,
+            title: deriveConversationTitle(latestUserText || "Workspace task"),
+            inputText: latestUserText,
+            intent: plannerOutput.intent,
+            steps: plannerOutput.steps.map((s) => ({ key: s.key, label: s.label, detail: s.detail })),
+          }).catch(() => null),
+          400,
+          null
+        );
+      })(),
+
+      // 3. Workspace vector retrieval
       withTimeout(
         getWorkspaceRetrievalContext({ workspaceId, query: latestUserText }),
-        1500,
+        PRESTREAM_BUDGET_MS,
         [] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>
       ),
+
+      // 4. Supabase memory section
       withTimeout(
         buildSupabaseMemorySection({ query: latestUserText, projectKey: memoryProjectKey }),
-        1500,
+        PRESTREAM_BUDGET_MS,
         ""
       ),
-    ]).catch(() => [[] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>, ""] as const);
 
-    // Fire-and-forget: don't block stream start on attachment persistence
-    void persistWorkspaceAttachments({ workspaceId, conversationId, attachments: latestAttachments })
-      .catch((e) => logError("chat.persistAttachments", e));
+      // 5. Skill tools
+      withTimeout(
+        loadEnabledSkills().catch(() => ({})),
+        PRESTREAM_BUDGET_MS,
+        {} as Record<string, any>
+      ),
+
+      // 6. Semantic memory context
+      latestUserText
+        ? withTimeout(
+            buildMemoryContext(latestUserText, { semanticLimit: 5, episodicLimit: 8 }),
+            PRESTREAM_BUDGET_MS,
+            ""
+          )
+        : Promise.resolve(""),
+    ]);
+
+    // Unpack results — use fallbacks for anything that timed out
+    const resolvedRetrieval =
+      retrievalHits.status === "fulfilled"
+        ? retrievalHits.value
+        : ([] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>);
+    const resolvedSupabaseMemory =
+      supabaseMemorySection.status === "fulfilled" ? supabaseMemorySection.value : "";
+    const resolvedSkillTools: Record<string, any> =
+      skillTools.status === "fulfilled" ? skillTools.value : {};
+    const resolvedMemoryContext =
+      memoryContext.status === "fulfilled" ? memoryContext.value : "";
+
+    // Resolve task ID from parallel result
+    if (!taskId && _taskResult.status === "fulfilled" && typeof _taskResult.value === "string") {
+      taskId = _taskResult.value;
+    }
+    activeTaskId = taskId;
+
+    // Fire-and-forget events (non-blocking)
+    void recordWorkspaceEvent({
+      sessionId,
+      workspaceId,
+      conversationId,
+      eventType: "chat.request",
+      status: "started",
+      details: { messageCount: messages.length },
+    }).catch((e) => logError("chat.recordEvent.started", e));
 
     if (taskId) {
-      void updateWorkspaceTaskStep({
-        taskId,
-        stepKey: "retrieve_workspace_context",
-        status: "completed",
-        detail: retrievalHits.length
-          ? `Retrieved ${retrievalHits.length} high-relevance workspace hits.`
-          : "No strong retrieval hits; continuing with direct user context.",
-        progress: 36,
-      });
-      void updateWorkspaceTaskStep({
-        taskId,
-        stepKey: "execute_plan",
-        status: "running",
-        detail:
-          forcedToolChoice?.type === "tool"
-            ? `Executing with forced tool: ${forcedToolChoice.toolName}.`
-            : "Executing with adaptive tool routing.",
-        progress: 45,
-      });
+      void updateWorkspaceTaskStep({ taskId, stepKey: "capture_request", status: "completed",
+        detail: "Request captured.", progress: 15 }).catch(() => {});
+      void updateWorkspaceTaskStep({ taskId, stepKey: "execute_plan", status: "running",
+        detail: "Streaming response.", progress: 20 }).catch(() => {});
     }
-    const workspaceContextSection = retrievalHits.length
-      ? `## Retrieved Workspace Context
-- This workspace has indexed prior material that may be relevant. Reuse it when it helps answer the request accurately.
-${retrievalHits
-  .map(
-    (hit, index) =>
-      `${index + 1}. [${hit.sourceKind}] ${hit.sourceLabel}: ${hit.excerpt}`
-  )
-  .join("\n")}`
-      : `## Retrieved Workspace Context
-- No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
 
-    console.log('[chat.timing] calling getAgentTools at', Date.now());
-    const agentTools = getAgentTools({ workspaceId, conversationId });
-    console.log('[chat.timing] getAgentTools done at', Date.now());
-    // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    console.log('[chat.timing] calling loadEnabledSkills at', Date.now());
-    const skillTools: Record<string, any> = await loadEnabledSkills().catch(() => ({}));
-    console.log('[chat.timing] loadEnabledSkills done at', Date.now());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allTools: Record<string, any> = { ...agentTools, ...skillTools };
-
-    // Allow the chat model to be overridden via environment variable so the
-    // deployment can switch to a newer or cheaper model without a code change.
-    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
-    const ownerMemorySection = getOwnerMemorySection();
-    // Deep semantic memory — retrieve relevant past context for this message
-    const userMessageText = messages
-      .filter((m) => m.role === "user")
-      .slice(-1)[0]
-      ?.content?.toString()?.slice(0, 500) ?? "";
-    const semanticMemorySection = userMessageText
-      ? await withTimeout(buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }), 1500, "").catch(() => "")
-      : "";
-    const memoryRoutingSection = `## Memory Routing
-- Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
-- If the request mentions a known project, prefer memories for that project plus global rules.
-- Do not use Rune-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
-
-    const projectRegistrySection = buildProjectRegistryPromptSection();
-
-    console.log('[chat.timing] reaching streamText at', Date.now());
+    const workspaceContextSection = buildWorkspaceContextSection(resolvedRetrieval);
+    const memoryRoutingSection = buildMemoryRoutingSection();
+    const allTools: Record<string, any> = { ...agentTools, ...resolvedSkillTools };
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
