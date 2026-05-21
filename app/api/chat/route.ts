@@ -2580,6 +2580,11 @@ ${resolvedRetrieval
     const allTools: Record<string, any> = { ...agentTools, ...resolvedSkillTools };
     const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? "gpt-4.1";
     const projectRegistrySection = buildProjectRegistryPromptSection();
+    const requestNow = new Date();
+    const currentDateTimeSection = `## Current Date/Time Context
+- New York time: ${requestNow.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+- ISO UTC: ${requestNow.toISOString()}
+- If Javier asks what time/date/day it is, answer directly from this context. Do not call get_current_datetime unless the prompt explicitly asks you to run the datetime tool.`;
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
@@ -2627,6 +2632,7 @@ CRITICAL: Never tell Javier what you're GOING to do. Just DO it. This is the sin
 Act first, report back. Push code, open PRs, fix bugs, read files, run tools — do all of it without asking. Only pause for: (1) merging to main production branch, (2) sending real emails/messages to users, (3) charging payments or granting entitlements, (4) making anything public that wasn't before. For everything else — just do it and tell Javier what you did.
 
 ${projectRegistrySection}
+${currentDateTimeSection}
 
 Tools: get_current_datetime, calculate, create_task_plan, web_search, analyze_github_repo, searchRepositoryCode, listRepositoryTree, readRepositoryFile, execute_code (if available).
 ${codeExecutionSummary}
@@ -2829,7 +2835,15 @@ That's a consultant's pitch, not an operator's answer. Instead:
       },
     });
 
-    const streamResponse = result.toDataStreamResponse();
+    const streamResponse = result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        const message = error instanceof Error ? error.message : "Unknown stream error";
+        logError("api.chat.streamText.visibleError", error);
+        return process.env.NODE_ENV === "production"
+          ? `Rune hit a stream error: ${message.slice(0, 240)}`
+          : message;
+      },
+    });
     return streamResponse;
   } catch (error) {
     if (requestSessionId) {
