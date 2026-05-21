@@ -2627,6 +2627,7 @@ ${workspaceContextSection}
 ${memoryRoutingSection}
 ${ownerMemorySection ? ownerMemorySection : ""}
 ${resolvedSupabaseMemory ? resolvedSupabaseMemory : ""}
+${resolvedMemoryContext ? resolvedMemoryContext : ""}
 
 
 
