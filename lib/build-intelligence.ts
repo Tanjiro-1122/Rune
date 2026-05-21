@@ -2,9 +2,11 @@ import { Octokit } from "@octokit/rest";
 import { logError } from "@/lib/errors";
 import { getExternalServicesHealth, summarizeExternalServicesHealth, type ExternalServiceCheck } from "@/lib/external-services-health";
 import { logActionEvent } from "@/lib/action-events";
-import { getProjectByKey } from "@/lib/project-registry";
+import { getProjectByKey, normalizeRepoSlug } from "@/lib/project-registry";
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 
-const DEFAULT_REPO = "Tanjiro-1122/Rune";
+const RUNE_RUNTIME = getRuneRuntimeIdentity();
+const DEFAULT_REPO = RUNE_RUNTIME.repo;
 const EXTERNAL_INTELLIGENCE_TIMEOUT_MS = 8_000;
 
 export interface GitHubIntelligence {
@@ -62,9 +64,7 @@ export interface BuildIntelligenceSnapshot {
 }
 
 function getRepoSlug(repoOverride?: string | null) {
-  const raw = repoOverride || (process.env.RUNE_GITHUB_REPO ?? process.env.JARVIS_GITHUB_REPO) || DEFAULT_REPO;
-  const match = raw.match(/github\.com\/([^/\s]+\/[^/\s#?]+)|^([^/\s]+\/[^/\s#?]+)$/i);
-  const slug = (match?.[1] || match?.[2] || DEFAULT_REPO).replace(/\.git$/i, "");
+  const slug = normalizeRepoSlug(repoOverride || DEFAULT_REPO);
   const [owner, repo] = slug.split("/");
   return { owner, repo, slug };
 }
@@ -162,7 +162,7 @@ export async function getGitHubIntelligence(repoOverride?: string | null): Promi
 
 export async function getVercelIntelligence(): Promise<VercelIntelligence> {
   const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
+  const project = RUNE_RUNTIME.vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
   const teamId = process.env.VERCEL_TEAM_ID || (process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID);
 
   if (!token) {
@@ -230,7 +230,7 @@ export async function getVercelIntelligence(): Promise<VercelIntelligence> {
 export async function getBuildIntelligenceSnapshot(options: { projectKey?: string | null; repo?: string | null; skipActionLog?: boolean } = {}): Promise<BuildIntelligenceSnapshot> {
   const projectRepo = options.repo || getProjectByKey(options.projectKey)?.repo || null;
   const repoSlug = getRepoSlug(projectRepo).slug;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
+  const project = RUNE_RUNTIME.vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
   const [github, vercel] = await Promise.all([
     withIntelligenceTimeout("github", getGitHubIntelligence(projectRepo), () => ({
       configured: Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN),

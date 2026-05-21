@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
@@ -60,7 +61,8 @@ export interface RepoActionProposalRow {
 
 const VALID_RISKS: RepoActionRisk[] = ["low", "medium", "high"];
 const VALID_STATUSES: RepoActionStatus[] = ["draft", "proposed", "approved", "rejected", "blocked", "executed", "cancelled"];
-const DEFAULT_REPO = "Tanjiro-1122/Rune";
+const RUNE_RUNTIME = getRuneRuntimeIdentity();
+const DEFAULT_REPO = RUNE_RUNTIME.repo;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NUMERIC_ID_RE = /^\d{8,}$/;
@@ -240,7 +242,7 @@ function getAllowedRepoSlugs() {
     .split(",")
     .map((repo) => repo.trim())
     .filter(Boolean);
-  return new Set([DEFAULT_REPO, process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO, ...configured].map((repo) => getRepoParts(repo).slug.toLowerCase()));
+  return new Set([DEFAULT_REPO, process.env.RUNE_GITHUB_REPO || DEFAULT_REPO, process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO, ...configured].map((repo) => getRepoParts(repo).slug.toLowerCase()));
 }
 
 function isRepoAllowed(repoSlug: string) {
@@ -282,7 +284,7 @@ function isoFromUnknownTimestamp(value: unknown) {
 
 async function getVercelDeploymentForBranch(branch?: string | null) {
   const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
+  const project = RUNE_RUNTIME.vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
   const teamId = process.env.VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
   if (!token) return { configured: false, error: "Vercel token not configured." };
 
