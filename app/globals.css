@@ -320,6 +320,46 @@ button:disabled {
   font-size: 11px;
   font-weight: 750;
 }
+.task-activity-chip {
+  gap: 0.4rem;
+  max-width: min(260px, 68vw);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.task-activity-chip--stale {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(255, 247, 237, 0.9);
+  color: #8a4b08;
+}
+
+.task-activity-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+  flex: 0 0 auto;
+}
+
+.task-activity-chip--stale .task-activity-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
+.task-activity-main {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.task-activity-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+
 
 .status-badge {
   display: inline-flex;
