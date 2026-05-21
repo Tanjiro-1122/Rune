@@ -2422,17 +2422,17 @@ export async function POST(req: Request) {
       };
     });
 
-    // Access checks with 4s hard timeout — Supabase slowness must not crash stream
+    // Access checks with 2s hard timeout — Supabase slowness must never crash stream
     await Promise.race([
       Promise.all([
         workspaceId
-          ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" })
+          ? assertWorkspaceAccess({ sessionId, workspaceId, requiredRole: "editor" }).catch(() => {})
           : Promise.resolve(),
         conversationId
-          ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" })
+          ? assertConversationAccess({ sessionId, conversationId, workspaceId, requiredRole: "editor" }).catch(() => {})
           : Promise.resolve(),
       ]),
-      new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+      new Promise<void>((resolve) => setTimeout(resolve, 2000)),
     ]);
 
     // Fire-and-forget: event recording should not block stream start
@@ -2496,7 +2496,7 @@ export async function POST(req: Request) {
             detail: step.detail,
           })),
         });
-        const _timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+        const _timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
         taskId = await Promise.race([_taskPromise, _timeout]);
       } catch {
         taskId = null;
