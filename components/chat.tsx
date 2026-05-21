@@ -1037,6 +1037,7 @@ export function Chat() {
 
   const [files, setFiles] = useState<FileList | undefined>();
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [pastedAttachments, setPastedAttachments] = useState<LightweightAttachment[]>([]);
   const [fileError, setFileError] = useState("");
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2263,12 +2264,18 @@ export function Chat() {
             throw new Error(msg);
           }
 
-          const data = await res.json() as { url?: string };
+          const data = await res.json() as { url?: string; name?: string; mimeType?: string };
 
           if (data.url) {
             setFileError("");
-            // Add as a proper image attachment so it renders as a preview
-            // and gets sent as a vision content part to the AI
+            const attachment: LightweightAttachment = {
+              name: data.name ?? file.name ?? "pasted-screenshot.png",
+              contentType: data.mimeType ?? file.type ?? "image/png",
+              url: data.url,
+            };
+            // Add as a proper sendable image attachment so it renders as a preview
+            // and gets sent as a vision content part to the AI.
+            setPastedAttachments((prev) => [...prev, attachment]);
             setPreviewUrls((prev) => [...prev, data.url!]);
           }
         } catch (err) {
@@ -2328,6 +2335,7 @@ export function Chat() {
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setFiles(undefined);
     setPreviewUrls([]);
+    setPastedAttachments([]);
     setFileError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -2373,17 +2381,21 @@ export function Chat() {
     if (isLoading) return;
 
     const hasFiles = files != null && files.length > 0;
-    if (!input.trim() && !hasFiles) return;
+    const hasPastedAttachments = pastedAttachments.length > 0;
+    const hasAnyAttachments = hasFiles || hasPastedAttachments;
+    if (!input.trim() && !hasAnyAttachments) return;
 
     setChatErrorMessage("");
     try {
       setIsUploadingAttachment(hasFiles);
-      const safeAttachments = hasFiles && files ? await prepareChatAttachments(files) : undefined;
+      const safeFileAttachments = hasFiles && files ? await prepareChatAttachments(files) : undefined;
+      const normalizedFileAttachments = Array.isArray(safeFileAttachments) ? safeFileAttachments : [];
+      const safeAttachments = [...normalizedFileAttachments, ...pastedAttachments];
       handleSubmit(e, {
-        experimental_attachments: safeAttachments,
-        allowEmptySubmit: hasFiles && !input.trim(),
+        experimental_attachments: safeAttachments.length > 0 ? safeAttachments : safeFileAttachments,
+        allowEmptySubmit: hasAnyAttachments && !input.trim(),
       });
-      if (!hasFiles || input.trim()) setResumeTaskId(null);
+      if (!hasAnyAttachments || input.trim()) setResumeTaskId(null);
       clearAttachments();
     } catch (error) {
       setFileError(

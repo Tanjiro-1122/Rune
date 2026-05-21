@@ -138,7 +138,8 @@ export function ChatInputBar({
 
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (isLoaderActive || (!input.trim() && (!files || files.length === 0))) return;
+    const hasPastedImage = Boolean(pastedImageUrl);
+    if (isLoaderActive || (!input.trim() && (!files || files.length === 0) && !hasPastedImage)) return;
     if (files && files.length > 0) {
       setIsUploadingAttachment(true);
       try {
@@ -242,7 +243,7 @@ export function ChatInputBar({
           <button
             type="submit"
             className="chat-send-btn"
-            disabled={isLoaderActive || (!input.trim() && (!files || files.length === 0))}
+            disabled={isLoaderActive || (!input.trim() && (!files || files.length === 0) && !pastedImageUrl)}
           >
             {isLoaderActive ? <span className="send-spinner" /> : "↑"}
           </button>
