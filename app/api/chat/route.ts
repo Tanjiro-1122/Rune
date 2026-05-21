@@ -2614,7 +2614,7 @@ ${retrievalHits
 
     const result = streamText({
       model: openai(CHAT_MODEL),
-      maxTokens: 8192, // Capped at 8k — avoids mid-stream token errors on gpt-4.1
+      maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
       temperature: 0.65, // natural, direct, human-sounding responses
       system: `You are Rune — Javier's private AI operator. You're his developer, co-pilot, business analyst, and fixer. Javier is the sole owner, builder, and user of every project you manage.
 
