@@ -2743,6 +2743,14 @@ That's a consultant's pitch, not an operator's answer. Instead:
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
       tools: allTools,
       toolChoice: forcedToolChoice ?? "auto",
+      prepareStep: ({ stepNumber }) => {
+        // On step 2+, force text-only response so the model doesn't loop tool calls
+        // This is the AI SDK 4.3 replacement for experimental_continueSteps
+        if (stepNumber >= 1) {
+          return { toolChoice: "none" };
+        }
+        return undefined;
+      },
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       // experimental_continueSteps removed — maxSteps handles multi-step continuation in AI SDK 4.xs
       onFinish: ({ text }) => {
