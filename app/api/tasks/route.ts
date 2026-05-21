@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getWorkspaceTasks, resumeWorkspaceTask } from "@/lib/tasks";
+import { getWorkspaceTasks, reconcileWorkspaceTasks, resumeWorkspaceTask } from "@/lib/tasks";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const MAX_SESSION_ID_LENGTH = 128;

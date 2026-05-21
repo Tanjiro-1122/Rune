@@ -61,6 +61,17 @@ export interface WorkspaceTaskStepSummary {
   completedAt: string | null;
 }
 
+export interface TaskReconciliationResult {
+  scanned: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+  completedTaskIds: string[];
+  failedTaskIds: string[];
+  checkedAt: string;
+}
+
+
 interface WorkspaceTaskRow {
   id: string;
   workspace_id: string;
@@ -164,6 +175,95 @@ async function markStaleTasks(workspaceId: string) {
     .eq("workspace_id", workspaceId)
     .in("status", ["queued", "running"])
     .lt("updated_at", cutoff);
+}
+
+async function conversationHasAssistantReply(conversationId: string, afterIso?: string | null) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+
+  let query = supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant");
+
+  if (afterIso) {
+    query = query.gte("created_at", afterIso);
+  }
+
+  const response = await query;
+  if (response.error) return false;
+  return (response.count ?? 0) > 0;
+}
+
+export async function reconcileWorkspaceTasks(options: {
+  workspaceId?: string | null;
+  maxAgeSeconds?: number;
+  staleAgeMinutes?: number;
+  limit?: number;
+} = {}): Promise<TaskReconciliationResult> {
+  const supabase = getSupabaseClient();
+  const checkedAt = new Date().toISOString();
+  const result: TaskReconciliationResult = {
+    scanned: 0,
+    completed: 0,
+    failed: 0,
+    skipped: 0,
+    completedTaskIds: [],
+    failedTaskIds: [],
+    checkedAt,
+  };
+  if (!supabase) return result;
+
+  const maxAgeSeconds = Math.max(5, Math.min(options.maxAgeSeconds ?? 8, 300));
+  const staleAgeMinutes = Math.max(1, Math.min(options.staleAgeMinutes ?? 15, 24 * 60));
+  const limit = Math.max(1, Math.min(options.limit ?? 50, 200));
+  const activeCutoff = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
+  const staleCutoff = new Date(Date.now() - staleAgeMinutes * 60_000).toISOString();
+
+  let query = supabase
+    .from("workspace_tasks")
+    .select(WORKSPACE_TASK_SELECT)
+    .in("status", ["queued", "running"])
+    .lt("updated_at", activeCutoff)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+
+  if (options.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
+
+  const taskResponse = await query;
+  if (taskResponse.error) return result;
+
+  const tasks = (taskResponse.data ?? []) as WorkspaceTaskRow[];
+  result.scanned = tasks.length;
+
+  for (const task of tasks) {
+    if (task.conversation_id && await conversationHasAssistantReply(task.conversation_id, task.created_at)) {
+      await completeWorkspaceTask(
+        task.id,
+        task.result_summary || "Assistant response was generated; reconciler closed the visible task state."
+      );
+      result.completed += 1;
+      result.completedTaskIds.push(task.id);
+      continue;
+    }
+
+    if (task.updated_at < staleCutoff) {
+      await failWorkspaceTask(
+        task.id,
+        `Task was reconciled as stale after ${staleAgeMinutes} minutes without a saved assistant response.`
+      );
+      result.failed += 1;
+      result.failedTaskIds.push(task.id);
+      continue;
+    }
+
+    result.skipped += 1;
+  }
+
+  return result;
 }
 
 export async function createWorkspaceTask(options: {
@@ -405,7 +505,7 @@ export async function getWorkspaceTasks(options: {
   const supabase = getSupabaseClient();
   if (!supabase || !workspaceId) return [] as WorkspaceTaskSummary[];
 
-  await markStaleTasks(workspaceId);
+  await reconcileWorkspaceTasks({ workspaceId, maxAgeSeconds: 8, staleAgeMinutes: STALE_TASK_WINDOW_MINUTES, limit: 30 });
 
   const maxRows = Math.max(1, Math.min(limit ?? 12, MAX_TASKS_PER_QUERY));
   let query = supabase
