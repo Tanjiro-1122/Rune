@@ -2229,59 +2229,78 @@ export function Chat() {
     }
   }
 
-  const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+  function insertPastedTextAtCursor(textarea: HTMLTextAreaElement, text: string) {
+    const selectionStart = textarea.selectionStart ?? input.length;
+    const selectionEnd = textarea.selectionEnd ?? input.length;
+    const nextInput = `${input.slice(0, selectionStart)}${text}${input.slice(selectionEnd)}`;
+    setInput(nextInput);
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = selectionStart + text.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  }
 
-    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
-      if (items[itemIndex].type.indexOf("image") !== -1) {
-        e.preventDefault();
+  const handleChatPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
 
-        const file = items[itemIndex].getAsFile();
-        if (!file) continue;
+    // Controlled textareas can occasionally miss browser-default paste updates.
+    // Insert plain text ourselves so Ctrl+V is reliable for text, links, and code.
+    if (text && imageItems.length === 0) {
+      e.preventDefault();
+      insertPastedTextAtCursor(e.currentTarget, text);
+      setFileError("");
+      return;
+    }
 
-        if (file.size > MAX_FILE_SIZE) {
-          setFileError(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
-          continue;
+    if (imageItems.length === 0) return;
+    e.preventDefault();
+
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      if (file.size > MAX_FILE_SIZE) {
+        setFileError(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
+        continue;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      if (workspaceId) formData.append("workspaceId", workspaceId);
+      if (conversationId) formData.append("conversationId", conversationId);
+      if (sessionId) formData.append("sessionId", sessionId);
+
+      try {
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({})) as { error?: string };
+          const msg = payload.error ?? `Upload failed with status ${res.status}`;
+          throw new Error(msg);
         }
 
-        const formData = new FormData();
-        formData.append("file", file);
-        if (workspaceId) formData.append("workspaceId", workspaceId);
-        if (conversationId) formData.append("conversationId", conversationId);
-        if (sessionId) formData.append("sessionId", sessionId);
+        const data = await res.json() as { url?: string; name?: string; mimeType?: string };
 
-        try {
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-          });
-
-          if (!res.ok) {
-            const payload = await res.json().catch(() => ({})) as { error?: string };
-            const msg = payload.error ?? `Upload failed with status ${res.status}`;
-            throw new Error(msg);
-          }
-
-          const data = await res.json() as { url?: string; name?: string; mimeType?: string };
-
-          if (data.url) {
-            setFileError("");
-            const attachment: LightweightAttachment = {
-              name: data.name ?? file.name ?? "pasted-screenshot.png",
-              contentType: data.mimeType ?? file.type ?? "image/png",
-              url: data.url,
-            };
-            // Add as a proper sendable image attachment so it renders as a preview
-            // and gets sent as a vision content part to the AI.
-            setPastedAttachments((prev) => [...prev, attachment]);
-            setPreviewUrls((prev) => [...prev, data.url!]);
-          }
-        } catch (err) {
-          console.error("Failed to upload pasted image:", err);
-          setFileError(err instanceof Error ? err.message : "Failed to upload pasted image.");
+        if (data.url) {
+          setFileError("");
+          const attachment: LightweightAttachment = {
+            name: data.name ?? file.name ?? "pasted-screenshot.png",
+            contentType: data.mimeType ?? file.type ?? "image/png",
+            url: data.url,
+          };
+          setPastedAttachments((prev) => [...prev, attachment]);
+          setPreviewUrls((prev) => [...prev, data.url!]);
         }
+      } catch (err) {
+        console.error("Failed to upload pasted image:", err);
+        setFileError(err instanceof Error ? err.message : "Failed to upload pasted image.");
       }
     }
   };
@@ -2998,7 +3017,7 @@ export function Chat() {
             name="message"
             value={input}
             onChange={handleInputChange}
-            onPaste={handleScreenshotPaste}
+            onPaste={handleChatPaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

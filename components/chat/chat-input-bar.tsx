@@ -94,32 +94,52 @@ export function ChatInputBar({
     }
   }
 
-  const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        e.preventDefault();
-        const file = items[i].getAsFile();
-        if (!file) continue;
-        if (file.size > MAX_FILE_SIZE) { setFileError(`File exceeds ${MAX_FILE_SIZE_MB}MB`); continue; }
-        const fd = new FormData();
-        fd.append("file", file);
-        if (workspaceId) fd.append("workspaceId", workspaceId);
-        if (conversationId) fd.append("conversationId", conversationId);
-        if (sessionId) fd.append("sessionId", sessionId);
-        try {
-          const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
-          if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-          const data = await res.json() as { url?: string };
-          if (data.url) {
-            setFileError("");
-            // Show as inline image preview chip instead of raw markdown text
-            setPastedImageUrl(data.url);
-          }
-        } catch (err) {
-          setFileError(err instanceof Error ? err.message : "Upload failed");
+  function insertPastedTextAtCursor(textarea: HTMLTextAreaElement, text: string) {
+    const selectionStart = textarea.selectionStart ?? input.length;
+    const selectionEnd = textarea.selectionEnd ?? input.length;
+    const nextInput = `${input.slice(0, selectionStart)}${text}${input.slice(selectionEnd)}`;
+    setInput(nextInput);
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = selectionStart + text.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  const handleChatPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+
+    if (text && imageItems.length === 0) {
+      e.preventDefault();
+      insertPastedTextAtCursor(e.currentTarget, text);
+      setFileError("");
+      return;
+    }
+
+    if (imageItems.length === 0) return;
+    e.preventDefault();
+
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
+      if (file.size > MAX_FILE_SIZE) { setFileError(`File exceeds ${MAX_FILE_SIZE_MB}MB`); continue; }
+      const fd = new FormData();
+      fd.append("file", file);
+      if (workspaceId) fd.append("workspaceId", workspaceId);
+      if (conversationId) fd.append("conversationId", conversationId);
+      if (sessionId) fd.append("sessionId", sessionId);
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        const data = await res.json() as { url?: string };
+        if (data.url) {
+          setFileError("");
+          setPastedImageUrl(data.url);
         }
+      } catch (err) {
+        setFileError(err instanceof Error ? err.message : "Upload failed");
       }
     }
   };
@@ -215,7 +235,7 @@ export function ChatInputBar({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onPaste={handleScreenshotPaste}
+            onPaste={handleChatPaste}
             placeholder={isLoaderActive ? "Rune is thinking…" : "Message Rune…"}
             rows={1}
             disabled={isLoaderActive}
