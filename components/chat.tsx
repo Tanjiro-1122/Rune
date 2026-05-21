@@ -987,6 +987,7 @@ export function Chat() {
     input,
     handleInputChange,
     handleSubmit,
+    append,
     status,
     setMessages,
     setInput,
@@ -2366,13 +2367,30 @@ export function Chat() {
     setInput(prompt);
   }
 
-  function handleBuilderSubmit(prompt: string) {
-    if (isLoading || !prompt.trim()) return;
-    setInput(prompt);
-    // Submit on next tick after setInput has flushed
-    setTimeout(() => {
-      formRef.current?.requestSubmit();
-    }, 0);
+  async function handleBuilderSubmit(prompt: string) {
+    const trimmedPrompt = prompt.trim();
+    if (isLoading || !trimmedPrompt) return;
+
+    // Starter prompts live outside the normal controlled chat textarea, so do not
+    // rely on setInput() + requestSubmit(). React may not flush the input state
+    // before the hidden form submits, which made the first prompt appear to do
+    // nothing. Send the message directly through the chat transport instead.
+    setShowBuilderSidebar(false);
+    setShowInfoSidebar(false);
+    setChatErrorMessage("");
+    setInput("");
+    setResumeTaskId(null);
+
+    try {
+      await append({ role: "user", content: trimmedPrompt });
+    } catch (error) {
+      const msg = error instanceof Error
+        ? error.message
+        : "Rune could not send that starter prompt.";
+      setChatErrorMessage(msg);
+      setInput(trimmedPrompt);
+      setTimeout(() => setChatErrorMessage((prev) => prev === msg ? "" : prev), 10_000);
+    }
   }
 
   async function handleWorkspaceSelect(nextWorkspaceId: string) {
