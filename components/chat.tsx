@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { BuilderHome } from "./builder-home";
+import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import dynamic from "next/dynamic";
 import type { PlanResult } from "./chat/PlanModal";
 import type { CanvasContent } from "./chat/CanvasPane";
@@ -2668,7 +2669,7 @@ export function Chat() {
           <button
             type="button"
             className="native-icon-button"
-            aria-label="Open workspaces"
+            aria-label="Open command center menu"
             aria-expanded={showWorkspaceDrawer}
             onClick={() => setShowWorkspaceDrawer(true)}
           >
@@ -2678,7 +2679,7 @@ export function Chat() {
             <span className="chat-header-title">Rune</span>
               <a href="/vault" className="vault-nav-chip vault-nav-chip--rune" title="Open Rune Vault" aria-label="Open Rune Vault">ᛟ</a>
             <p className="chat-header-subtitle">
-              {selectedWorkspace?.name ?? "Private workspace"}
+              {getRuneVisibleWorkspaceLabel(selectedWorkspace?.name)}
               {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : status === "submitted" ? " · working…" : " · thinking") : ""}
             </p>
           </div>
@@ -2695,12 +2696,12 @@ export function Chat() {
             <button
               type="button"
               className={`native-tool-button${showBuilderSidebar ? " native-tool-button--active" : ""}`}
-              aria-label={showBuilderSidebar ? "Hide structure" : "Open structure"}
+              aria-label={showBuilderSidebar ? "Hide projects" : "Open projects"}
               aria-expanded={showBuilderSidebar}
               onClick={() => { setShowBuilderSidebar((prev) => !prev); setShowInfoSidebar(false); }}
               title="Project structure — files, artifacts, docs"
             >
-              Structure
+              Projects
             </button>
             <button
               type="button"
@@ -2718,8 +2719,8 @@ export function Chat() {
         </div>
 
         <div className="workspace-summary-bar native-status-strip" aria-label="Current workspace status">
-          <span className="summary-chip">{selectedWorkspace?.name ?? "General"}</span>
-          <span className="summary-chip">{persistenceEnabled && schemaReady ? "Synced" : "Local"}</span>
+          <span className="summary-chip">{getRuneVisibleWorkspaceLabel(selectedWorkspace?.name)}</span>
+          <span className="summary-chip">{persistenceEnabled && schemaReady ? "Saved" : "Local"}</span>
           {primaryActiveTask && (
             <span
               className={`summary-chip task-activity-chip${primaryActiveTaskIsStale ? " task-activity-chip--stale" : ""}`}
@@ -3024,19 +3025,19 @@ export function Chat() {
                 formRef.current?.requestSubmit();
               }
             }}
-            placeholder="Ask Rune anything for this workspace…"
+            placeholder={`Ask Rune anything in ${RUNE_HOME_LABEL}…`}
             className="chat-input"
             rows={1}
           />
           <button
             type="button"
             className="queue-button"
-            aria-label="Queue as background job"
+            aria-label="Save as operator task"
             disabled={jobBusy || isLoading || !workspaceId || !input.trim()}
             onClick={queueWorkspaceJobFromPrompt}
-            title="Queue this request as a safe background job"
+            title="Save this request as an operator task"
           >
-            {jobBusy ? "Queuing…" : "Queue"}
+            {jobBusy ? "Saving…" : "Save task"}
           </button>
           <button type="submit" className="send-button" aria-label="Send message" disabled={isLoading}>
             {isUploadingAttachment ? "Uploading…" : isStreamStalled ? "Send" : isStreamFinalizing ? "Send" : status === "submitted" || status === "streaming" ? "Working…" : "Send"}
@@ -3044,7 +3045,7 @@ export function Chat() {
         </form>
       </section>
 
-      {/* Structure Sidebar */}
+      {/* Projects Sidebar */}
       <BuilderSidebar
         files={projectFiles.map((f) => ({
           id: f.id,

@@ -17,6 +17,6 @@ assert(home.includes("Ask Rune to check, fix, build, remember, or run something"
 assert(home.includes("Command Center"), "empty state labels Rune as Command Center");
 assert(!home.includes("What will you build next?"), "old builder-first headline removed");
 assert(chat.includes('useState<CabinetDrawerKey>("tasks")'), "tools drawer defaults to tasks instead of operator auto-open");
-assert(chat.includes("Open structure") && chat.includes("Structure"), "builder button relabeled as Structure");
-assert(sidebar.includes('builder-sidebar-title">Structure'), "sidebar title is Structure");
+assert(chat.includes("Open projects") && chat.includes(">\n              Projects\n            </button>"), "project button relabeled as Projects");
+assert(sidebar.includes('builder-sidebar-title">Projects'), "sidebar title is Projects");
 console.log("✅ Command Center polish smoke test passed.");
