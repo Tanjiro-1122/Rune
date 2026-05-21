@@ -110,9 +110,11 @@ export async function GET(req: NextRequest) {
       getCrossAppIntelligence(false),
     ]);
 
-    // Compute avg health score for trend tracking
+    // Compute avg operator readiness for trend tracking.
+    // This intentionally uses the briefing-specific readiness score instead of raw app-health scores,
+    // so stale CI and optional store-credential visibility do not masquerade as production outages.
     const projectScores = briefing.projects
-      .map((p) => p.healthScore)
+      .map((p) => p.operatorReadinessScore ?? p.healthScore)
       .filter((s): s is number => s !== null);
     const avgScore = projectScores.length
       ? Math.round(projectScores.reduce((a, b) => a + b, 0) / projectScores.length)

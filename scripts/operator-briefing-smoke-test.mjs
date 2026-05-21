@@ -25,10 +25,14 @@ assert(briefing.includes('status === "blocked" && !hasHardBlocker ? "warning"'),
 assert(briefing.includes('const computedOverallStatus = hasHardBlocker ? "blocked" : combineStatuses(statusSignals);'), "Briefing computes hard blockers before final normalization");
 assert(briefing.includes("normalizeFinalBriefingStatus({"), "Briefing normalizes final payload status before returning");
 assert(briefing.includes("normalizeFinalBriefingStatus"), "Briefing final response normalizer exists");
+assert(briefing.includes("operatorReadinessScore"), "Briefing exposes a dedicated operator readiness score");
+assert(briefing.includes("getOperatorReadinessScore"), "Briefing computes readiness separately from raw app health score");
+assert(briefing.includes("Store credentials / optional external visibility should be visible, but not tank readiness."), "Briefing does not let optional store visibility tank readiness");
+assert(briefing.includes("isCurrentCiFailure"), "Briefing still penalizes current CI failures");
 assert(briefing.includes("getBriefingHeadline(overallStatus)"), "Briefing headline is derived from final normalized status");
 assert(briefing.includes('return isIntegrationVisibilityWarning(warningText) ? "warning" : "blocked"'), "Briefing final payload downgrades external-service-only blockers to warning");
 assert(briefing.includes("integration visibility or health warnings"), "Briefing warning headline avoids blocked wording for read-only integrations");
-assert(briefing.includes("JARVIS_CANONICAL_PROJECTS.map"), "Briefing covers canonical projects");
+assert(briefing.includes("RUNE_CANONICAL_PROJECTS.map"), "Briefing covers canonical projects");
 assert(briefing.includes("getAppHealthSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true })"), "Briefing reads app health without action logging");
 assert(briefing.includes("getBuildIntelligenceSnapshot({ projectKey: project.key, repo: project.repo, skipActionLog: true })"), "Briefing reads build intelligence without action logging");
 assert(briefing.includes("getDeployHealthSnapshot({ skipActionLog: true })"), "Briefing reads deploy health without action logging");

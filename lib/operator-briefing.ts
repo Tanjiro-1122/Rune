@@ -15,6 +15,7 @@ export interface OperatorBriefingProjectSummary {
   safetyLevel: string;
   healthStatus: string;
   healthScore: number | null;
+  operatorReadinessScore: number | null;
   buildStatus: string;
   latestCommit: string | null;
   deploySignal: string;
@@ -100,6 +101,47 @@ function getBuildRunStatus(build: BuildIntelligenceSnapshot) {
   return build.github.latestWorkflowRun?.conclusion || build.github.latestWorkflowRun?.status || (build.github.error ? "warning" : "unknown");
 }
 
+function isCurrentCiFailure(build: BuildIntelligenceSnapshot) {
+  const run = build.github.latestWorkflowRun;
+  if (!run) return false;
+  const conclusion = (run.conclusion || "").toLowerCase();
+  return conclusion === "failure" || conclusion === "failed";
+}
+
+function getOperatorReadinessScore(options: {
+  project: typeof RUNE_CANONICAL_PROJECTS[number];
+  health: AppHealthSnapshot;
+  build: BuildIntelligenceSnapshot;
+  deploy: DeployHealthSnapshot | null;
+  warnings: string[];
+}) {
+  let score = 96;
+
+  // GitHub/source visibility and current CI are real operator signals.
+  if (options.build.github.error) score -= 30;
+  if (isCurrentCiFailure(options.build)) score -= 25;
+
+  // Vercel matters for web/operator availability. A READY deploy should not be punished.
+  if (options.build.vercel.error) score -= 12;
+  const latestDeploymentState = (options.build.vercel.latestDeployment?.state || "").toUpperCase();
+  if (latestDeploymentState && latestDeploymentState !== "READY") score -= 20;
+
+  // Rune's own deploy snapshot is an extra production availability signal.
+  if (options.project.key === "rune") {
+    const deployOverall = (options.deploy?.overall || "unknown").toLowerCase();
+    if (deployOverall === "blocked") score -= 35;
+    else if (deployOverall === "warning" || deployOverall === "unknown") score -= 8;
+  }
+
+  // Store credentials / optional external visibility should be visible, but not tank readiness.
+  const visibilityWarnings = options.warnings.filter(isIntegrationVisibilityWarning).length;
+  const hardWarnings = options.warnings.length - visibilityWarnings;
+  score -= Math.min(8, visibilityWarnings * 2);
+  score -= Math.min(18, hardWarnings * 6);
+
+  return Math.max(35, Math.min(99, score));
+}
+
 function summarizeProject(
   projectKey: RuneProjectKey,
   health: AppHealthSnapshot,
@@ -113,6 +155,7 @@ function summarizeProject(
     ...(build.vercel.error ? [`Vercel visibility: ${build.vercel.error}`] : []),
   ].slice(0, 6);
   const externalVisibilityOnly = hasOnlyIntegrationVisibilityWarnings(warnings);
+  const operatorReadinessScore = getOperatorReadinessScore({ project, health, build, deploy, warnings });
 
   return {
     key: project.key,
@@ -121,6 +164,7 @@ function summarizeProject(
     safetyLevel: project.safetyLevel,
     healthStatus: externalVisibilityOnly && health.status === "blocked" ? "warning" : health.status,
     healthScore: typeof health.score === "number" ? health.score : null,
+    operatorReadinessScore,
     buildStatus: getBuildRunStatus(build),
     latestCommit: build.github.latestCommit?.sha?.slice(0, 7) || null,
     deploySignal: project.key === "rune" ? deploy?.overall || "unknown" : "not_applicable",
