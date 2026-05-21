@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
   if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
-    return NextResponse.json({ error: "Invalid sessionId." }, { status: 400 });
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
   if (!workspaceId || workspaceId.length > MAX_RESOURCE_ID_LENGTH) {
@@ -34,6 +34,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const clientSessionId = req.nextUrl.searchParams.get("sessionId");
+    const sessionId = await resolveOwnerSessionId(req, clientSessionId);
+    if (!sessionId || sessionId.length > MAX_SESSION_ID_LENGTH) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
     const { taskId } = (await req.json()) as { taskId?: string };
 
     if (!taskId || taskId.length > MAX_RESOURCE_ID_LENGTH) {

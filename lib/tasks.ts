@@ -356,7 +356,7 @@ export async function completeWorkspaceTask(taskId: string, resultSummary?: stri
       .from("workspace_task_steps")
       .update({ status: "completed", completed_at: now })
       .eq("task_id", taskId)
-      .eq("status", "running"),
+      .in("status", ["pending", "running"]),
     supabase
       .from("workspace_tasks")
       .update({
@@ -382,7 +382,7 @@ export async function failWorkspaceTask(taskId: string, errorMessage: string) {
       .from("workspace_task_steps")
       .update({ status: "failed", completed_at: now })
       .eq("task_id", taskId)
-      .eq("status", "running"),
+      .in("status", ["pending", "running"]),
     supabase
       .from("workspace_tasks")
       .update({
@@ -551,7 +551,7 @@ export interface WorkspaceTaskCheckpoint extends WorkspaceTaskCheckpointInput {
 
 function normalizeCheckpointText(value: unknown, maxChars = 1200) {
   const text = String(value ?? "")
-    .replace(/[ -]+/g, " ")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
