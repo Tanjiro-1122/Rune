@@ -46,6 +46,7 @@ export interface WorkspaceTaskSummary {
   runnerAttempts?: number;
   runnerLogs?: Array<{ timestamp: string; level: string; message: string }>;
   runnerMetadata?: Record<string, unknown> | null;
+  latestRun?: WorkspaceTaskRunSummary | null;
   steps: WorkspaceTaskStepSummary[];
 }
 
@@ -59,6 +60,42 @@ export interface WorkspaceTaskStepSummary {
   detail: string | null;
   startedAt: string | null;
   completedAt: string | null;
+}
+
+export type WorkspaceTaskRunStatus = "queued" | "running" | "completed" | "failed" | "abandoned";
+
+export interface WorkspaceTaskRunSummary {
+  id: string;
+  taskId: string;
+  workspaceId: string;
+  conversationId: string | null;
+  status: WorkspaceTaskRunStatus;
+  attempt: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  heartbeatAt: string | null;
+  errorMessage: string | null;
+  resultSummary: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkspaceTaskRunRow {
+  id: string;
+  task_id: string;
+  workspace_id: string;
+  conversation_id: string | null;
+  status: WorkspaceTaskRunStatus;
+  attempt: number;
+  started_at: string | null;
+  completed_at: string | null;
+  heartbeat_at: string | null;
+  error_message: string | null;
+  result_summary: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TaskReconciliationResult {
@@ -115,7 +152,8 @@ function clampProgress(value?: number | null) {
 
 function mapTask(
   task: WorkspaceTaskRow,
-  stepsByTaskId: Map<string, WorkspaceTaskStepSummary[]>
+  stepsByTaskId: Map<string, WorkspaceTaskStepSummary[]>,
+  runsByTaskId: Map<string, WorkspaceTaskRunSummary> = new Map()
 ): WorkspaceTaskSummary {
   return {
     id: task.id,
@@ -139,6 +177,7 @@ function mapTask(
     runnerAttempts: task.runner_attempts ?? 0,
     runnerLogs: Array.isArray(task.runner_logs) ? task.runner_logs : [],
     runnerMetadata: task.runner_metadata ?? null,
+    latestRun: runsByTaskId.get(task.id) ?? null,
     steps: stepsByTaskId.get(task.id) ?? [],
   };
 }
@@ -155,6 +194,91 @@ function mapStep(step: WorkspaceTaskStepRow): WorkspaceTaskStepSummary {
     startedAt: step.started_at,
     completedAt: step.completed_at,
   };
+}
+
+function mapTaskRun(row: WorkspaceTaskRunRow): WorkspaceTaskRunSummary {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    workspaceId: row.workspace_id,
+    conversationId: row.conversation_id,
+    status: row.status,
+    attempt: row.attempt,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    heartbeatAt: row.heartbeat_at,
+    errorMessage: row.error_message,
+    resultSummary: row.result_summary,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function createWorkspaceTaskRun(task: WorkspaceTaskRow, status: WorkspaceTaskRunStatus = "running") {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const now = new Date().toISOString();
+  const attempts = await supabase
+    .from("workspace_task_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("task_id", task.id);
+  const attempt = (attempts.count ?? 0) + 1;
+  const response = await supabase
+    .from("workspace_task_runs")
+    .insert({
+      task_id: task.id,
+      workspace_id: task.workspace_id,
+      conversation_id: task.conversation_id,
+      status,
+      attempt,
+      started_at: status === "running" ? now : null,
+      heartbeat_at: now,
+      metadata: { intent: task.intent },
+    })
+    .select("id")
+    .maybeSingle();
+  return response.error ? null : response.data?.id ?? null;
+}
+
+async function ensureActiveWorkspaceTaskRun(taskId: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const existing = await supabase
+    .from("workspace_task_runs")
+    .select("id")
+    .eq("task_id", taskId)
+    .in("status", ["queued", "running"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!existing.error && existing.data?.id) return existing.data.id as string;
+
+  const taskResponse = await supabase
+    .from("workspace_tasks")
+    .select(WORKSPACE_TASK_SELECT)
+    .eq("id", taskId)
+    .maybeSingle();
+  if (taskResponse.error || !taskResponse.data) return null;
+  return createWorkspaceTaskRun(taskResponse.data as WorkspaceTaskRow, "running");
+}
+
+async function closeActiveWorkspaceTaskRuns(taskId: string, status: "completed" | "failed" | "abandoned", detail?: { resultSummary?: string | null; errorMessage?: string | null }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  const now = new Date().toISOString();
+  await supabase
+    .from("workspace_task_runs")
+    .update({
+      status,
+      completed_at: now,
+      heartbeat_at: now,
+      updated_at: now,
+      result_summary: detail?.resultSummary ?? null,
+      error_message: detail?.errorMessage ?? null,
+    })
+    .eq("task_id", taskId)
+    .in("status", ["queued", "running"]);
 }
 
 async function markStaleTasks(workspaceId: string) {
@@ -339,6 +463,8 @@ export async function createWorkspaceTask(options: {
     .eq("task_id", taskResponse.data.id)
     .eq("order_index", 0);
 
+  await createWorkspaceTaskRun(taskResponse.data as WorkspaceTaskRow, "running").catch(() => null);
+
   return taskResponse.data.id;
 }
 
@@ -399,6 +525,8 @@ export async function resumeWorkspaceTask(taskId: string) {
       .eq("id", firstStep.data.id);
   }
 
+  await createWorkspaceTaskRun(taskResponse.data as WorkspaceTaskRow, "queued").catch(() => null);
+
   return taskResponse.data;
 }
 
@@ -455,6 +583,7 @@ export async function startWorkspaceTask(taskId: string, progress = 5) {
       updated_at: now,
     })
     .eq("id", taskId);
+  await ensureActiveWorkspaceTaskRun(taskId).catch(() => null);
 }
 
 export async function completeWorkspaceTask(taskId: string, resultSummary?: string | null) {
@@ -464,6 +593,7 @@ export async function completeWorkspaceTask(taskId: string, resultSummary?: stri
   const now = new Date().toISOString();
 
   await Promise.all([
+    closeActiveWorkspaceTaskRuns(taskId, "completed", { resultSummary }).catch(() => {}),
     supabase
       .from("workspace_task_steps")
       .update({ status: "completed", completed_at: now })
@@ -490,6 +620,7 @@ export async function failWorkspaceTask(taskId: string, errorMessage: string) {
   const now = new Date().toISOString();
 
   await Promise.all([
+    closeActiveWorkspaceTaskRuns(taskId, "failed", { errorMessage }).catch(() => {}),
     supabase
       .from("workspace_task_steps")
       .update({ status: "failed", completed_at: now })
@@ -540,14 +671,22 @@ export async function getWorkspaceTasks(options: {
   const taskIds = taskRows.map((task) => task.id);
 
   const stepsByTaskId = new Map<string, WorkspaceTaskStepSummary[]>();
+  const latestRunByTaskId = new Map<string, WorkspaceTaskRunSummary>();
   if (taskIds.length > 0) {
-    const stepResponse = await supabase
-      .from("workspace_task_steps")
-      .select(
-        "id, task_id, step_key, label, order_index, status, detail, started_at, completed_at"
-      )
-      .in("task_id", taskIds)
-      .order("order_index", { ascending: true });
+    const [stepResponse, runResponse] = await Promise.all([
+      supabase
+        .from("workspace_task_steps")
+        .select(
+          "id, task_id, step_key, label, order_index, status, detail, started_at, completed_at"
+        )
+        .in("task_id", taskIds)
+        .order("order_index", { ascending: true }),
+      supabase
+        .from("workspace_task_runs")
+        .select("id, task_id, workspace_id, conversation_id, status, attempt, started_at, completed_at, heartbeat_at, error_message, result_summary, metadata, created_at, updated_at")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (!stepResponse.error) {
       for (const row of (stepResponse.data ?? []) as WorkspaceTaskStepRow[]) {
@@ -557,9 +696,17 @@ export async function getWorkspaceTasks(options: {
         stepsByTaskId.set(mapped.taskId, existing);
       }
     }
+
+    if (!runResponse.error) {
+      for (const row of (runResponse.data ?? []) as WorkspaceTaskRunRow[]) {
+        if (!latestRunByTaskId.has(row.task_id)) {
+          latestRunByTaskId.set(row.task_id, mapTaskRun(row));
+        }
+      }
+    }
   }
 
-  return taskRows.map((task) => mapTask(task, stepsByTaskId));
+  return taskRows.map((task) => mapTask(task, stepsByTaskId, latestRunByTaskId));
 }
 
 
@@ -629,21 +776,34 @@ export async function getWorkspaceTask(taskId: string) {
 
   if (taskResponse.error || !taskResponse.data) return null;
 
-  const stepResponse = await supabase
-    .from("workspace_task_steps")
-    .select("id, task_id, step_key, label, order_index, status, detail, started_at, completed_at")
-    .eq("task_id", taskId)
-    .order("order_index", { ascending: true });
+  const [stepResponse, runResponse] = await Promise.all([
+    supabase
+      .from("workspace_task_steps")
+      .select("id, task_id, step_key, label, order_index, status, detail, started_at, completed_at")
+      .eq("task_id", taskId)
+      .order("order_index", { ascending: true }),
+    supabase
+      .from("workspace_task_runs")
+      .select("id, task_id, workspace_id, conversation_id, status, attempt, started_at, completed_at, heartbeat_at, error_message, result_summary, metadata, created_at, updated_at")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   const stepsByTaskId = new Map<string, WorkspaceTaskStepSummary[]>();
+  const latestRunByTaskId = new Map<string, WorkspaceTaskRunSummary>();
   if (!stepResponse.error) {
     stepsByTaskId.set(
       taskId,
       ((stepResponse.data ?? []) as WorkspaceTaskStepRow[]).map((step) => mapStep(step))
     );
   }
+  if (!runResponse.error && runResponse.data) {
+    latestRunByTaskId.set(taskId, mapTaskRun(runResponse.data as WorkspaceTaskRunRow));
+  }
 
-  return mapTask(taskResponse.data as WorkspaceTaskRow, stepsByTaskId);
+  return mapTask(taskResponse.data as WorkspaceTaskRow, stepsByTaskId, latestRunByTaskId);
 }
 
 

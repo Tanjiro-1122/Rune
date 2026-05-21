@@ -144,6 +144,23 @@ create table if not exists workspace_task_steps (
   updated_at   timestamptz default now()
 );
 
+create table if not exists workspace_task_runs (
+  id             uuid primary key default gen_random_uuid(),
+  task_id         uuid not null references workspace_tasks(id) on delete cascade,
+  workspace_id    uuid not null references workspaces(id) on delete cascade,
+  conversation_id uuid references conversations(id) on delete set null,
+  status          text not null check (status in ('queued', 'running', 'completed', 'failed', 'abandoned')),
+  attempt         integer not null default 1,
+  started_at      timestamptz,
+  completed_at    timestamptz,
+  heartbeat_at    timestamptz,
+  error_message   text,
+  result_summary  text,
+  metadata        jsonb not null default '{}'::jsonb,
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now()
+);
+
 create index if not exists workspaces_session_id_updated_at_idx
   on workspaces(session_id, updated_at desc);
 create index if not exists conversation_workspaces_workspace_id_updated_at_idx
@@ -186,6 +203,12 @@ create index if not exists workspace_tasks_workspace_id_updated_at_idx
   on workspace_tasks(workspace_id, updated_at desc);
 create index if not exists workspace_task_steps_task_id_order_idx
   on workspace_task_steps(task_id, order_index asc);
+create index if not exists workspace_task_runs_task_id_created_at_idx
+  on workspace_task_runs(task_id, created_at desc);
+create index if not exists workspace_task_runs_status_heartbeat_idx
+  on workspace_task_runs(status, heartbeat_at desc, updated_at desc);
+create index if not exists workspace_task_runs_workspace_updated_idx
+  on workspace_task_runs(workspace_id, updated_at desc);
 
 insert into workspaces (session_id, name, description)
 select distinct c.session_id, 'General workspace', 'Imported workspace for legacy Jarvis chat history.'
