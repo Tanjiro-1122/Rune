@@ -13,6 +13,12 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 function redirectToLogin(request: NextRequest, reason?: string): NextResponse {
   const loginUrl = new URL("/login", request.url);
   if (reason) loginUrl.searchParams.set("reason", reason);
+
+  const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  if (requestedPath && !requestedPath.startsWith("/login")) {
+    loginUrl.searchParams.set("next", requestedPath);
+  }
+
   return withSecurityHeaders(NextResponse.redirect(loginUrl));
 }
 

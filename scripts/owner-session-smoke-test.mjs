@@ -49,3 +49,10 @@ const history = fs.readFileSync("app/api/history/route.ts", "utf8");
 assert(history.includes("const sessionId = await resolveOwnerSessionId(req, clientSessionId)"), "history loads from unified owner session");
 
 console.log("✅ Owner session cohesion smoke test passed.");
+
+const middleware = fs.readFileSync("middleware.ts", "utf8");
+const loginPage = fs.readFileSync("app/login/page.tsx", "utf8");
+assert(middleware.includes('loginUrl.searchParams.set("next", requestedPath)'), "middleware preserves intended destination on login redirects");
+assert(loginPage.includes("getSafeNextPath"), "login page sanitizes next destination");
+assert(loginPage.includes('router.push(nextPath)'), "login redirects back to the intended safe destination");
+assert(loginPage.includes("Your Rune session expired"), "login explains expired sessions clearly");
