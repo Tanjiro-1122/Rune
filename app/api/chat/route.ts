@@ -588,8 +588,11 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   };
 
   // Tiny always-on core. Keep this lean: every tool schema costs prompt tokens.
-  add("get_rune_capability_snapshot");
   add("calculate");
+
+  if (/(what can you do|capabilit|what are you able|what tools|what setup)/i.test(input)) {
+    add("get_rune_capability_snapshot");
+  }
 
   if (isApprovedRuneSessionMergeIntent(input)) {
     add("execute_rune_session_merge");
@@ -610,8 +613,16 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("get_current_datetime");
   }
 
-  if (isWebSearchIntent(input)) {
+  const repoOrCommitIntent = /(commit|commits|github|repo|repository|pull request|pr|branch|release|deploy)/i.test(input);
+  const knownProjectRepoIntent = repoOrCommitIntent && /(unfiltr|rune|jarvis|swh|sportswager|sports wager|family)/i.test(input);
+
+  if (isWebSearchIntent(input) && !knownProjectRepoIntent) {
     add("web_search");
+  }
+
+  if (knownProjectRepoIntent) {
+    add("analyze_github_repo");
+    add("searchRepositoryCode");
   }
 
   if (isGitHubSourceInspectionIntent(input)) {
@@ -2657,7 +2668,9 @@ ${resolvedRetrieval
     const shouldEscalateModel =
       isCodeExecutionIntent(latestUserText, codeExecution.available) ||
       /(deep coding|large refactor|multi-file|architecture|architectural|full audit|complex debugging)/i.test(latestUserText);
-    const CHAT_MODEL = process.env.RUNE_CHAT_MODEL ?? (shouldEscalateModel ? "gpt-4.1" : "gpt-4.1-mini");
+    // Normal chat must stay on mini to avoid GPT-4.1 TPM crashes. Use RUNE_FORCE_CHAT_MODEL only for deliberate temporary overrides.
+    const forcedChatModel = process.env.RUNE_FORCE_CHAT_MODEL;
+    const CHAT_MODEL = forcedChatModel || (shouldEscalateModel ? "gpt-4.1" : "gpt-4.1-mini");
     const projectRegistrySection = buildProjectRegistryPromptSection();
     const requestNow = new Date();
     const currentDateTimeSection = `## Current Date/Time Context
