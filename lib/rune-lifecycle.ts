@@ -6,6 +6,8 @@
  * No step is skipped. No merge happens without a passing self-check.
  */
 
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
+
 export interface LifecycleFile {
   path: string;
   content: string;
@@ -38,11 +40,13 @@ export interface LifecycleResult {
 
 // ── GitHub helpers ─────────────────────────────────────────────────────────
 
-const REPO = process.env.RUNE_GITHUB_REPO ?? "Tanjiro-1122/Rune";
+const RUNE_RUNTIME = getRuneRuntimeIdentity();
+const REPO = RUNE_RUNTIME.repo;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN ?? process.env.RUNE_GITHUB_TOKEN ?? "";
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN ?? "";
-const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID ?? "prj_C8yIrPTBitcCIkW745Gx80LBB6CA";
-const LIVE_URL = process.env.RUNE_LIVE_URL ?? "https://mrruneai.vercel.app";
+const VERCEL_PROJECT_ID = RUNE_RUNTIME.vercelProjectId;
+const LIVE_URL = RUNE_RUNTIME.liveUrl;
+const PRODUCTION_BRANCH = RUNE_RUNTIME.productionBranch;
 
 async function ghFetch(path: string, method = "GET", body?: unknown) {
   const res = await fetch(`https://api.github.com/repos/${REPO}/${path}`, {
@@ -82,7 +86,7 @@ async function vercelFetch(path: string, method = "GET", body?: unknown) {
 // ── Stage 1: Create branch ─────────────────────────────────────────────────
 
 async function createBranch(branchName: string): Promise<void> {
-  const ref = await ghFetch("git/ref/heads/main");
+  const ref = await ghFetch(`git/ref/heads/${PRODUCTION_BRANCH}`);
   const mainSha: string = ref.object.sha;
   try {
     await ghFetch("git/refs", "POST", {
@@ -126,7 +130,7 @@ async function openPR(branchName: string, title: string, body: string): Promise<
   const pr = await ghFetch("pulls", "POST", {
     title,
     head: branchName,
-    base: "main",
+    base: PRODUCTION_BRANCH,
     body,
   });
   return { number: pr.number, html_url: pr.html_url };

@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionSecret, verifySessionCookie, SESSION_COOKIE } from "@/lib/auth";
 import { getSupabaseClient } from "@/lib/supabase";
 import { upsertMemory, archiveMemory, listActiveMemories } from "@/lib/memory";
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,8 @@ async function testSupabase(): Promise<TestResult[]> {
 
 /** 3. GITHUB — latest commits on main */
 async function testGitHub(): Promise<TestResult[]> {
-  const REPO = process.env.RUNE_GITHUB_REPO ?? "Tanjiro-1122/Rune";
+  const RUNE_RUNTIME = getRuneRuntimeIdentity();
+  const REPO = RUNE_RUNTIME.repo;
   const TOKEN = process.env.GITHUB_TOKEN ?? process.env.RUNE_GITHUB_TOKEN ?? "";
 
   return [
@@ -170,10 +172,11 @@ async function testGitHub(): Promise<TestResult[]> {
 /** 4. VERCEL — deployment sync check */
 async function testVercel(): Promise<TestResult[]> {
   const VERCEL_TOKEN = process.env.VERCEL_TOKEN ?? "";
-  const PROJECT_ID = process.env.VERCEL_PROJECT_ID ?? "prj_C8yIrPTBitcCIkW745Gx80LBB6CA";
+  const PROJECT_ID = getRuneRuntimeIdentity().vercelProjectId;
   const GITHUB_TOKEN_VAL = process.env.GITHUB_TOKEN ?? "";
-  const REPO = process.env.RUNE_GITHUB_REPO ?? "Tanjiro-1122/Rune";
-  const LIVE_URL = process.env.RUNE_LIVE_URL ?? "https://mrruneai.vercel.app";
+  const RUNE_RUNTIME = getRuneRuntimeIdentity();
+  const REPO = RUNE_RUNTIME.repo;
+  const LIVE_URL = getRuneRuntimeIdentity().liveUrl;
 
   const deployResult = await timed("vercel:latest_deploy", "vercel", async () => {
     if (!VERCEL_TOKEN) throw new Error("VERCEL_TOKEN not set");
@@ -231,7 +234,7 @@ async function testVercel(): Promise<TestResult[]> {
 
 /** 5. CHAT API — liveness (401 = healthy, anything else = problem) */
 async function testChatApi(): Promise<TestResult[]> {
-  const LIVE_URL = process.env.RUNE_LIVE_URL ?? "https://mrruneai.vercel.app";
+  const LIVE_URL = getRuneRuntimeIdentity().liveUrl;
   return [
     await timed("chat:liveness", "chat", async () => {
       const res = await fetch(`${LIVE_URL}/api/chat`, {
@@ -254,7 +257,7 @@ async function testChatApi(): Promise<TestResult[]> {
 
 /** 6. DEPLOY HEALTH — internal check */
 async function testDeployHealth(): Promise<TestResult[]> {
-  const LIVE_URL = process.env.RUNE_LIVE_URL ?? "https://mrruneai.vercel.app";
+  const LIVE_URL = getRuneRuntimeIdentity().liveUrl;
   return [
     await timed("deploy_health:check", "deploy_health", async () => {
       const res = await fetch(`${LIVE_URL}/api/deploy-health`, { cache: "no-store" });
