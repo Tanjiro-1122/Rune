@@ -2562,8 +2562,21 @@ export async function POST(req: Request) {
         detail: "Streaming response.", progress: 20 }).catch(() => {});
     }
 
-    const workspaceContextSection = buildWorkspaceContextSection(resolvedRetrieval);
-    const memoryRoutingSection = buildMemoryRoutingSection();
+    const workspaceContextSection = resolvedRetrieval.length
+      ? `## Retrieved Workspace Context
+- This workspace has indexed prior material that may be relevant. Reuse it when it helps answer the request accurately.
+${resolvedRetrieval
+  .map(
+    (hit, index) =>
+      `${index + 1}. [${hit.sourceKind}] ${hit.sourceLabel}: ${hit.excerpt}`
+  )
+  .join("\n")}`
+      : `## Retrieved Workspace Context
+- No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
+    const memoryRoutingSection = `## Memory Routing
+- Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
+- If the request mentions a known project, prefer memories for that project plus global rules.
+- Do not use Rune-only memories to answer Unfiltr/SWH/Family implementation details unless they are global operating rules.`;
     const allTools: Record<string, any> = { ...agentTools, ...resolvedSkillTools };
     const result = streamText({
       model: openai(CHAT_MODEL),
