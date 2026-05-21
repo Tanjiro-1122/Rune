@@ -1,5 +1,43 @@
 export type RuneProjectKey = "rune" | "unfiltr" | "swh" | "family";
 export type ProjectPlatform = "ios" | "android" | "web";
+export type ProjectHealthCheckKey =
+  | "web_availability"
+  | "vercel_deployments"
+  | "github_actions"
+  | "supabase_memory"
+  | "app_store_connect"
+  | "revenuecat"
+  | "google_play"
+  | "base44_dependency";
+
+export type RuneProjectIntegration = {
+  appStoreConnect?: {
+    appId?: string;
+    bundleId?: string;
+    issuerIdEnv?: string;
+    keyIdEnv?: string;
+    privateKeyEnv?: string;
+  };
+  googlePlay?: {
+    packageName?: string;
+    serviceAccountEnv?: string;
+  };
+  revenueCat?: {
+    projectLabel?: string;
+    apiKeyEnv?: string;
+    entitlement?: string;
+  };
+  supabase?: {
+    projectRef?: string;
+    urlEnv?: string;
+    serviceRoleEnv?: string;
+  };
+  base44?: {
+    appId?: string;
+    apiKeyEnv?: string;
+    severanceStatus: "legacy_dependency" | "removed" | "not_applicable";
+  };
+};
 
 export type RuneProject = {
   key: RuneProjectKey;
@@ -11,6 +49,12 @@ export type RuneProject = {
   aliases: string[];
   /** Platforms this project is actually deployed on. Empty means unknown/all. */
   platforms: ProjectPlatform[];
+  liveUrl?: string;
+  vercelProjectId?: string;
+  vercelProjectIdEnv?: string;
+  productionBranch: string;
+  healthChecks: ProjectHealthCheckKey[];
+  integrations: RuneProjectIntegration;
 };
 
 export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
@@ -23,6 +67,21 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
       "Rune is Javier's private AI operating workspace for memory, project control, repo review, task orchestration, and future owner-only services.",
     safetyLevel: "owner-console",
     platforms: ["web"],
+    liveUrl: "https://mrruneai.vercel.app",
+    vercelProjectId: "prj_C8yIrPTBitcCIkW745Gx80LBB6CA",
+    vercelProjectIdEnv: "RUNE_VERCEL_PROJECT_ID",
+    productionBranch: "main",
+    healthChecks: ["web_availability", "vercel_deployments", "github_actions", "supabase_memory", "base44_dependency"],
+    integrations: {
+      supabase: {
+        projectRef: "hvvrbpvsgjxiicigkwhu",
+        urlEnv: "SUPABASE_URL",
+        serviceRoleEnv: "SUPABASE_SERVICE_ROLE_KEY",
+      },
+      base44: {
+        severanceStatus: "legacy_dependency",
+      },
+    },
     aliases: ["rune", "jarvis", "personal ai", "super agent", "private ai", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console", "command center"],
   },
   {
@@ -33,18 +92,54 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
     description:
       "AI companion and mental wellness app. iOS-only — no Android/Google Play presence. Production changes affect real users and must be handled behind approval gates.",
     safetyLevel: "sensitive-production-app",
-    platforms: ["ios"],
+    platforms: ["ios", "web"],
+    liveUrl: "https://unfiltrbyjavier2.vercel.app",
+    vercelProjectId: "prj_WU7TJF4pq8xngaks0VVEVRV1l5Rm",
+    vercelProjectIdEnv: "UNFILTR_VERCEL_PROJECT_ID",
+    productionBranch: "main",
+    healthChecks: ["web_availability", "vercel_deployments", "github_actions", "app_store_connect", "revenuecat", "base44_dependency"],
+    integrations: {
+      appStoreConnect: {
+        appId: "6760604917",
+        bundleId: "com.huertas.unfiltr",
+        issuerIdEnv: "APP_STORE_CONNECT_ISSUER_ID",
+        keyIdEnv: "APP_STORE_CONNECT_KEY_ID",
+        privateKeyEnv: "APP_STORE_CONNECT_PRIVATE_KEY",
+      },
+      revenueCat: {
+        projectLabel: "Unfiltr",
+        apiKeyEnv: "REVENUECAT_API_KEY",
+        entitlement: "unfiltr by javier Pro",
+      },
+      base44: {
+        appId: "69b332a392004d139d4ba495",
+        apiKeyEnv: "BASE44_API_KEY",
+        severanceStatus: "legacy_dependency",
+      },
+    },
     aliases: ["unfiltr", "unfiltr by javier", "main app", "ai companion", "mental wellness app"],
   },
   {
     key: "swh",
     label: "SWH",
-    canonicalName: "SportsWager Helper",
+    canonicalName: "Sports Wager Helper",
     repo: "Tanjiro-1122/swhmobile",
     description:
-      "SportsWager Helper mobile/web project. Production changes require repo review and approval before execution.",
+      "Sports Wager Helper mobile/web project. Production changes require repo review and approval before execution.",
     safetyLevel: "production-app",
     platforms: ["android", "web"],
+    productionBranch: "main",
+    healthChecks: ["web_availability", "github_actions", "google_play", "base44_dependency"],
+    integrations: {
+      googlePlay: {
+        packageName: "com.huertas.sportswagerhelper",
+        serviceAccountEnv: "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+      },
+      base44: {
+        apiKeyEnv: "BASE44_API_KEY",
+        severanceStatus: "legacy_dependency",
+      },
+    },
     aliases: ["swh", "sportswager helper", "sports wager helper", "sports wager", "sports app", "betting app"],
   },
   {
@@ -55,7 +150,14 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
     description:
       "Separate elderly-care companion platform. Treat as a distinct production project from Unfiltr by Javier.",
     safetyLevel: "sensitive-production-app",
-    platforms: [],
+    platforms: ["web"],
+    productionBranch: "main",
+    healthChecks: ["web_availability", "github_actions", "base44_dependency"],
+    integrations: {
+      base44: {
+        severanceStatus: "legacy_dependency",
+      },
+    },
     aliases: ["family", "unfiltr family", "elderly care", "elderly-care companion", "family app"],
   },
 ];
@@ -120,6 +222,25 @@ export function getProjectByKey(key: string | null | undefined) {
 export function getProjectByRepo(repo: string | null | undefined) {
   const slug = normalizeRepoSlug(repo).toLowerCase();
   return RUNE_CANONICAL_PROJECTS.find((project) => project.repo.toLowerCase() === slug) || null;
+}
+
+export function getProjectLiveUrl(key: string | null | undefined) {
+  return getProjectByKey(key)?.liveUrl || null;
+}
+
+export function getProjectVercelProjectId(key: string | null | undefined, env: NodeJS.ProcessEnv = process.env) {
+  const project = getProjectByKey(key);
+  if (!project) return null;
+  const envValue = project.vercelProjectIdEnv ? env[project.vercelProjectIdEnv] : undefined;
+  return envValue || project.vercelProjectId || null;
+}
+
+export function getProjectsWithHealthCheck(check: ProjectHealthCheckKey) {
+  return RUNE_CANONICAL_PROJECTS.filter((project) => project.healthChecks.includes(check));
+}
+
+export function getProjectsWithBase44Dependency() {
+  return RUNE_CANONICAL_PROJECTS.filter((project) => project.integrations.base44?.severanceStatus === "legacy_dependency");
 }
 
 export function inferProjectFromText(text: string | null | undefined) {
