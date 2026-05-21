@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-tasks",
+      "schedule": "*/5 * * * *"
     }
   ],
   "headers": [
