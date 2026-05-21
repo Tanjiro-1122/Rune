@@ -3027,15 +3027,37 @@ That's a consultant's pitch, not an operator's answer. Instead:
           }
         })();
 
-        // Fire-and-forget — never await in onFinish
-        void finishPersistence.catch((error) => {
+        // Fire-and-forget — never await in onFinish.
+        // If final persistence overruns the safety budget but the assistant text
+        // was already generated, close the visible task instead of leaving Javier
+        // with a stale "running" chip. Full persistence may still finish later.
+        void withChatFinishTimeout(
+          finishPersistence,
+          "chat finish persistence and task completion"
+        ).then(() => {
+          if (taskId && activeTaskId === taskId) {
+            void completeWorkspaceTask(
+              taskId,
+              summarizeTaskResult(text ?? "") || "Answer generated. Final persistence timed out, but the visible chat task was closed."
+            ).catch((e) => logError("api.chat.onFinish.timeout.completeTask", e));
+            activeTaskId = null;
+          }
+        }).catch((error) => {
           logError("api.chat.onFinish.persistence", error);
           if (activeTaskId) {
-            const errMsg =
-              error instanceof Error
-                ? error.message
-                : "Chat finalization failed after the response was generated.";
-            failWorkspaceTask(activeTaskId, errMsg).catch(() => {});
+            const hasGeneratedText = Boolean((text ?? "").trim());
+            if (hasGeneratedText) {
+              void completeWorkspaceTask(
+                activeTaskId,
+                summarizeTaskResult(text ?? "") || "Answer generated. Final persistence reported an error after streaming."
+              ).catch((e) => logError("api.chat.onFinish.persistence.completeTask", e));
+            } else {
+              const errMsg =
+                error instanceof Error
+                  ? error.message
+                  : "Chat finalization failed before the response was generated.";
+              failWorkspaceTask(activeTaskId, errMsg).catch(() => {});
+            }
             activeTaskId = null;
           }
         });
