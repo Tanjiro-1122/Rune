@@ -583,6 +583,7 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
 function selectToolsForRequest(input: string, tools: Record<string, any>): Record<string, any> {
   const selected = new Set<string>();
+  const normalizedInput = input.toLowerCase();
   const add = (name: string) => {
     if (tools[name]) selected.add(name);
   };
@@ -590,7 +591,7 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   // Tiny always-on core. Keep this lean: every tool schema costs prompt tokens.
   add("calculate");
 
-  if (/(what can you do|capabilit|what are you able|what tools|what setup)/i.test(input)) {
+  if (/\b(what can you do|capabilit|what are you able|what tools|what setup)\b/i.test(input)) {
     add("get_rune_capability_snapshot");
   }
 
@@ -613,16 +614,17 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("get_current_datetime");
   }
 
-  const repoOrCommitIntent = /(commit|commits|github|repo|repository|pull request|pr|branch|release|deploy)/i.test(input);
-  const knownProjectRepoIntent = repoOrCommitIntent && /(unfiltr|rune|jarvis|swh|sportswager|sports wager|family)/i.test(input);
+  const repoOrCommitIntent = /\b(commit|commits|github|repo|repository|pull request|pr|branch|release|deploy)\b/i.test(input);
+  const knownProjectRepoIntent =
+    repoOrCommitIntent &&
+    /\b(unfiltr|rune|jarvis|swh|sportswager|sports wager|family)\b/i.test(input);
 
-  if (isWebSearchIntent(input) && !knownProjectRepoIntent) {
-    add("web_search");
-  }
-
+  // Known project repo/commit requests should use GitHub tools, not broad web search.
   if (knownProjectRepoIntent) {
     add("analyze_github_repo");
     add("searchRepositoryCode");
+  } else if (isWebSearchIntent(input)) {
+    add("web_search");
   }
 
   if (isGitHubSourceInspectionIntent(input)) {
@@ -641,10 +643,12 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("listRepositoryTree");
   }
 
-  if (/\b(health check|app health|release health|store health|build health|operator briefing|self audit|audit yourself|system health)\b/i.test(input)) {
+  if (/\b(health check|app health|release health|store health|build health)\b/i.test(input)) {
     add("get_app_health_snapshot");
+  }
+
+  if (/\b(operator briefing|self audit|audit yourself|system health)\b/i.test(input)) {
     add("get_rune_self_audit_snapshot");
-    add("get_tool_lifecycle_diagnostic");
   }
 
   if (/\b(revenuecat|subscriber|subscription|customer info|app store connect|testflight|google play)\b/i.test(input)) {
@@ -657,7 +661,7 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   for (const name of Object.keys(tools)) {
     if (selected.has(name)) continue;
     const normalizedName = name.replace(/[_-]+/g, " ").toLowerCase();
-    if (normalizedName.length >= 4 && input.toLowerCase().includes(normalizedName)) {
+    if (normalizedName.length >= 4 && normalizedInput.includes(normalizedName)) {
       selected.add(name);
     }
   }
