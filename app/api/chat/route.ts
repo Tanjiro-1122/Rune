@@ -2532,11 +2532,14 @@ export async function POST(req: Request) {
     const messages = rawMessages as unknown as UIMessage[];
     const sessionId = await resolveOwnerSessionId(req, clientSessionId);
 
-    // sessionId is required for rate-limiting and workspace access
+    // sessionId is required for rate-limiting and workspace access.
+    // In production, resolveOwnerSessionId returns an empty value when /api/chat
+    // is reached without a valid signed owner cookie. Keep this route protected
+    // because middleware intentionally bypasses it for stable streaming.
     if (!sessionId) {
       return new Response(
-        JSON.stringify({ error: "Invalid sessionId." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Authentication required." }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 

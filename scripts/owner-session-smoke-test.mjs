@@ -27,6 +27,8 @@ assert(helper.includes('RUNE_OWNER_SESSION_ID = "owner:javier"'), "stable Javier
 assert(helper.includes("verifySessionCookie"), "owner session resolver verifies signed Jarvis cookie");
 assert(helper.includes("return RUNE_OWNER_SESSION_ID"), "authenticated requests ignore browser-local IDs");
 assert(helper.includes("clientSessionId"), "local/dev fallback still accepts client session id");
+assert(helper.includes("never trust browser-provided session IDs without a valid signed cookie"), "production owner session resolver rejects unsigned browser session ids");
+assert(helper.includes("process.env.NODE_ENV === \"production\") return \"\""), "production resolver returns empty session on invalid signed cookie");
 assert(helper.includes("Request | NextRequest"), "resolver supports both NextRequest routes and standard chat Request");
 
 for (const route of routes) {
@@ -37,6 +39,8 @@ for (const route of routes) {
 const chat = fs.readFileSync("app/api/chat/route.ts", "utf8");
 assert(chat.includes("sessionId: clientSessionId"), "chat route treats client session id as untrusted input");
 assert(chat.includes("const sessionId = await resolveOwnerSessionId(req, clientSessionId)"), "chat route uses unified owner session for persistence and access");
+assert(chat.includes("Authentication required."), "chat route rejects unauthenticated streaming requests");
+assert(chat.includes("middleware intentionally bypasses it for stable streaming"), "chat route documents internal auth guard for middleware bypass");
 
 const workspaces = fs.readFileSync("app/api/workspaces/route.ts", "utf8");
 assert(workspaces.includes("const sessionId = await resolveOwnerSessionId(req, clientSessionId)"), "workspace bootstrap uses unified owner session");
