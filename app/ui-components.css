@@ -1115,6 +1115,15 @@
   margin-left: 0.4rem;
   vertical-align: middle;
 }
+
+.vault-nav-chip--rune {
+  color: #ff6a3d;
+  text-shadow: 0 0 10px rgba(255, 106, 61, 0.55), 0 0 22px rgba(185, 28, 28, 0.35);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1;
+}
+
 .vault-nav-chip:hover {
   background: rgba(180,80,40,0.3);
   color: #f0ede8;

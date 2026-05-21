@@ -391,14 +391,51 @@ export async function assertConversationAccess(options: {
   });
 }
 
+function sortWorkspaceRows(workspaces: WorkspaceRow[]) {
+  return [...workspaces].sort((left, right) => {
+    const leftIsDefault = left.name === DEFAULT_WORKSPACE_NAME ? 0 : 1;
+    const rightIsDefault = right.name === DEFAULT_WORKSPACE_NAME ? 0 : 1;
+    if (leftIsDefault !== rightIsDefault) return leftIsDefault - rightIsDefault;
+    return right.updated_at.localeCompare(left.updated_at);
+  });
+}
+
+function dedupeWorkspaceRows(workspaces: WorkspaceRow[]) {
+  const sorted = sortWorkspaceRows(workspaces);
+  const seen = new Set<string>();
+  const result: WorkspaceRow[] = [];
+
+  for (const workspace of sorted) {
+    const normalizedName = workspace.name.trim().toLowerCase();
+    const key = workspace.name === DEFAULT_WORKSPACE_NAME
+      ? `default:${workspace.session_id}`
+      : `id:${workspace.id}:${normalizedName}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(workspace);
+  }
+
+  return result;
+}
+
+
+function sortWorkspaceSummaries(workspaces: WorkspaceSummary[]) {
+  return [...workspaces].sort((left, right) => {
+    const leftIsDefault = left.name === DEFAULT_WORKSPACE_NAME ? 0 : 1;
+    const rightIsDefault = right.name === DEFAULT_WORKSPACE_NAME ? 0 : 1;
+    if (leftIsDefault !== rightIsDefault) return leftIsDefault - rightIsDefault;
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+}
+
 function getDefaultWorkspaceId(workspaces: WorkspaceRow[]) {
-  const generalWorkspace = workspaces.find(
+  const generalWorkspace = sortWorkspaceRows(workspaces).find(
     (workspace) => workspace.name === DEFAULT_WORKSPACE_NAME
   );
   if (generalWorkspace) return generalWorkspace.id;
 
-  return [...workspaces]
-    .sort((left, right) => left.created_at.localeCompare(right.created_at))[0]?.id;
+  return sortWorkspaceRows(workspaces)[0]?.id;
 }
 
 function getSchemaNotice(message: string) {
@@ -675,7 +712,7 @@ async function ensureWorkspaceRows(sessionId: string) {
     persistenceEnabled: true,
     schemaReady: true,
     notice: null,
-    workspaces,
+    workspaces: dedupeWorkspaceRows(workspaces),
   };
 }
 
@@ -739,7 +776,7 @@ export async function getWorkspaceBootstrap(
     return buildLocalBootstrap(sessionId);
   }
 
-  const workspaces = ensured.workspaces;
+  const workspaces = dedupeWorkspaceRows(ensured.workspaces);
   const defaultWorkspaceId = getDefaultWorkspaceId(workspaces);
   if (!defaultWorkspaceId) {
     return buildLocalBootstrap(sessionId);
@@ -751,7 +788,7 @@ export async function getWorkspaceBootstrap(
   const selectedWorkspaceId =
     requestedWorkspaceId && workspaceIds.includes(requestedWorkspaceId)
       ? requestedWorkspaceId
-      : workspaces[0]?.id ?? null;
+      : defaultWorkspaceId;
 
   const [
     conversationResponse,
@@ -838,7 +875,7 @@ export async function getWorkspaceBootstrap(
 
   const conversationById = new Map(conversations.map((item) => [item.id, item]));
 
-  const workspacesWithCounts = workspaces
+  const workspacesWithCounts = dedupeWorkspaceRows(workspaces)
     .map((workspace) => {
       const accessRole =
         workspace.session_id === sessionId
@@ -941,7 +978,7 @@ export async function getWorkspaceBootstrap(
     persistenceEnabled: true,
     schemaReady: true,
     notice: null,
-    workspaces: workspacesWithCounts,
+    workspaces: sortWorkspaceSummaries(workspacesWithCounts),
     selectedWorkspaceId,
     selectedConversationId: selectedWorkspace?.conversations[0]?.id ?? null,
     projectFiles: selectedProjectFiles,

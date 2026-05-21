@@ -2604,7 +2604,7 @@ export function Chat() {
           </button>
           <div className="chat-header-copy">
             <span className="chat-header-title">Rune</span>
-              <a href="/vault" className="vault-nav-chip" title="Open Phrourio Safe">🔐</a>
+              <a href="/vault" className="vault-nav-chip vault-nav-chip--rune" title="Open Rune Vault" aria-label="Open Rune Vault">ᛟ</a>
             <p className="chat-header-subtitle">
               {selectedWorkspace?.name ?? "Private workspace"}
               {showBusyStatus ? (isStreamStalled ? " · checking" : isStreamFinalizing ? " · finalizing" : status === "submitted" ? " · working…" : " · thinking") : ""}
