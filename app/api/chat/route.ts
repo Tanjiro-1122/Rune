@@ -75,6 +75,7 @@ import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
+import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 
 export const maxDuration = 60; // model: gpt-4.1 | last-patched: 2026-05-20 //5-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -1792,6 +1793,25 @@ Action: ${action.id}`,
       },
     }),
 
+
+    execute_operator_remediation_task: tool({
+      description:
+        "Claim and execute a visible Operator remediation task through Executor Bridge v1. This creates/uses a deterministic execution plan, prepares a Repo Control proposal, runs safe inspection/diff-prep stages, attaches proof/checkpoints, and stops before PR, merge, deployment, rollback, database migration, payment change, or external account edits.",
+      parameters: z.object({
+        taskId: z.string().min(1).max(120),
+      }),
+      execute: async ({ taskId }) => {
+        const result = await runOperatorExecutorBridge({
+          taskId,
+          workspaceId: workspaceId ?? null,
+          conversationId: conversationId ?? null,
+        });
+        return {
+          success: result.ok,
+          ...result,
+        };
+      },
+    }),
 
     run_repo_action_ladder: tool({
       description:
