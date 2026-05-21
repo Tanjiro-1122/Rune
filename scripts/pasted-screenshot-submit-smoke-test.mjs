@@ -18,4 +18,9 @@ assert(chat.includes("experimental_attachments: safeAttachments.length > 0 ? saf
 assert(chat.includes("allowEmptySubmit: hasAnyAttachments && !input.trim()"), "empty screenshot-only submit is explicitly allowed");
 assert(chat.includes("setPastedAttachments([])"), "clear attachments removes pasted screenshot state");
 assert(input.includes("hasPastedImage") && input.includes("!pastedImageUrl"), "split input bar also allows pasted-image-only submit");
+
+assert(chat.includes("insertPastedTextAtCursor") && chat.includes('getData("text/plain")'), "parent chat manually inserts pasted text");
+assert(chat.includes("onPaste={handleChatPaste}"), "parent textarea uses reliable paste handler");
+assert(input.includes("insertPastedTextAtCursor") && input.includes('getData("text/plain")'), "split input bar manually inserts pasted text");
+assert(input.includes("onPaste={handleChatPaste}"), "split input bar uses reliable paste handler");
 console.log("✅ Pasted screenshot submit smoke test passed.");
