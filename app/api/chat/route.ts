@@ -2946,11 +2946,22 @@ That's a consultant's pitch, not an operator's answer. Instead:
         // All persistence is fire-and-forget via void.
 
         const finishPersistence = (async () => {
-          const userContent = lastUserMessage.parts
-            .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
-            .map((p) => p.text)
-            .join("\n")
-            .trim();
+          const lastUserContent = lastUserMessage.content as unknown;
+          const userContent = Array.isArray(lastUserMessage.parts)
+            ? lastUserMessage.parts
+                .filter((p): p is Extract<typeof p, { type: "text" }> => p?.type === "text")
+                .map((p) => p.text)
+                .join("\n")
+                .trim()
+            : typeof lastUserContent === "string"
+              ? lastUserContent.trim()
+              : Array.isArray(lastUserContent)
+                ? lastUserContent
+                    .filter((p): p is { type: "text"; text: string } => p?.type === "text" && typeof p.text === "string")
+                    .map((p) => p.text)
+                    .join("\n")
+                    .trim()
+                : "";
           const attachmentSummary =
             latestAttachments.length > 0
               ? `Uploaded: ${latestAttachments
