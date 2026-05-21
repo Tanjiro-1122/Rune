@@ -2603,7 +2603,7 @@ ${retrievalHits
       .slice(-1)[0]
       ?.content?.toString()?.slice(0, 500) ?? "";
     const semanticMemorySection = userMessageText
-      ? await buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }).catch(() => "")
+      ? await withTimeout(buildMemoryContext(userMessageText, { semanticLimit: 5, episodicLimit: 8 }), 3000, "").catch(() => "")
       : "";
     const memoryRoutingSection = `## Memory Routing
 - Latest inferred project memory scope: ${memoryProjectKey ?? "global/all"}
