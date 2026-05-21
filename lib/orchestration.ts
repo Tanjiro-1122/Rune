@@ -362,16 +362,26 @@ export function getLatestUserText(messages: UIMessage[]): string {
   const lastUserMessage = messages.findLast((m) => m.role === "user");
   if (!lastUserMessage) return "";
 
-  return lastUserMessage.parts
+  if (typeof lastUserMessage.content === "string") {
+    return lastUserMessage.content.trim();
+  }
+
+  const lastUserContent = lastUserMessage.content as unknown;
+  const parts = Array.isArray(lastUserMessage.parts)
+    ? lastUserMessage.parts
+    : Array.isArray(lastUserContent)
+      ? lastUserContent
+      : [];
+
+  return parts
     .filter(
-      (part): part is Extract<typeof part, { type: "text" }> =>
-        part.type === "text"
+      (part): part is { type: "text"; text: string } =>
+        part?.type === "text" && typeof part.text === "string"
     )
     .map((part) => part.text)
     .join("\n")
     .trim();
 }
-
 // ─── System-prompt formatters ─────────────────────────────────────────────────
 
 /**
