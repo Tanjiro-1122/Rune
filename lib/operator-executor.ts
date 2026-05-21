@@ -10,10 +10,24 @@ import {
 import {
   createRepoActionProposal,
   draftRepoActionDiff,
+  generateRepoActionProposedDiff,
   inspectRepoActionFiles,
+  openRepoActionPullRequest,
+  runTemporaryWorkspaceBuildCheck,
+  sandboxCheckRepoActionDiff,
+  trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
 
-export type OperatorExecutionActionType = "inspect_repo" | "create_repo_proposal" | "draft_diff" | "stop_before_pr";
+export type OperatorExecutionActionType =
+  | "inspect_repo"
+  | "create_repo_proposal"
+  | "draft_diff"
+  | "generate_diff"
+  | "sandbox_check"
+  | "temp_workspace_check"
+  | "open_pr_if_approved"
+  | "track_pr"
+  | "stop_before_merge_deploy";
 
 export interface OperatorExecutionPlanAction {
   type: OperatorExecutionActionType;
@@ -35,6 +49,7 @@ export interface OperatorExecutorResult {
   runnerId: string;
   plan?: OperatorExecutionPlan;
   proposalId?: string;
+  prUrl?: string;
   steps: Array<{ action: string; ok: boolean; proof?: string; error?: string }>;
   message: string;
   error?: string;
@@ -83,7 +98,11 @@ export function createOperatorExecutionPlan(task: WorkspaceTaskSummary): { ok: t
         { type: "inspect_repo", description: "Inspect the target files through Repo Control." },
         { type: "create_repo_proposal", description: "Create a Repo Control proposal from the remediation task." },
         { type: "draft_diff", description: "Prepare a deterministic proposed diff for review." },
-        { type: "stop_before_pr", description: "Stop before PR, merge, deployment, or external account mutation gates." },
+        { type: "generate_diff", description: "Generate a proposed unified diff through Repo Control." },
+        { type: "sandbox_check", description: "Run Repo Control sandbox checks." },
+        { type: "temp_workspace_check", description: "Rehearse the proposed diff in a temporary workspace." },
+        { type: "open_pr_if_approved", description: "Open a PR only if the existing Repo Control approval and build gates pass." },
+        { type: "stop_before_merge_deploy", description: "Stop before merge, deployment, rollback, or external account mutation gates." },
       ],
       verification: extractVerification(task),
       forbiddenActions: ["merge", "deploy", "rollback", "external_account_edit", "database_migration", "payment_change"],
@@ -96,6 +115,8 @@ export async function runOperatorExecutorBridge(options: {
   workspaceId?: string | null;
   conversationId?: string | null;
   runnerId?: string;
+  openPrIfApproved?: boolean;
+  trackPrIfOpened?: boolean;
 }): Promise<OperatorExecutorResult> {
   const runnerId = options.runnerId ?? `operator-executor-${Date.now()}`;
   const steps: OperatorExecutorResult["steps"] = [];
@@ -119,7 +140,7 @@ export async function runOperatorExecutorBridge(options: {
 
   await addWorkspaceTaskCheckpoint(task.id, {
     label: "Executor claimed task",
-    summary: `Executor Bridge v1 claimed this task and normalized a ${plan.taskType} plan for ${plan.targetFiles.join(", ")}.`,
+    summary: `Executor Bridge v2 claimed this task and normalized a ${plan.taskType} plan for ${plan.targetFiles.join(", ")}.`,
     nextStep: "Create Repo Control proposal",
     metadata: { runnerId, plan },
   });
@@ -131,7 +152,9 @@ export async function runOperatorExecutorBridge(options: {
       findings: claimed.inputText,
       plan: [
         ...claimed.steps.map((step) => `- ${step.label}`),
-        "- Executor Bridge v1 stops before PR/merge/deploy gates.",
+        options.openPrIfApproved
+          ? "- Executor Bridge v2 may open a PR only if the existing Repo Control approval and build gates pass."
+          : "- Executor Bridge v2 stops before PR/merge/deploy gates unless openPrIfApproved is true.",
       ].join("\n"),
       repo: "Tanjiro-1122/Rune",
       projectKey: "rune",
@@ -153,23 +176,62 @@ export async function runOperatorExecutorBridge(options: {
     steps.push({ action: "draft_diff", ok: draft.ok, proof: draft.ok ? "diff draft prepared" : undefined, error: draft.error });
     if (!draft.ok) throw new Error(draft.error || "Diff draft failed.");
 
+    const generated = await generateRepoActionProposedDiff({ id: proposalResult.proposal.id });
+    steps.push({ action: "generate_diff", ok: generated.ok, proof: generated.ok ? "proposed diff generated" : undefined, error: generated.error });
+    if (!generated.ok) throw new Error(generated.error || "Diff generation failed.");
+
+    const sandbox = await sandboxCheckRepoActionDiff({ id: proposalResult.proposal.id });
+    steps.push({ action: "sandbox_check", ok: sandbox.ok, proof: sandbox.ok ? "sandbox checks passed" : undefined, error: sandbox.error });
+    if (!sandbox.ok) throw new Error(sandbox.error || "Sandbox check failed.");
+
+    const tempWorkspace = await runTemporaryWorkspaceBuildCheck({ id: proposalResult.proposal.id });
+    steps.push({ action: "temp_workspace_check", ok: tempWorkspace.ok, proof: tempWorkspace.ok ? "temporary workspace check passed" : undefined, error: tempWorkspace.error });
+    if (!tempWorkspace.ok) throw new Error(tempWorkspace.error || "Temporary workspace check failed.");
+
+    let prUrl: string | undefined;
+    if (options.openPrIfApproved) {
+      const pr = await openRepoActionPullRequest({ id: proposalResult.proposal.id });
+      prUrl = "prUrl" in pr && typeof pr.prUrl === "string" ? pr.prUrl : undefined;
+      steps.push({ action: "open_pr_if_approved", ok: pr.ok, proof: prUrl, error: pr.error });
+      if (!pr.ok) {
+        await addWorkspaceTaskCheckpoint(task.id, {
+          label: "Executor stopped at PR gate",
+          summary: pr.error || "Repo Control PR gate blocked this task. This is expected unless the proposal is approved and checks are ready.",
+          blocker: pr.error || "PR gate blocked.",
+          completedStep: "temp_workspace_check",
+          nextStep: "Approve the Repo Control proposal if PR creation is desired.",
+          metadata: { runnerId, proposalId: proposalResult.proposal.id, steps, plan },
+        });
+      } else if (options.trackPrIfOpened !== false) {
+        const tracked = await trackRepoActionPullRequest({ id: proposalResult.proposal.id });
+        steps.push({ action: "track_pr", ok: tracked.ok, proof: tracked.ok ? "PR tracked" : undefined, error: tracked.error });
+      }
+    }
+
     await addWorkspaceTaskCheckpoint(task.id, {
-      label: "Executor prepared safe repo workflow",
-      summary: `Repo Control proposal ${proposalResult.proposal.id} was created and safe prep stages ran. Executor Bridge v1 stopped before PR, merge, deploy, or external edits.`,
-      completedStep: "create_repo_proposal",
-      nextStep: "Owner can approve/run Repo Control PR stage if needed.",
-      metadata: { runnerId, proposalId: proposalResult.proposal.id, steps, plan },
+      label: prUrl ? "Executor opened PR safely" : "Executor prepared safe repo workflow",
+      summary: prUrl
+        ? `Repo Control proposal ${proposalResult.proposal.id} passed safe checks and opened PR ${prUrl}. Executor Bridge v2 stopped before merge, deploy, rollback, or external edits.`
+        : `Repo Control proposal ${proposalResult.proposal.id} was created and safe checks ran. Executor Bridge v2 stopped before PR, merge, deploy, or external edits.`,
+      completedStep: prUrl ? "open_pr_if_approved" : "temp_workspace_check",
+      nextStep: prUrl ? "Review the PR. Merge/deploy still require separate approval gates." : "Approve the Repo Control proposal if PR creation is desired.",
+      metadata: { runnerId, proposalId: proposalResult.proposal.id, prUrl, steps, plan },
     });
 
-    await completeWorkspaceTask(task.id, `Executor Bridge v1 prepared Repo Control proposal ${proposalResult.proposal.id}. No PR, merge, deploy, or external account mutation happened.`);
+    await completeWorkspaceTask(task.id, prUrl
+      ? `Executor Bridge v2 opened PR ${prUrl} and stopped before merge/deploy.`
+      : `Executor Bridge v2 prepared Repo Control proposal ${proposalResult.proposal.id}. No PR, merge, deploy, or external account mutation happened.`);
     return {
       ok: true,
       taskId: task.id,
       runnerId,
       plan,
       proposalId: proposalResult.proposal.id,
+      prUrl,
       steps,
-      message: "Executor Bridge v1 completed safe prep and stopped before PR/merge/deploy gates.",
+      message: prUrl
+        ? "Executor Bridge v2 opened a PR after approval/check gates and stopped before merge/deploy."
+        : "Executor Bridge v2 completed safe checks and stopped before PR/merge/deploy gates.",
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Operator executor failed.";
