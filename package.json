@@ -71,7 +71,8 @@
     "test:operator-event-queue": "node scripts/operator-event-queue-smoke-test.mjs",
     "test:operator-event-cron-config": "node scripts/operator-event-cron-config-smoke-test.mjs",
     "test:coherent-app-structure": "node scripts/coherent-app-structure-smoke-test.mjs",
-    "test:coherent-component-names": "node scripts/coherent-component-names-smoke-test.mjs"
+    "test:coherent-component-names": "node scripts/coherent-component-names-smoke-test.mjs",
+    "test:rune-route-map": "node scripts/rune-route-map-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
