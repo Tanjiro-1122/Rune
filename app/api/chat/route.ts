@@ -2528,7 +2528,7 @@ export async function POST(req: Request) {
     // stream from starting.
     function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
       return Promise.race([
-        promise,
+        promise.catch(() => fallback),
         new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
       ]);
     }
@@ -2547,7 +2547,7 @@ export async function POST(req: Request) {
         1500,
         ""
       ),
-    ]);
+    ]).catch(() => [[] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>, ""] as const);
 
     // Fire-and-forget: don't block stream start on attachment persistence
     void persistWorkspaceAttachments({ workspaceId, conversationId, attachments: latestAttachments })
