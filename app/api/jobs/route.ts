@@ -77,6 +77,10 @@ function jobStepsForIntent(intent: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const clientSessionId = req.nextUrl.searchParams.get("sessionId");
+  const sessionId = await resolveOwnerSessionId(req, clientSessionId);
+  if (!sessionId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
   const workspaceId = req.nextUrl.searchParams.get("workspaceId");
   const conversationId = req.nextUrl.searchParams.get("conversationId");
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required." }, { status: 400 });
@@ -98,6 +102,7 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionId = await resolveOwnerSessionId(req, parsed.data.sessionId ?? null);
+  if (!sessionId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
   const taskId = await createQueuedWorkspaceJob({
     workspaceId: parsed.data.workspaceId,
@@ -138,6 +143,7 @@ export async function PATCH(req: NextRequest) {
   const checkpointParsed = CheckpointJobSchema.safeParse(body);
   if (checkpointParsed.success) {
     const sessionId = await resolveOwnerSessionId(req, checkpointParsed.data.sessionId ?? null);
+    if (!sessionId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const task = await addWorkspaceTaskCheckpoint(checkpointParsed.data.taskId, {
       label: checkpointParsed.data.label,
       summary: checkpointParsed.data.summary,
@@ -166,6 +172,8 @@ export async function PATCH(req: NextRequest) {
 
   const latestCheckpointParsed = LatestCheckpointSchema.safeParse(body);
   if (latestCheckpointParsed.success) {
+    const sessionId = await resolveOwnerSessionId(req, null);
+    if (!sessionId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const checkpoint = await getLatestWorkspaceTaskCheckpoint(latestCheckpointParsed.data.taskId);
     const task = await getWorkspaceTask(latestCheckpointParsed.data.taskId);
     if (!task) return NextResponse.json({ error: "Job not found." }, { status: 404 });
@@ -178,6 +186,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const sessionId = await resolveOwnerSessionId(req, parsed.data.sessionId ?? null);
+  if (!sessionId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
   const task = await claimQueuedWorkspaceTask(parsed.data.taskId);
   if (!task) {
