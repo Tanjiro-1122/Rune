@@ -1796,15 +1796,19 @@ Action: ${action.id}`,
 
     execute_operator_remediation_task: tool({
       description:
-        "Claim and execute a visible Operator remediation task through Executor Bridge v1. This creates/uses a deterministic execution plan, prepares a Repo Control proposal, runs safe inspection/diff-prep stages, attaches proof/checkpoints, and stops before PR, merge, deployment, rollback, database migration, payment change, or external account edits.",
+        "Claim and execute a visible Operator remediation task through Executor Bridge v2. This creates/uses a deterministic execution plan, prepares a Repo Control proposal, runs safe checks, attaches proof/checkpoints, and can open/track a PR only if the existing Repo Control approval and build gates pass. It never merges, deploys, rolls back, migrates databases, changes payments, or edits external accounts.",
       parameters: z.object({
         taskId: z.string().min(1).max(120),
+        openPrIfApproved: z.boolean().optional().default(false).describe("Open a PR only if the Repo Control proposal is already approved and checks pass."),
+        trackPrIfOpened: z.boolean().optional().default(true).describe("Track PR checks after opening a PR."),
       }),
-      execute: async ({ taskId }) => {
+      execute: async ({ taskId, openPrIfApproved, trackPrIfOpened }) => {
         const result = await runOperatorExecutorBridge({
           taskId,
           workspaceId: workspaceId ?? null,
           conversationId: conversationId ?? null,
+          openPrIfApproved,
+          trackPrIfOpened,
         });
         return {
           success: result.ok,
