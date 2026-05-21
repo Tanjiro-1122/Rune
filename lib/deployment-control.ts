@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
@@ -27,7 +28,7 @@ function isoFromVercelTimestamp(value: unknown) {
 
 function getVercelConfig() {
   const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
-  const project = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
+  const project = getRuneRuntimeIdentity().vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
   const teamId = process.env.VERCEL_TEAM_ID || ((process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID));
   return { token, project, teamId };
 }
