@@ -457,7 +457,7 @@ export function BuilderSidebar({
   const totalItems = files.length + artifacts.length + documents.length;
 
   const tabs = [
-    { key: "structure", label: "Structure" },
+    { key: "structure", label: "Projects" },
     { key: "artifacts", label: `Artifacts${artifacts.length ? ` (${artifacts.length})` : ""}` },
     { key: "docs",      label: `Docs${documents.length ? ` (${documents.length})` : ""}` },
     { key: "schema",    label: "Schema" },
@@ -476,7 +476,7 @@ export function BuilderSidebar({
           <div className="builder-sidebar-title-row">
             <span className="builder-sidebar-icon">▦</span>
             <div>
-              <span className="builder-sidebar-title">Structure</span>
+              <span className="builder-sidebar-title">Projects</span>
               <span className="builder-sidebar-count">{totalItems} items</span>
             </div>
           </div>
@@ -506,7 +506,7 @@ export function BuilderSidebar({
         {/* Body */}
         <div className="builder-sidebar-body">
 
-          {/* Structure */}
+          {/* Projects */}
           {activeTab === "structure" && (
             <div className="builder-tree">
               {files.length === 0 && (
