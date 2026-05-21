@@ -10,7 +10,7 @@ function assert(condition, message) {
 
 const structure = fs.readFileSync("lib/rune-app-structure.ts", "utf8");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
-const sidebar = fs.readFileSync("components/chat/BuilderSidebar.tsx", "utf8");
+const sidebar = fs.readFileSync("components/chat/ProjectsSidebar.tsx", "utf8");
 
 for (const label of ["Command Center", "Projects", "Tasks", "Memory", "Vault", "Tools", "Operator"]) {
   assert(structure.includes(label), `official app structure includes ${label}`);

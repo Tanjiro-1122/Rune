@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
-import { BuilderHome } from "./builder-home";
+import { CommandCenterHome } from "./command-center-home";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import dynamic from "next/dynamic";
 import type { PlanResult } from "./chat/PlanModal";
@@ -20,8 +20,8 @@ const CanvasPane = dynamic(
   { ssr: false }
 );
 
-const BuilderSidebar = dynamic(
-  () => import("./chat/BuilderSidebar").then(m => ({ default: m.BuilderSidebar })),
+const ProjectsSidebar = dynamic(
+  () => import("./chat/ProjectsSidebar").then(m => ({ default: m.ProjectsSidebar })),
   { ssr: false }
 );
 
@@ -886,7 +886,7 @@ export function Chat() {
   const [planInput, setPlanInput] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
   const [canvasContent, setCanvasContent] = useState<CanvasContent | null>(null);
-  const [showBuilderSidebar, setShowBuilderSidebar] = useState(false);
+  const [showProjectsSidebar, setShowProjectsSidebar] = useState(false);
   const [isMobileToolsMode, setIsMobileToolsMode] = useState(false);
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
@@ -2439,14 +2439,14 @@ export function Chat() {
     setInput(prompt);
   }
 
-  function handleBuilderSubmit(prompt: string) {
+  function handleCommandCenterSubmit(prompt: string) {
     const trimmedPrompt = prompt.trim();
     if (isLoading || !trimmedPrompt) return;
 
     // The starter screen sits outside the normal chat textarea. Keep the regular
     // useChat submit path, but synchronously write the prompt into the real
     // textarea before requesting submit so the form data cannot race React state.
-    setShowBuilderSidebar(false);
+    setShowProjectsSidebar(false);
     setShowInfoSidebar(false);
     setChatErrorMessage("");
     setResumeTaskId(null);
@@ -2695,10 +2695,10 @@ export function Chat() {
             )}
             <button
               type="button"
-              className={`native-tool-button${showBuilderSidebar ? " native-tool-button--active" : ""}`}
-              aria-label={showBuilderSidebar ? "Hide projects" : "Open projects"}
-              aria-expanded={showBuilderSidebar}
-              onClick={() => { setShowBuilderSidebar((prev) => !prev); setShowInfoSidebar(false); }}
+              className={`native-tool-button${showProjectsSidebar ? " native-tool-button--active" : ""}`}
+              aria-label={showProjectsSidebar ? "Hide projects" : "Open projects"}
+              aria-expanded={showProjectsSidebar}
+              onClick={() => { setShowProjectsSidebar((prev) => !prev); setShowInfoSidebar(false); }}
               title="Project structure — files, artifacts, docs"
             >
               Projects
@@ -2708,7 +2708,7 @@ export function Chat() {
               className="native-tool-button"
               aria-label={showInfoSidebar ? "Hide tools" : "Open tools"}
               aria-expanded={showInfoSidebar}
-              onClick={() => { setShowInfoSidebar((prev) => !prev); setShowBuilderSidebar(false); }}
+              onClick={() => { setShowInfoSidebar((prev) => !prev); setShowProjectsSidebar(false); }}
             >
               Tools
             </button>
@@ -2743,8 +2743,8 @@ export function Chat() {
               <p>Loading workspace…</p>
             </div>
           ) : messages.length === 0 ? (
-            <BuilderHome
-              onSubmit={handleBuilderSubmit}
+            <CommandCenterHome
+              onSubmit={handleCommandCenterSubmit}
               isLoading={isLoading}
             />
           ) : (
@@ -3046,7 +3046,7 @@ export function Chat() {
       </section>
 
       {/* Projects Sidebar */}
-      <BuilderSidebar
+      <ProjectsSidebar
         files={projectFiles.map((f) => ({
           id: f.id,
           path: f.path,
@@ -3073,12 +3073,12 @@ export function Chat() {
           summary: d.summary,
           createdAt: d.createdAt,
         }))}
-        isOpen={showBuilderSidebar}
-        onClose={() => setShowBuilderSidebar(false)}
-        onOpenCanvas={(content) => { setCanvasContent(content); setShowBuilderSidebar(false); }}
+        isOpen={showProjectsSidebar}
+        onClose={() => setShowProjectsSidebar(false)}
+        onOpenCanvas={(content) => { setCanvasContent(content); setShowProjectsSidebar(false); }}
         onAskAbout={(prompt) => {
           setInput(prompt);
-          setShowBuilderSidebar(false);
+          setShowProjectsSidebar(false);
           setTimeout(() => formRef.current?.requestSubmit(), 80);
         }}
       />

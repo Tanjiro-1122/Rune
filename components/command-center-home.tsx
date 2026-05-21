@@ -24,7 +24,7 @@ interface CommandCenterHomeProps {
   isLoading?: boolean;
 }
 
-export function BuilderHome({ onSubmit, isLoading }: CommandCenterHomeProps) {
+export function CommandCenterHome({ onSubmit, isLoading }: CommandCenterHomeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
 

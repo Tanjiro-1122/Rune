@@ -32,7 +32,7 @@ export interface BDocument {
   createdAt: string;
 }
 
-export interface BuilderSidebarProps {
+export interface ProjectsSidebarProps {
   files: BFile[];
   artifacts: BArtifact[];
   documents: BDocument[];
@@ -422,10 +422,10 @@ function SchemaViewer({ onAskAbout }: { onAskAbout: (p: string) => void }) {
 }
 
 
-// ── Main BuilderSidebar ────────────────────────────────────────────────────
-export function BuilderSidebar({
+// ── Main ProjectsSidebar ────────────────────────────────────────────────────
+export function ProjectsSidebar({
   files, artifacts, documents, isOpen, onClose, onOpenCanvas, onAskAbout,
-}: BuilderSidebarProps) {
+}: ProjectsSidebarProps) {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"structure" | "artifacts" | "docs" | "schema" | "deploy">("structure");
   const [expandedSections, setExpandedSections] = useState<Set<SectionKey>>(new Set(["pages", "components", "scripts"]));
@@ -467,7 +467,7 @@ export function BuilderSidebar({
   return (
     <>
       {isOpen && (
-        <button type="button" className="builder-sidebar-backdrop" aria-label="Close builder sidebar" onClick={onClose} />
+        <button type="button" className="builder-sidebar-backdrop" aria-label="Close projects sidebar" onClick={onClose} />
       )}
 
       <aside className={`builder-sidebar${isOpen ? " builder-sidebar--open" : ""}`} aria-label="Project structure">

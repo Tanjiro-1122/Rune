@@ -8,9 +8,9 @@ function assert(condition, message) {
   console.log(`✅ ${message}`);
 }
 
-const home = fs.readFileSync("components/builder-home.tsx", "utf8");
+const home = fs.readFileSync("components/command-center-home.tsx", "utf8");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
-const sidebar = fs.readFileSync("components/chat/BuilderSidebar.tsx", "utf8");
+const sidebar = fs.readFileSync("components/chat/ProjectsSidebar.tsx", "utf8");
 
 assert(home.includes("What needs your attention?"), "empty state is Command Center oriented");
 assert(home.includes("Ask Rune to check, fix, build, remember, or run something"), "prompt placeholder covers operator actions");
