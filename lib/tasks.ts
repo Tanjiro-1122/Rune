@@ -250,6 +250,18 @@ export async function reconcileWorkspaceTasks(options: {
       continue;
     }
 
+    const isPlainChatTask = !task.runner_status && !task.runner_id && task.progress <= 20;
+    const orphanCutoff = new Date(Date.now() - 30_000).toISOString();
+    if (isPlainChatTask && task.updated_at < orphanCutoff) {
+      await failWorkspaceTask(
+        task.id,
+        "Task was reconciled as orphaned chat state. The response stream may have completed without retaining this tracking row."
+      );
+      result.failed += 1;
+      result.failedTaskIds.push(task.id);
+      continue;
+    }
+
     if (task.updated_at < staleCutoff) {
       await failWorkspaceTask(
         task.id,
