@@ -8,7 +8,7 @@ function assert(condition, message) {
   console.log(`✅ ${message}`);
 }
 
-const css = fs.readFileSync("app/globals.css", "utf8");
+const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
 
 assert(chat.includes('className="drawer-backdrop tools-drawer-backdrop"'), "tools drawer backdrop is rendered");

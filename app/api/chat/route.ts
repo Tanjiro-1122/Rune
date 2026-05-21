@@ -2782,7 +2782,7 @@ ${resolvedRetrieval
     const selectedTools = selectToolsForRequest(latestUserText, allTools);
     const shouldEscalateModel =
       isCodeExecutionIntent(latestUserText, codeExecution.available) ||
-      /(deep coding|large refactor|multi-file|architecture|architectural|full audit|complex debugging)/i.test(latestUserText);
+      /(deep coding|large refactor|multi-file|architecture|architectural|full audit|complex debugging)/i.test(latestUserText);
     // Normal chat must stay on mini to avoid GPT-4.1 TPM crashes. Use RUNE_FORCE_CHAT_MODEL only for deliberate temporary overrides.
     const forcedChatModel = process.env.RUNE_FORCE_CHAT_MODEL;
     const CHAT_MODEL = forcedChatModel || (shouldEscalateModel ? "gpt-4.1" : "gpt-4.1-mini");

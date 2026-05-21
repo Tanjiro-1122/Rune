@@ -9,7 +9,7 @@ const checks = [
   ['forced tool union does not include code search', !route.includes('| "searchRepositoryCode"')],
   ['web search excludes source inspection requests', route.includes('isGitHubSourceInspectionIntent(input) || isGitHubAnalysisIntent(input)')],
   ['routing hint forbids placeholder paths', route.includes('Never invent placeholder paths like path/to/sendMessage.js')],
-  ['system prompt requires source inspection discipline', route.includes('GitHub source inspection discipline')],
+  ['system prompt/routing requires source inspection discipline', route.includes('Never invent placeholder paths') && route.includes('searchRepositoryCode')],
   ['code search tool exists', route.includes('searchRepositoryCode: tool({')],
   ['code search uses GitHub code search endpoint', route.includes('https://api.github.com/search/code')],
   ['code search returns real paths and snippets', route.includes('matches.push({') && route.includes('snippet') && route.includes('path: item.path')],

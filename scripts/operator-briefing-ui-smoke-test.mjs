@@ -9,7 +9,7 @@ function assert(condition, message) {
 }
 
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
-const css = fs.readFileSync("app/globals.css", "utf8");
+const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 
 assert(chat.includes("interface OperatorBriefingSnapshot"), "Operator briefing UI type exists");
 assert(chat.includes("const [operatorBriefing, setOperatorBriefing]"), "Operator briefing state exists");
