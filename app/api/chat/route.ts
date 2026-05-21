@@ -2626,7 +2626,7 @@ GitHub source discipline: use searchRepositoryCode for code evidence, stop after
 ${workspaceContextSection}
 ${memoryRoutingSection}
 ${ownerMemorySection ? ownerMemorySection : ""}
-${supabaseMemorySection ? supabaseMemorySection : ""}
+${resolvedSupabaseMemory ? resolvedSupabaseMemory : ""}
 
 
 
