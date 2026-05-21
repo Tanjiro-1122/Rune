@@ -388,14 +388,21 @@ export async function seedSafeMemories() {
 
 async function getEmbedding(text: string): Promise<number[]> {
   const apiKey = process.env.OPENAI_API_KEY!;
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "text-embedding-3-small", input: text.slice(0, 8000) }),
-  });
-  const data = await res.json() as { data: { embedding: number[] }[]; error?: { message: string } };
-  if (data.error) throw new Error(data.error.message);
-  return data.data[0].embedding;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "text-embedding-3-small", input: text.slice(0, 8000) }),
+      signal: controller.signal,
+    });
+    const data = await res.json() as { data: { embedding: number[] }[]; error?: { message: string } };
+    if (data.error) throw new Error(data.error.message);
+    return data.data[0].embedding;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export interface SemanticMemoryEntry {
