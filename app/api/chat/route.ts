@@ -534,15 +534,10 @@ function getForcedToolChoice(
   if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     return { type: "tool", toolName: "execute_code" };
   }
-  if (isCalculationIntent(input)) {
-    return { type: "tool", toolName: "calculate" };
-  }
-  if (isDatetimeIntent(input)) {
-    return { type: "tool", toolName: "get_current_datetime" };
-  }
-  if (isGitHubAnalysisIntent(input)) {
-    return { type: "tool", toolName: "analyze_github_repo" };
-  }
+  // calculate, datetime, and github_analysis are NOT forced here.
+  // Forcing a tool applies to EVERY step including the post-tool synthesis step,
+  // which prevents the model from generating a text answer after the tool result.
+  // The system prompt routing hints guide the model to call these naturally on step 1.
   return null;
 }
 
