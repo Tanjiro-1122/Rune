@@ -2737,6 +2737,7 @@ That's a consultant's pitch, not an operator's answer. Instead:
       tools: allTools,
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
+      experimental_continueSteps: true, // Force continuation after tool results — prevents finishReason:"tool-calls" empty stops
       onFinish: ({ text }) => {
         if (!lastUserMessage) return;
 
