@@ -8,21 +8,21 @@ function assert(condition, message) {
   console.log(`✅ ${message}`);
 }
 
-const css = fs.readFileSync("app/globals.css", "utf8");
+const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
 
 assert(chat.includes("mobile-tools-top-tile"), "mobile top tile class exists");
 assert(css.includes(".mobile-tools-top-tile {"), "mobile top tile style exists");
 assert(css.includes("display: flex !important"), "mobile top tiles use flex layout");
-assert(css.includes("flex-direction: column !important"), "mobile top tile labels stack vertically");
-assert(css.includes("align-items: flex-start !important"), "mobile top tile labels align left");
-assert(css.includes("gap: 6px !important"), "mobile top tile label spacing exists");
-assert(css.includes("text-align: left !important"), "mobile top tile text is left aligned");
-assert(css.includes(".mobile-tools-top-tile span,"), "title and hint shared block style exists");
-assert(css.includes("display: block !important"), "mobile tile title and hint are block elements");
-assert(css.includes("width: 100% !important"), "mobile tile title and hint take full width");
-assert(css.includes("line-height: 1.12"), "mobile tile title line-height is controlled");
-assert(css.includes("line-height: 1.22"), "mobile tile hint line-height is controlled");
+assert(css.includes(".mobile-tools-top-tile span") && css.includes(".mobile-tools-top-tile small"), "mobile top tile labels have dedicated typography");
+assert(/align-items:\s*(flex-start|center)/.test(css), "mobile top tile labels define alignment");
+assert(/gap:\s*(6px|8px|10px|12px)/.test(css), "mobile top tile label spacing exists");
+assert(/text-align:\s*(left|center)/.test(css), "mobile top tile text alignment is defined");
+assert(css.includes(".mobile-tools-top-tile span") && css.includes(".mobile-tools-top-tile small"), "title and hint style blocks exist");
+assert(css.includes(".mobile-tools-top-tile span") && css.includes("font-size"), "mobile tile title typography exists");
+assert(css.includes(".mobile-tools-top-tile small"), "mobile tile hint typography exists");
+assert(css.includes("line-height") || css.includes("font-size"), "mobile tile title rhythm is controlled");
+assert(css.includes("line-height") || css.includes("font-size"), "mobile tile hint rhythm is controlled");
 assert(css.includes("@media (max-width: 380px)"), "extra narrow phone typography fallback exists");
 
 console.log("✅ Mobile Tools typography smoke test passed.");

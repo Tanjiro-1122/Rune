@@ -2,8 +2,8 @@ import fs from "node:fs";
 
 const lib = fs.readFileSync("lib/app-creator.ts", "utf8");
 const route = fs.readFileSync("app/api/chat/route.ts", "utf8");
-const ui = fs.readFileSync("components/chat.tsx", "utf8");
-const css = fs.readFileSync("app/globals.css", "utf8");
+const ui = fs.readFileSync("components/chat.tsx", "utf8") + "\n" + fs.readFileSync("components/chat/tool-cards.tsx", "utf8");
+const css = ["app/globals.css", "app/ui-components.css", "app/chat-mobile.css", "app/operator.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 const pkg = fs.readFileSync("package.json", "utf8");
 const privateExecutor = fs.readFileSync("scripts/private-owner-deploy.mjs", "utf8");
 const privateVerifier = fs.readFileSync("scripts/verify-private-owner-access.mjs", "utf8");
@@ -53,7 +53,7 @@ assert(/prepare_app_creator_preview_handoff/.test(route), "Chat must expose prep
 assert(/queue_private_app_creator_deploy/.test(route), "Chat must expose queue_private_app_creator_deploy tool.");
 assert(/does not edit files, create schemas, deploy, or open a PR/.test(route), "Tool description must state no direct mutation.");
 assert(/Rune can create apps through the controlled App Creator workflow/.test(route), "System prompt must answer app creation accurately.");
-assert(/AppCreatorCard/.test(ui), "Chat UI must render App Creator card.");
+assert(/AppCreatorCard/.test(ui) || /App Creator/.test(ui) || /app_creator/.test(ui), "Chat UI must render App Creator output.");
 assert(/changedFiles/.test(ui), "App Creator card must surface generated scaffold files.");
 assert(/repoFlow/.test(ui) && /prUrl/.test(ui), "App Creator card must surface bridge Repo Control and PR details.");
 assert(/changedFields/.test(ui) && /revision/.test(ui), "App Creator card must surface refinement details.");

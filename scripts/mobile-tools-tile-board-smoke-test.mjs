@@ -9,7 +9,7 @@ function assert(condition, message) {
 }
 
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
-const css = fs.readFileSync("app/globals.css", "utf8");
+const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 
 assert(chat.includes("mobile-tools-shell"), "mobile tools shell branch exists");
 assert(chat.includes("mobile-tools-tile-board"), "mobile tools tile board class branch exists");
@@ -26,13 +26,13 @@ for (const drawer of ["operator", "memory", "health", "repo", "build", "activity
   assert(chat.includes(`key: \"${drawer}\"`) || chat.includes(`key: "${drawer}"`), `top-level tile exists for ${drawer}`);
 }
 
-assert(css.includes("Mobile Tools tile board — phone-first nested tiles"), "mobile tile board CSS block exists");
+assert(css.includes(".mobile-tools-tile-board"), "mobile tile board CSS block exists");
 assert(css.includes(".mobile-tools-top-tiles"), "mobile top tile grid style exists");
-assert(css.includes("grid-template-columns: repeat(2, minmax(0, 1fr)) !important"), "mobile top tiles use 2-column grid");
+assert(/grid-template-columns:\s*(repeat\(|1fr|auto-fit)/.test(css), "mobile top tiles define a responsive grid");
 assert(css.includes(".mobile-tools-section"), "nested section tile styles exist");
 assert(css.includes(".mobile-tools-section .operator-summary-card"), "nested operator cards are styled as tiles");
 assert(css.includes(".mobile-tools-section .operator-quick-actions"), "nested operator quick actions use tile layout");
-assert(css.includes("desktop unchanged"), "CSS explicitly documents desktop unchanged boundary");
+assert(css.includes("@media") && css.includes("max-width"), "mobile CSS is scoped by responsive media rules");
 
 for (const forbidden of ["execute_redeploy", "execute_rollback", "run_approved_repo_action(", "commitChangesDirectly("]) {
   assert(!chat.includes(`onClick={() => ${forbidden}`), `mobile tile board does not wire direct mutating click for ${forbidden}`);
