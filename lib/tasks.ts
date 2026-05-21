@@ -903,6 +903,46 @@ export async function claimQueuedWorkspaceTask(taskId: string) {
   return getWorkspaceTask(taskId);
 }
 
+export async function claimWorkspaceTaskForRunner(options: { taskId: string; runnerId: string; expectedWorkspaceId?: string | null }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const existing = await getWorkspaceTask(options.taskId);
+  if (!existing) return null;
+  if (options.expectedWorkspaceId && existing.workspaceId !== options.expectedWorkspaceId) return null;
+  if (existing.runnerId && existing.runnerId !== options.runnerId) return null;
+  if (!["queued", "running"].includes(existing.status)) return null;
+
+  const now = new Date().toISOString();
+  const logs = [
+    ...(existing.runnerLogs ?? []).slice(-25),
+    { timestamp: now, level: "info", message: `Claimed by operator executor ${options.runnerId}` },
+  ];
+
+  const { data, error } = await supabase
+    .from("workspace_tasks")
+    .update({
+      status: "running",
+      progress: Math.max(10, existing.progress),
+      runner_id: options.runnerId,
+      runner_status: "claimed_by_operator_executor",
+      runner_heartbeat_at: now,
+      runner_attempts: (existing.runnerAttempts ?? 0) + 1,
+      runner_logs: logs,
+      started_at: existing.startedAt ?? now,
+      completed_at: null,
+      updated_at: now,
+    })
+    .eq("id", options.taskId)
+    .or(`runner_id.is.null,runner_id.eq.${options.runnerId}`)
+    .in("status", ["queued", "running"])
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return getWorkspaceTask(options.taskId);
+}
+
 
 export async function claimNextRunnerTask(options: { runnerId: string; limit?: number }) {
   const supabase = getSupabaseClient();
