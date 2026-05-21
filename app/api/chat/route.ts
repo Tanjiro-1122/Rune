@@ -2540,8 +2540,9 @@ export async function POST(req: Request) {
       memoryContext.status === "fulfilled" ? memoryContext.value : "";
 
     // Resolve task ID from parallel result
-    if (!taskId && _taskResult.status === "fulfilled" && typeof _taskResult.value === "string") {
-      taskId = _taskResult.value;
+    if (!taskId && _taskResult.status === "fulfilled") {
+      const maybeId = _taskResult.value as string | null | undefined;
+      if (typeof maybeId === "string") taskId = maybeId;
     }
     activeTaskId = taskId;
 
