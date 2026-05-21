@@ -44,8 +44,10 @@ import {
 import {
   RUNE_DEFAULT_REPO,
   buildProjectRegistryPromptSection,
+  buildProjectResolutionPromptSection,
   inferProjectFromText,
   resolveCanonicalRepo,
+  resolveProjectContext,
   splitRepoSlug,
 } from "@/lib/project-registry";
 import { getCapabilityTruthSnapshot } from "@/lib/capability-truth";
@@ -2655,7 +2657,9 @@ export async function POST(req: Request) {
     const forcedToolChoice = getForcedToolChoice(latestUserText, codeExecution.available);
     const agentTools = getAgentTools({ workspaceId, conversationId });
     const ownerMemorySection = getOwnerMemorySection();
-    const memoryProjectKey = inferProjectFromText(latestUserText)?.key ?? null;
+    const projectResolution = resolveProjectContext({ text: latestUserText });
+    const memoryProjectKey = projectResolution.project?.key ?? inferProjectFromText(latestUserText)?.key ?? null;
+    const projectResolutionSection = buildProjectResolutionPromptSection(projectResolution);
     let taskId: string | null = resumeTaskId ?? null;
     const shouldTrackWorkspaceTask = shouldCreateWorkspaceTask(latestUserText, plannerOutput.intent, resumeTaskId);
 
