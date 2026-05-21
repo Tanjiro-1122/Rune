@@ -1742,3 +1742,86 @@
     -webkit-transform: translateZ(0);
   }
 }
+
+/* Drawer stack repair — keep mobile backdrops behind actual drawers and preserve readable panels. */
+.drawer-backdrop {
+  pointer-events: auto;
+}
+
+.workspace-drawer-backdrop {
+  z-index: 3990 !important;
+}
+
+.tools-drawer-backdrop {
+  z-index: 4990 !important;
+}
+
+.workspace-sidebar.workspace-sidebar--open {
+  position: fixed !important;
+  z-index: 4001 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.context-sidebar.context-sidebar--open {
+  z-index: 5001 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.context-sidebar.context-sidebar--open,
+.context-sidebar.context-sidebar--open .context-panel,
+.workspace-sidebar.workspace-sidebar--open,
+.workspace-sidebar.workspace-sidebar--open .workspace-sidebar-top,
+.workspace-sidebar.workspace-sidebar--open .conversation-sidebar {
+  color: #111827 !important;
+  opacity: 1 !important;
+}
+
+.context-sidebar.context-sidebar--open .context-panel,
+.workspace-sidebar.workspace-sidebar--open {
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(18px) saturate(1.05) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.05) !important;
+}
+
+@media (max-width: 820px) {
+  .workspace-drawer-backdrop {
+    z-index: 4990 !important;
+    background: rgba(15, 23, 42, 0.28) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  .workspace-sidebar.workspace-sidebar--open {
+    top: calc(env(safe-area-inset-top) + 8px) !important;
+    bottom: calc(env(safe-area-inset-bottom) + 8px) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 5001 !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .drawer-backdrop.tools-drawer-backdrop {
+    z-index: 4990 !important;
+    background: rgba(15, 23, 42, 0.28) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  .context-sidebar.context-sidebar--open {
+    z-index: 5001 !important;
+  }
+
+  .context-sidebar.context-sidebar--open .context-panel {
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: #111827 !important;
+  }
+}
