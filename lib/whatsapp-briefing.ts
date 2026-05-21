@@ -53,14 +53,14 @@ export function buildWhatsAppBriefingMessage(opts: WhatsAppBriefingOptions): str
   lines.push(`🔥 *Rune — ${formatDayOfWeek()}*`);
   lines.push("");
 
-  // ── Health Score ─────────────────────────────────────────────────────────
+  // ── Operator Readiness Score ──────────────────────────────────────────────
   const overallEmoji = statusEmoji(briefing.overallStatus);
-  const projectScores = briefing.projects.map((p) => p.healthScore).filter((s): s is number => s !== null);
+  const projectScores = briefing.projects.map((p) => p.operatorReadinessScore ?? p.healthScore).filter((s): s is number => s !== null);
   const avgScore = projectScores.length
     ? Math.round(projectScores.reduce((a, b) => a + b, 0) / projectScores.length)
     : null;
   const trend = trendArrow(avgScore, previousScore);
-  lines.push(`${overallEmoji} *Health:* ${avgScore !== null ? `${avgScore}/100${trend}` : briefing.overallStatus}`);
+  lines.push(`${overallEmoji} *Operator readiness:* ${avgScore !== null ? `${avgScore}/100${trend}` : briefing.overallStatus}`);
 
   // ── Revenue ──────────────────────────────────────────────────────────────
   if (rc.ok && (rc.mrr !== null || rc.activeSubscribers !== null)) {
@@ -82,9 +82,9 @@ export function buildWhatsAppBriefingMessage(opts: WhatsAppBriefingOptions): str
   // ── CI ───────────────────────────────────────────────────────────────────
   const ciFailing = briefing.projects.filter((p) => p.buildStatus === "failure" || p.buildStatus === "failed");
   if (ciFailing.length > 0) {
-    lines.push(`🔨 *CI:* ⚠️ ${ciFailing.map((p) => p.label).join(", ")} failing`);
+    lines.push(`🔨 *Current CI:* ⚠️ ${ciFailing.map((p) => p.label).join(", ")} failing`);
   } else {
-    lines.push(`🔨 *CI:* ✅ all passing`);
+    lines.push(`🔨 *Current CI:* ✅ latest runs passing`);
   }
 
   // ── OpenAI Spend ─────────────────────────────────────────────────────────
