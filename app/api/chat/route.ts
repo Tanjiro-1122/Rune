@@ -2586,10 +2586,14 @@ ${retrievalHits
       : `## Retrieved Workspace Context
 - No highly relevant indexed workspace context matched this request. If the user uploads documents or generates artifacts in this workspace, those items should become part of future retrieval.`;
 
+    console.log('[chat.timing] calling getAgentTools at', Date.now());
     const agentTools = getAgentTools({ workspaceId, conversationId });
+    console.log('[chat.timing] getAgentTools done at', Date.now());
     // Load dynamically enabled skills from RUNE_ENABLED_SKILLS env var
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console.log('[chat.timing] calling loadEnabledSkills at', Date.now());
     const skillTools: Record<string, any> = await loadEnabledSkills().catch(() => ({}));
+    console.log('[chat.timing] loadEnabledSkills done at', Date.now());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allTools: Record<string, any> = { ...agentTools, ...skillTools };
 
@@ -2612,6 +2616,7 @@ ${retrievalHits
 
     const projectRegistrySection = buildProjectRegistryPromptSection();
 
+    console.log('[chat.timing] reaching streamText at', Date.now());
     const result = streamText({
       model: openai(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
