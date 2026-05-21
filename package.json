@@ -60,7 +60,8 @@
     "test:task-reconciler": "node scripts/task-reconciler-smoke-test.mjs",
     "test:no-orphan-chat-task": "node scripts/no-orphan-chat-task-smoke-test.mjs",
     "test:task-runs": "node scripts/task-runs-smoke-test.mjs",
-    "test:project-resolver": "node scripts/project-resolver-smoke-test.mjs"
+    "test:project-resolver": "node scripts/project-resolver-smoke-test.mjs",
+    "test:pasted-screenshot-submit": "node scripts/pasted-screenshot-submit-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
