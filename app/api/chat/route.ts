@@ -1634,41 +1634,58 @@ Action: ${action.id}`,
     }),
 
 
-    build_app: tool({
+    simple_builder: tool({
       description:
-        "Unified App Creator pipeline — takes a natural-language idea and drives it through " +
-        "plan → scaffold → PR → deploy in clear stages. " +
-        "stage='plan': generate a full app blueprint (safe, no files written). " +
-        "stage='scaffold': generate starter files and open a GitHub PR (requires proposalId from plan). " +
-        "stage='deploy': merge and deploy (requires proposalId + approvalToken). " +
-        "stage='status': check current pipeline status for a proposalId. " +
-        "Use this as the PRIMARY tool when Javier says 'build me X', 'create an app', or 'make a new app'. " +
-        "Always start with stage='plan' unless Javier already has a proposalId.",
+        "Simple Builder v1 — turn Javier's plain-language request into a Repo Control proposal Rune can continue from. " +
+        "Use this when Javier says 'build', 'make', 'create', 'fix this feature', or asks Rune to do the rest. " +
+        "This is honest PR-first building: it creates a scoped proposal with findings, plan, target repo, and likely files. " +
+        "It does not claim Emergent-style live preview, auto-merge, auto-deploy, or independent app runtime.",
       parameters: z.object({
-        idea: z.string().min(1).max(1600).optional(),
-        appName: z.string().max(80).optional(),
-        targetUsers: z.string().max(180).optional(),
-        platform: z.enum(["web", "mobile", "both"]).optional(),
-        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
-        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
-        stage: z.enum(["plan", "scaffold", "deploy", "status"]).optional(),
-        proposalId: z.string().optional(),
-        approvalToken: z.string().optional(),
+        request: z.string().min(1).max(2400),
+        repo: z.string().max(160).optional(),
+        projectKey: z.string().max(80).optional(),
+        files: z.array(z.object({
+          path: z.string().min(1).max(240),
+          operation: z.enum(["create", "update", "delete", "inspect"]).optional(),
+          note: z.string().max(500).optional(),
+        })).max(20).optional(),
       }),
-      execute: async ({ idea, appName, targetUsers, platform, complexity, mustHaveFeatures, stage, proposalId, approvalToken }) => {
-        return runAppCreatorPipeline({
-          idea: idea ?? "",
-          appName: appName ?? null,
-          targetUsers: targetUsers ?? null,
-          platform: platform ?? "web",
-          complexity: complexity ?? "standard",
-          mustHaveFeatures,
-          stage: stage ?? "plan",
-          proposalId: proposalId ?? null,
-          approvalToken: approvalToken ?? null,
+      execute: async ({ request, repo, projectKey, files }) => {
+        const resolved = resolveProjectContext({ text: request });
+        const targetRepo = repo || resolved.project?.repo || getRuneRuntimeIdentity().repo;
+        const targetProject = projectKey || resolved.project?.key || "rune";
+        const result = await createRepoActionProposal({
+          title: `Simple Builder: ${request.slice(0, 120)}`,
+          summary: `Create a PR-first implementation plan for: ${request}`.slice(0, 900),
+          findings: [
+            "Simple Builder v1 is intentionally PR-first.",
+            "Rune should inspect the target repo, generate a focused diff, run Repo Control checks, and open a PR only.",
+            "No auto-merge, production deploy, schema migration, payment change, or external account mutation is authorized by this proposal.",
+          ].join("\n"),
+          plan: [
+            "1. Inspect the relevant files in the target repository.",
+            "2. Generate the smallest useful implementation diff for the request.",
+            "3. Run Repo Control sandbox and temporary build checks where available.",
+            "4. Open a PR for Javier to review; do not merge or deploy automatically.",
+          ].join("\n"),
+          repo: targetRepo,
+          projectKey: targetProject,
+          riskLevel: "medium",
+          files,
+          sessionId: null,
           workspaceId: workspaceId ?? null,
           conversationId: conversationId ?? null,
         });
+        if (!result.ok || !result.proposal) return { success: false, error: result.error || "Simple Builder could not create a proposal." };
+        return {
+          success: true,
+          mode: "simple_builder_pr_first",
+          proposalId: result.proposal.id,
+          repo: result.proposal.repo,
+          projectKey: result.proposal.project_key,
+          nextAction: "Ask Rune to run Repo Control flow on this proposal to generate a diff and open a PR.",
+          limits: ["No live preview runtime yet", "No auto-merge", "No auto-deploy"],
+        };
       },
     }),
 
