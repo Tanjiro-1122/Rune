@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB } from "./attachment-prep";
+import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./clipboard-helpers";
 
 export const ACCEPTED_TYPES = ACCEPTED_ATTACHMENT_TYPES;
 export const MAX_FILE_SIZE_MB = MAX_ATTACHMENT_FILE_SIZE_MB;
@@ -88,21 +89,12 @@ export function ChatInputBar({
   }
 
   function insertPastedTextAtCursor(textarea: HTMLTextAreaElement, text: string) {
-    const selectionStart = textarea.selectionStart ?? input.length;
-    const selectionEnd = textarea.selectionEnd ?? input.length;
-    const nextInput = `${input.slice(0, selectionStart)}${text}${input.slice(selectionEnd)}`;
-    setInput(nextInput);
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = selectionStart + text.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+    applyPastedTextToTextarea({ textarea, currentValue: input, pastedText: text, setValue: setInput });
   }
 
   const handleChatPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData?.items ?? []);
-    const text = e.clipboardData?.getData("text/plain") ?? "";
-    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+    const text = getClipboardPlainText(e.clipboardData);
+    const imageItems = getClipboardImageItems(e.clipboardData?.items);
 
     if (text && imageItems.length === 0) {
       e.preventDefault();
