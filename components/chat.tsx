@@ -8,6 +8,7 @@ import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment,
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
+import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
   CABINET_DRAWERS,
@@ -74,8 +75,7 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
   if (inline) {
     return <code className={className} {...props}>{children}</code>;
   }
-  const canvasLangs = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js", "typescript", "ts"];
-  const canvasable = canvasLangs.includes(lang) && code.length > 20;
+  const canvasable = CANVAS_LANGS.includes(lang) && code.length > 20;
   const isHtml = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js"].includes(lang);
 
   function copyCode() {
@@ -108,8 +108,6 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
   </>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -684,29 +682,6 @@ function getOperatorCommandCards(options: {
   ];
 }
 
-function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary) {
-  return `data:${artifact.mimeType};charset=utf-8,${encodeURIComponent(artifact.content)}`;
-}
-
-function getDocumentKindLabel(sourceKind: string) {
-  return sourceKind === "artifact" ? "Artifact" : sourceKind === "upload" ? "Upload" : "Context";
-}
-
-function getSafeAttachmentImageUrl(
-  url: string | undefined,
-  allowedProtocols: Array<"blob:" | "https:">
-) {
-  if (!url) return undefined;
-
-  try {
-    const parsed = new URL(url);
-    return allowedProtocols.some((protocol) => parsed.protocol === protocol) ? url : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// ── Follow-up action chips ────────────────────────────────────────────────
 type UIMsg = FollowUpMessage;
 
 export function Chat() {
