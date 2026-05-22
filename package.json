@@ -80,7 +80,8 @@
     "test:runtime-identity-drift": "node scripts/runtime-identity-drift-smoke-test.mjs",
     "test:ui-orchestration-health": "node scripts/ui-orchestration-health-smoke-test.mjs",
     "test:follow-up-chips-decomposition": "node scripts/follow-up-chips-decomposition-smoke-test.mjs",
-    "test:task-activity-decomposition": "node scripts/task-activity-decomposition-smoke-test.mjs"
+    "test:task-activity-decomposition": "node scripts/task-activity-decomposition-smoke-test.mjs",
+    "test:paste-upload-parity": "node scripts/paste-upload-parity-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

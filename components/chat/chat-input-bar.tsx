@@ -42,10 +42,10 @@ interface ChatInputBarProps {
   setInput: (v: string | ((prev: string) => string)) => void;
   setFileError: (v: string) => void;
   setFiles: (v: FileList | undefined) => void;
-  setPreviewUrls: (v: string[]) => void;
+  setPreviewUrls: (v: string[] | ((prev: string[]) => string[])) => void;
   setIsUploadingAttachment: (v: boolean) => void;
-  pastedImageUrl?: string | null;
-  setPastedImageUrl: (url: string | null) => void;
+  pastedAttachments: LightweightAttachment[];
+  setPastedAttachments: (updater: LightweightAttachment[] | ((prev: LightweightAttachment[]) => LightweightAttachment[])) => void;
   onQueueSubmit: () => void;
   onPlan?: () => void;
 }
@@ -71,8 +71,8 @@ export function ChatInputBar({
   setInput,
   setFileError,
   setIsUploadingAttachment,
-  pastedImageUrl,
-  setPastedImageUrl,
+  pastedAttachments,
+  setPastedAttachments,
   setFiles,
   setPreviewUrls,
   onQueueSubmit,
@@ -133,10 +133,15 @@ export function ChatInputBar({
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
         if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-        const data = await res.json() as { url?: string };
+        const data = await res.json() as { url?: string; name?: string; mimeType?: string; size?: number };
         if (data.url) {
+          const uploadedUrl = data.url;
           setFileError("");
-          setPastedImageUrl(data.url);
+          setPastedAttachments((prev) => [
+            ...prev,
+            { url: uploadedUrl, name: data.name ?? file.name ?? "pasted-screenshot.png", mimeType: data.mimeType ?? file.type ?? "image/png", size: data.size ?? file.size },
+          ]);
+          setPreviewUrls((prev) => [...prev, uploadedUrl]);
         }
       } catch (err) {
         setFileError(err instanceof Error ? err.message : "Upload failed");
@@ -158,24 +163,23 @@ export function ChatInputBar({
 
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const hasPastedImage = Boolean(pastedImageUrl);
-    if (isLoaderActive || (!input.trim() && (!files || files.length === 0) && !hasPastedImage)) return;
+    const hasPastedAttachments = pastedAttachments.length > 0;
+    if (isLoaderActive || (!input.trim() && (!files || files.length === 0) && !hasPastedAttachments)) return;
     if (files && files.length > 0) {
       setIsUploadingAttachment(true);
       try {
         const attachments = await Promise.all(Array.from(files).map(uploadImageAttachment));
-        const pastedAttachment = pastedImageUrl ? [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png", size: 0 }] : [];
-        handleSubmit(e, { experimental_attachments: [...attachments, ...pastedAttachment] });
-        setPastedImageUrl(null);
+        handleSubmit(e, { experimental_attachments: [...attachments, ...pastedAttachments] });
+        setPastedAttachments([]);
       } catch (err) {
         setFileError(err instanceof Error ? err.message : "Upload failed");
       } finally {
         setIsUploadingAttachment(false);
         clearAttachments();
       }
-    } else if (pastedImageUrl) {
-      handleSubmit(e, { experimental_attachments: [{ url: pastedImageUrl, name: "screenshot.png", mimeType: "image/png", size: 0 }] });
-      setPastedImageUrl(null);
+    } else if (hasPastedAttachments) {
+      handleSubmit(e, { experimental_attachments: pastedAttachments });
+      setPastedAttachments([]);
     } else {
       handleSubmit(e);
     }
@@ -199,12 +203,6 @@ export function ChatInputBar({
       )}
       {pendingToolLabel && isLoaderActive && (
         <div className="pending-tool-label">{pendingToolLabel}</div>
-      )}
-      {pastedImageUrl && (
-        <div className="pasted-image-preview">
-          <img src={pastedImageUrl} alt="pasted screenshot" className="pasted-img-thumb" />
-          <button type="button" className="clear-pasted-btn" onClick={() => setPastedImageUrl(null)}>✕</button>
-        </div>
       )}
       {previewUrls.length > 0 && (
         <div className="attachment-previews">
@@ -263,7 +261,7 @@ export function ChatInputBar({
           <button
             type="submit"
             className="chat-send-btn"
-            disabled={isLoaderActive || (!input.trim() && (!files || files.length === 0) && !pastedImageUrl)}
+            disabled={isLoaderActive || (!input.trim() && (!files || files.length === 0) && pastedAttachments.length === 0)}
           >
             {isLoaderActive ? <span className="send-spinner" /> : "↑"}
           </button>
