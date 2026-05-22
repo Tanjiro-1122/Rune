@@ -9,7 +9,7 @@ import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
-import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, splitImageAndPassthroughFiles, validateAttachmentFiles } from "./chat/attachment-prep";
+import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, normalizeChatUploadAttachment, requireUploadUrl, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
 import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./chat/clipboard-helpers";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
@@ -57,13 +57,11 @@ const ChatInputBar = dynamic(
 );
 
 
-// ── Canvas context — lets RuneCodeBlock open the canvas from deep in the tree ─
 import { createContext, useContext } from "react";
 const CanvasContext = createContext<((content: CanvasContent) => void) | null>(null);
 
 const CANVAS_LANGS = ["html", "htm", "jsx", "tsx", "svg", "css", "javascript", "js", "typescript", "ts"];
 
-// ── Premium code block renderer ──────────────────────────────────────────────
 function RuneCodeBlock({ inline, className, children, ...props }: {
   inline?: boolean;
   className?: string;
@@ -2054,22 +2052,22 @@ export function Chat() {
         });
 
         if (!res.ok) {
-          const payload = await res.json().catch(() => ({})) as { error?: string };
-          const msg = payload.error ?? `Upload failed with status ${res.status}`;
-          throw new Error(msg);
+          const payload = await res.json().catch(() => ({})) as UploadResponsePayload;
+          throw new Error(payload.error ?? `Upload failed with status ${res.status}`);
         }
 
-        const data = await res.json() as { url?: string; name?: string; mimeType?: string };
+        const data = await res.json() as UploadResponsePayload;
 
         if (data.url) {
+          const attachment: LightweightAttachment = normalizeChatUploadAttachment({
+            payload: data,
+            file,
+            fallbackName: "pasted-screenshot.png",
+            fallbackMimeType: "image/png",
+          });
           setFileError("");
-          const attachment: LightweightAttachment = {
-            name: data.name ?? file.name ?? "pasted-screenshot.png",
-            contentType: data.mimeType ?? file.type ?? "image/png",
-            url: data.url,
-          };
           setPastedAttachments((prev) => [...prev, attachment]);
-          setPreviewUrls((prev) => [...prev, data.url!]);
+          setPreviewUrls((prev) => [...prev, attachment.url]);
         }
       } catch (err) {
         console.error("Failed to upload pasted image:", err);
@@ -2091,22 +2089,14 @@ export function Chat() {
       credentials: "include",
     });
 
-    const payload = await response.json().catch(() => ({})) as {
-      url?: string;
-      name?: string;
-      mimeType?: string;
-      error?: string;
-    };
+    const payload = await response.json().catch(() => ({})) as UploadResponsePayload;
 
-    if (!response.ok || !payload.url) {
+    if (!response.ok) {
       throw new Error(payload.error ?? `Upload failed with status ${response.status}`);
     }
+    requireUploadUrl(payload, response.status);
 
-    return {
-      name: payload.name ?? file.name,
-      contentType: payload.mimeType ?? file.type,
-      url: payload.url,
-    };
+    return normalizeChatUploadAttachment({ payload, file });
   }
 
   async function prepareChatAttachments(fileList: FileList): Promise<LightweightAttachment[] | FileList> {

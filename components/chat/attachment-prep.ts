@@ -29,3 +29,58 @@ export function splitImageAndPassthroughFiles(fileList: FileList) {
   const passthroughFiles = selectedFiles.filter((file) => !file.type.startsWith("image/"));
   return { selectedFiles, imageFiles, passthroughFiles };
 }
+
+export type UploadResponsePayload = {
+  url?: string;
+  name?: string;
+  mimeType?: string;
+  size?: number;
+  error?: string;
+};
+
+export type ChatUploadAttachment = {
+  name: string;
+  contentType: string;
+  url: string;
+};
+
+export type InputBarUploadAttachment = {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+};
+
+export function requireUploadUrl(payload: UploadResponsePayload, status: number) {
+  if (!payload.url) {
+    throw new Error(payload.error ?? `Upload failed with status ${status}`);
+  }
+  return payload.url;
+}
+
+export function normalizeChatUploadAttachment(options: {
+  payload: UploadResponsePayload;
+  file: File;
+  fallbackName?: string;
+  fallbackMimeType?: string;
+}) {
+  return {
+    name: options.payload.name ?? options.file.name ?? options.fallbackName ?? "attachment",
+    contentType: options.payload.mimeType ?? options.file.type ?? options.fallbackMimeType ?? "application/octet-stream",
+    url: requireUploadUrl(options.payload, 200),
+  } satisfies ChatUploadAttachment;
+}
+
+export function normalizeInputBarUploadAttachment(options: {
+  payload: UploadResponsePayload;
+  file: File;
+  fallbackName?: string;
+  fallbackMimeType?: string;
+}) {
+  return {
+    url: requireUploadUrl(options.payload, 200),
+    name: options.payload.name ?? options.file.name ?? options.fallbackName ?? "attachment",
+    mimeType: options.payload.mimeType ?? options.file.type ?? options.fallbackMimeType ?? "application/octet-stream",
+    size: options.payload.size ?? options.file.size,
+  } satisfies InputBarUploadAttachment;
+}

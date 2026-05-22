@@ -84,7 +84,8 @@
     "test:paste-upload-parity": "node scripts/paste-upload-parity-smoke-test.mjs",
     "test:attachment-artifacts-decomposition": "node scripts/attachment-artifacts-decomposition-smoke-test.mjs",
     "test:attachment-prep-decomposition": "node scripts/attachment-prep-decomposition-smoke-test.mjs",
-    "test:clipboard-helpers-decomposition": "node scripts/clipboard-helpers-decomposition-smoke-test.mjs"
+    "test:clipboard-helpers-decomposition": "node scripts/clipboard-helpers-decomposition-smoke-test.mjs",
+    "test:upload-response-normalization": "node scripts/upload-response-normalization-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

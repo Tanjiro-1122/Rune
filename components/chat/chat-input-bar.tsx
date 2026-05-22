@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB } from "./attachment-prep";
+import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, normalizeInputBarUploadAttachment, requireUploadUrl, type UploadResponsePayload } from "./attachment-prep";
 import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./clipboard-helpers";
 
 export const ACCEPTED_TYPES = ACCEPTED_ATTACHMENT_TYPES;
@@ -118,15 +118,17 @@ export function ChatInputBar({
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
         if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-        const data = await res.json() as { url?: string; name?: string; mimeType?: string; size?: number };
+        const data = await res.json() as UploadResponsePayload;
         if (data.url) {
-          const uploadedUrl = data.url;
+          const attachment = normalizeInputBarUploadAttachment({
+            payload: data,
+            file,
+            fallbackName: "pasted-screenshot.png",
+            fallbackMimeType: "image/png",
+          });
           setFileError("");
-          setPastedAttachments((prev) => [
-            ...prev,
-            { url: uploadedUrl, name: data.name ?? file.name ?? "pasted-screenshot.png", mimeType: data.mimeType ?? file.type ?? "image/png", size: data.size ?? file.size },
-          ]);
-          setPreviewUrls((prev) => [...prev, uploadedUrl]);
+          setPastedAttachments((prev) => [...prev, attachment]);
+          setPreviewUrls((prev) => [...prev, attachment.url]);
         }
       } catch (err) {
         setFileError(err instanceof Error ? err.message : "Upload failed");
@@ -142,8 +144,9 @@ export function ChatInputBar({
     if (sessionId) fd.append("sessionId", sessionId);
     const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const data = await res.json() as { url: string; name?: string; mimeType?: string; size?: number };
-    return { url: data.url, name: file.name, mimeType: file.type, size: file.size };
+    const data = await res.json() as UploadResponsePayload;
+    requireUploadUrl(data, res.status);
+    return normalizeInputBarUploadAttachment({ payload: data, file });
   }
 
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
