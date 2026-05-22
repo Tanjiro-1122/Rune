@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import type { OperatorBriefing } from "@/lib/operator-briefing";
 import type { RevenueCatOverviewResult } from "@/lib/revenuecat-overview";
 
@@ -112,7 +113,7 @@ export function buildWhatsAppBriefingMessage(opts: WhatsAppBriefingOptions): str
   }
 
   lines.push("");
-  lines.push(`→ mrruneai.vercel.app`);
+  lines.push(`→ ${getRuneRuntimeIdentity().liveUrl.replace(/^https?:\/\//, "")}`);
 
   return lines.join("\n");
 }
