@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { loadEnabledSkills } from "@/lib/skills";
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
@@ -1674,7 +1675,7 @@ Action: ${action.id}`,
           mustHaveFeatures,
           preferredStack: preferredStack || null,
           projectKey: "rune",
-          repo: "Tanjiro-1122/Rune",
+          repo: getRuneRuntimeIdentity().repo,
           sessionId: null,
           workspaceId: workspaceId ?? null,
           conversationId: conversationId ?? null,

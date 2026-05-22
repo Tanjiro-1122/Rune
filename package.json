@@ -76,7 +76,8 @@
     "test:project-registry-source": "node scripts/project-registry-source-smoke-test.mjs",
     "test:project-runtime-glue": "node scripts/project-runtime-glue-smoke-test.mjs",
     "test:runtime-identity-build-deploy-repo": "node scripts/runtime-identity-build-deploy-repo-smoke-test.mjs",
-    "test:runtime-identity-app-creator-briefing": "node scripts/runtime-identity-app-creator-briefing-smoke-test.mjs"
+    "test:runtime-identity-app-creator-briefing": "node scripts/runtime-identity-app-creator-briefing-smoke-test.mjs",
+    "test:runtime-identity-drift": "node scripts/runtime-identity-drift-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

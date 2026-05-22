@@ -1,5 +1,6 @@
 "use client";
 
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { useChat } from "ai/react";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -429,7 +430,7 @@ const PROJECT_SWITCHBOARD_OPTIONS = [
     key: "rune",
     label: "Rune",
     subtitle: "Private AI workspace",
-    repo: "Tanjiro-1122/Rune",
+    repo: getRuneRuntimeIdentity().repo,
     accent: "#7dd3fc",
     safetyLabel: "Owner-console",
     safetyTone: "owner",

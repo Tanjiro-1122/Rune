@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import {
   addWorkspaceTaskCheckpoint,
   claimWorkspaceTaskForRunner,
@@ -231,7 +232,7 @@ export async function runOperatorExecutorBridge(options: {
           ? "- Executor Bridge v2 may open a PR only if the existing Repo Control approval and build gates pass."
           : "- Executor Bridge v2 stops before PR/merge/deploy gates unless openPrIfApproved is true.",
       ].join("\n"),
-      repo: "Tanjiro-1122/Rune",
+      repo: getRuneRuntimeIdentity().repo,
       projectKey: "rune",
       riskLevel: "medium",
       files: plan.targetFiles.map((path) => ({ path, operation: "update" as const, note: "Target file from remediation task." })),
