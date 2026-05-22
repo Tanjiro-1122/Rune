@@ -24,6 +24,6 @@ assert(chat.includes("const safeAttachments = [...normalizedFileAttachments, ...
 assert(chat.includes("allowEmptySubmit: hasAnyAttachments && !input.trim()"), "attachment-only submit works for pasted or uploaded files");
 assert(chat.includes("clearAttachments()") && chat.includes("setPastedAttachments([])"), "clear/submit cleanup resets pasted attachments");
 assert(inputBar.includes("pastedAttachments: LightweightAttachment[]") && !inputBar.includes("pastedImageUrl"), "lazy input bar uses pastedAttachments array, not stale single pastedImageUrl state");
-assert(inputBar.includes("setPastedAttachments((prev) => [") && inputBar.includes("setPreviewUrls((prev) => [...prev,") && inputBar.includes("uploadedUrl"), "lazy input bar appends pasted image uploads to attachment and preview arrays");
+assert(inputBar.includes("setPastedAttachments((prev) => [...prev, attachment]") && inputBar.includes("setPreviewUrls((prev) => [...prev, attachment.url]"), "lazy input bar appends pasted image uploads to attachment and preview arrays");
 assert(pasteTest.includes("pastedAttachments") && pasteTest.includes("allowEmptySubmit"), "existing screenshot paste smoke covers attachment submit path");
 console.log("✅ Paste/upload parity smoke test passed.");
