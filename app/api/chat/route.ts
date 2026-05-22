@@ -445,6 +445,11 @@ function isRepoControlCommand(input: string) {
   return explicitRepoControl || naturalCodeChange || directPrRequest;
 }
 
+function isSimpleBuilderIntent(input: string) {
+  return /\b(build|make|create|add|implement|fix|improve|wire|turn .* into|make .* viable)\b/i.test(input)
+    && /\b(app|feature|page|tool|builder|dashboard|ui|screen|flow|repo|rune|unfiltr|swh|sports wager|family|code|pr)\b/i.test(input);
+}
+
 function hasMathExpression(input: string) {
   const withoutUuids = input.replace(
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
@@ -672,7 +677,15 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("listRepositoryTree");
   }
 
-  // Repo action / PR creation tools — wire for any natural language code change request
+  // Simple Builder / Repo action tools — wire for natural language build/code requests.
+  if (isSimpleBuilderIntent(input)) {
+    add("simple_builder");
+    add("run_repo_control_flow");
+    add("readRepositoryFile");
+    add("listRepositoryTree");
+    add("searchRepositoryCode");
+  }
+
   if (isRepoControlCommand(input)) {
     add("create_repo_action_proposal");
     add("run_repo_control_flow");
@@ -3022,7 +3035,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_rune_self_audit_snapshot before answering.
 - Sensitive = banking, real customer emails, payment mutations, granting free entitlements. Everything else — repo changes, pushes, PRs, deploys, bug fixes — execute immediately and report what you did.
 - For genuinely sensitive actions (above list only): state what you found and what you're about to do, then execute unless it involves money or messaging real users.
-- If Javier asks whether Rune can create an app, answer yes with precision: Rune can create apps through the controlled App Creator workflow (create_app_proposal) and Repo Control approval gates. App Creator v1 creates blueprints/proposals; approved_app_scaffold can generate starter files only after the proposal is approved. preview_app_creator_proposal can show the current plan, refine_app_creator_proposal can update it in place, run_app_creator_scaffold_bridge can run scaffold generation plus Repo Control checks/PR handoff, and prepare_app_creator_preview_handoff can prepare metadata-only preview deployment handoff, and queue_private_app_creator_deploy can queue a private-owner runner job only after exact approval. Schema changes, merges, and deployments still require explicit approval gates.
+- If Javier asks Rune to build, make, create, fix, or improve an app/feature, use simple_builder first. Be precise: Simple Builder is PR-first. It creates a Repo Control proposal Rune can continue through inspect → diff → checks → PR. It is not Emergent-style live preview/runtime yet, and it must not claim auto-merge or auto-deploy.
 - Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless a real tool confirms it. RevenueCat, App Store Connect, and Google Play lookups are read-only. Rune session merge requires exact phrase APPROVE RUNE SESSION MERGE. App Creator proposals require explicit approval before scaffold, merge, or deploy.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.
