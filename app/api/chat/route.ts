@@ -434,8 +434,15 @@ function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
 
 function isRepoControlCommand(input: string) {
   if (!input.trim()) return false;
-  return /\b(repo control|repo action|proposal)\b/i.test(input) &&
+  // Match explicit repo control commands
+  const explicitRepoControl = /\b(repo control|repo action|proposal)\b/i.test(input) &&
     /\b(run|start|create|prepare|draft|inspect|ladder|stage|executor|proposal|stop before|pr|pull request)\b/i.test(input);
+  // Match natural language code change requests
+  const naturalCodeChange = /\b(create|add|update|edit|fix|change|modify|remove|delete|rename|move|refactor|patch|write)\b/i.test(input) &&
+    /\b(file|code|readme|component|function|page|route|config|script|pr|pull request|commit|branch|push|deploy)\b/i.test(input);
+  // Match direct PR/commit requests
+  const directPrRequest = /\b(open a pr|open pr|create a pr|make a pr|push (a |this )?change|commit (this|it|the)|open a pull request|make a pull request)\b/i.test(input);
+  return explicitRepoControl || naturalCodeChange || directPrRequest;
 }
 
 function hasMathExpression(input: string) {
@@ -550,7 +557,7 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
   if (isRepoControlCommand(input)) {
     hints.push(
-      "- Legacy router guard: Repo Control command detected; do not route to calculator because proposal IDs contain hyphens/numbers. Prefer the matching Repo Control tool."
+      "- Strong routing signal: this is a code/repo change request. ALWAYS follow this exact sequence: (1) use readRepositoryFile or listRepositoryTree to inspect real files first, (2) call create_repo_action_proposal with the exact diff/plan, (3) call run_repo_control_flow with the proposalId to execute and open the PR. NEVER use calculate, execute_code, or prose-only responses for file/repo changes. NEVER pretend a PR was opened without calling run_repo_control_flow and getting a real prUrl back."
     );
   }
 
