@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
+import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
   CABINET_DRAWERS,
@@ -689,55 +690,6 @@ function buildArtifactDownloadHref(artifact: WorkspaceArtifactSummary) {
 
 function getDocumentKindLabel(sourceKind: string) {
   return sourceKind === "artifact" ? "Artifact" : sourceKind === "upload" ? "Upload" : "Context";
-}
-
-function getTaskStatusLabel(status: WorkspaceTaskSummary["status"]) {
-  if (status === "running") return "Running";
-  if (status === "queued") return "Queued";
-  if (status === "completed") return "Completed";
-  if (status === "failed") return "Failed";
-  return "Stopped";
-}
-
-function getTaskAgeLabel(updatedAt?: string | null, nowMs = Date.now()) {
-  if (!updatedAt) return "age unknown";
-  const updatedMs = Date.parse(updatedAt);
-  if (!Number.isFinite(updatedMs)) return "age unknown";
-  const diffSeconds = Math.max(0, Math.floor((nowMs - updatedMs) / 1000));
-  if (diffSeconds < 45) return "just now";
-  if (diffSeconds < 90) return "1m ago";
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  return `${diffHours}h ago`;
-}
-
-function isPossiblyStaleTask(task: WorkspaceTaskSummary, nowMs = Date.now()) {
-  const updatedMs = Date.parse(task.updatedAt);
-  if (!Number.isFinite(updatedMs)) return false;
-  return nowMs - updatedMs > 90_000;
-}
-
-function getTaskActivityLabel(task: WorkspaceTaskSummary | null, nowMs = Date.now()) {
-  if (!task) return "No active task";
-  const status = getTaskStatusLabel(task.status);
-  const progress = Number.isFinite(task.progress) ? ` · ${Math.max(0, Math.min(100, Math.round(task.progress)))}%` : "";
-  const age = getTaskAgeLabel(task.updatedAt, nowMs);
-  return `${status}${progress} · ${age}`;
-}
-
-function getRunnerJobLabel(kind?: string) {
-  if (kind === "vercel_redeploy") return "Vercel redeploy";
-  if (kind === "vercel_rollback") return "Vercel rollback";
-  if (kind === "private_app_creator_deploy") return "Private App Creator deploy";
-  if (kind === "repo_check") return "Repo check";
-  if (kind === "maintenance") return "Maintenance";
-  return kind ? kind.replace(/_/g, " ") : null;
-}
-
-function getCommandPreview(command?: string) {
-  if (!command) return null;
-  return command.length > 110 ? `${command.slice(0, 107)}…` : command;
 }
 
 function getSafeAttachmentImageUrl(
