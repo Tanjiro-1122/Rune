@@ -89,7 +89,8 @@
     "test:attachment-preview-cleanup": "node scripts/attachment-preview-cleanup-smoke-test.mjs",
     "test:selected-artifact-helper": "node scripts/selected-artifact-helper-smoke-test.mjs",
     "test:artifact-preview-card": "node scripts/artifact-preview-card-smoke-test.mjs",
-    "test:artifact-list": "node scripts/artifact-list-smoke-test.mjs"
+    "test:artifact-list": "node scripts/artifact-list-smoke-test.mjs",
+    "test:artifact-drawer-section": "node scripts/artifact-drawer-section-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

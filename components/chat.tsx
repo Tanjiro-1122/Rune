@@ -7,8 +7,7 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
-import { ArtifactList } from "./chat/artifact-list";
-import { ArtifactPreviewCard } from "./chat/artifact-preview-card";
+import { ArtifactDrawerSection } from "./chat/artifact-drawer-section";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { getDocumentKindLabel, getNextArtifactPreviewId, getSafeAttachmentImageUrl, getSelectedArtifact } from "./chat/attachment-artifacts";
 import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, createAttachmentPreviewUrls, normalizeChatUploadAttachment, requireUploadUrl, revokeAttachmentPreviewUrls, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
@@ -3790,25 +3789,8 @@ export function Chat() {
             )}
 
             {activeCabinetDrawer === "files" && (
-            <>
-            <div className="context-panel-section filing-cabinet-content">
-              <div className="context-panel-header">
-                <div>
-                  <div className="side-section-label">Artifacts</div>
-                  <p className="side-section-copy">Generated files now persist per workspace and can be downloaded later.</p>
-                </div>
-              </div>
-
-              {artifacts.length ? (
-                <>
-                  <ArtifactList artifacts={artifacts} selectedArtifactId={selectedArtifact?.id ?? null} onSelectArtifact={setArtifactPreviewId} />
-                  {selectedArtifact && <ArtifactPreviewCard artifact={selectedArtifact} formatTimestamp={formatTimestamp} />}
-                </>
-              ) : (
-                <div className="context-empty">Run code that calls <code>createArtifact(...)</code> to keep a downloadable record in this workspace.</div>
-              )}
-            </div>
-            </>)}
+              <ArtifactDrawerSection artifacts={artifacts} selectedArtifact={selectedArtifact} onSelectArtifact={setArtifactPreviewId} formatTimestamp={formatTimestamp} />
+            )}
             {activeCabinetDrawer === "tasks" && (
             <div className="context-panel-section filing-cabinet-content">
               <div className="context-panel-header">

@@ -3,6 +3,7 @@
 import { buildArtifactDownloadHref } from "./attachment-artifacts";
 
 export type ArtifactPreviewCardArtifact = {
+  id: string;
   name: string;
   mimeType: string;
   content: string;
