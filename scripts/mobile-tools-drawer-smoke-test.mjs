@@ -10,10 +10,13 @@ function assert(condition, message) {
 
 const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
+const orchestrationModel = fs.readFileSync("components/chat/orchestration-model.ts", "utf8");
+const uiSource = `${chat}
+${orchestrationModel}`;
 
 assert(chat.includes('className="drawer-backdrop tools-drawer-backdrop"'), "tools drawer backdrop is rendered");
-assert(chat.includes('context-sidebar context-sidebar--open'), "open tools drawer sidebar is rendered");
-assert(chat.includes('mobile-tools-shell'), "mobile tools shell branch exists");
+assert(chat.includes('className={toolsShellClassName}') && uiSource.includes('context-sidebar context-sidebar--open'), "open tools drawer sidebar is rendered through orchestration model");
+assert(uiSource.includes('mobile-tools-shell'), "mobile tools shell branch exists");
 assert(css.includes("Mobile Tools drawer hard visibility fix"), "mobile visibility fix block exists");
 assert(css.includes(".drawer-backdrop.tools-drawer-backdrop"), "mobile backdrop selector is explicit");
 assert(css.includes("z-index: 5000 !important"), "mobile backdrop is forced above page");
