@@ -20,7 +20,7 @@ assert(model.includes("PROJECT_SWITCHBOARD_OPTIONS") && model.includes("CABINET_
 assert(model.includes("getToolsShellClassName") && model.includes("getFilingCabinetTabClassName"), "orchestration model owns mobile/tool class helpers");
 assert(chat.includes("./chat/orchestration-model"), "chat imports orchestration model");
 assert(!chat.includes("const PROJECT_SWITCHBOARD_OPTIONS = [") && !chat.includes("const CABINET_DRAWERS"), "chat no longer declares static project/drawer model inline");
-assert(lineCount <= 4140, `chat.tsx stays under first orchestration budget (${lineCount}/4140 lines)`);
+assert(lineCount <= 4115, `chat.tsx stays under first orchestration budget (${lineCount}/4115 lines)`);
 assert(stateCount <= 76, `chat state count does not grow (${stateCount}/76 useState refs)`);
 assert(effectCount <= 19, `chat effect count does not grow (${effectCount}/19 useEffect refs)`);
 assert(refCount <= 18, `chat ref count does not grow (${refCount}/18 useRef refs)`);
