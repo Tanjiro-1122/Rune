@@ -91,7 +91,8 @@
     "test:artifact-preview-card": "node scripts/artifact-preview-card-smoke-test.mjs",
     "test:artifact-list": "node scripts/artifact-list-smoke-test.mjs",
     "test:artifact-drawer-section": "node scripts/artifact-drawer-section-smoke-test.mjs",
-    "test:simple-builder-truth": "node scripts/simple-builder-truth-smoke-test.mjs"
+    "test:simple-builder-truth": "node scripts/simple-builder-truth-smoke-test.mjs",
+    "test:simple-builder-routing": "node scripts/simple-builder-routing-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
