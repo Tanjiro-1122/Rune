@@ -9,6 +9,7 @@ import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
+import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, splitImageAndPassthroughFiles, validateAttachmentFiles } from "./chat/attachment-prep";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
   CABINET_DRAWERS,
@@ -109,21 +110,9 @@ function RuneCodeBlock({ inline, className, children, ...props }: {
   );
 }
 
-const MAX_FILE_SIZE_MB = 10;
-const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 const STORAGE_KEY_SESSION_ID = "rune_session_id";
 const STORAGE_KEY_WORKSPACE_ID = "rune_workspace_id";
 const STORAGE_KEY_CONVERSATION_ID = "rune_conversation_id";
-const ACCEPTED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "text/plain",
-  "text/csv",
-  "text/markdown",
-];
-
 const STREAM_FINALIZATION_RECOVERY_MS = 10_000; // tightened for Pro plan
 const STREAM_STALL_WATCHDOG_MS = 25_000; // Raised: complex tool chains (repo read, health check) need more room
 const STREAM_STALL_SECONDARY_RECOVERY_MS = 10_000;
@@ -1998,18 +1987,6 @@ export function Chat() {
     }
   }, [artifacts, artifactPreviewId]);
 
-  function validateFiles(fileList: FileList): string {
-    for (const file of Array.from(fileList)) {
-      if (file.size > MAX_FILE_SIZE) {
-        return `"${file.name}" exceeds the ${MAX_FILE_SIZE_MB} MB limit.`;
-      }
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        return `"${file.name}" type not supported. Accepted: images (JPEG, PNG, GIF, WEBP) and text files.`;
-      }
-    }
-    return "";
-  }
-
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
 
@@ -2021,7 +1998,7 @@ export function Chat() {
       return;
     }
 
-    const error = validateFiles(selected);
+    const error = validateAttachmentFiles(selected);
     if (error) {
       setFileError(error);
       setFiles(undefined);
@@ -2067,8 +2044,8 @@ export function Chat() {
       const file = item.getAsFile();
       if (!file) continue;
 
-      if (file.size > MAX_FILE_SIZE) {
-        setFileError(`File size exceeds limit of ${MAX_FILE_SIZE_MB}MB`);
+      if (file.size > MAX_ATTACHMENT_FILE_SIZE) {
+        setFileError(`File size exceeds limit of ${MAX_ATTACHMENT_FILE_SIZE_MB}MB`);
         continue;
       }
 
@@ -2142,9 +2119,7 @@ export function Chat() {
   }
 
   async function prepareChatAttachments(fileList: FileList): Promise<LightweightAttachment[] | FileList> {
-    const selectedFiles = Array.from(fileList);
-    const imageFiles = selectedFiles.filter((file) => file.type.startsWith("image/"));
-    const passthroughFiles = selectedFiles.filter((file) => !file.type.startsWith("image/"));
+    const { imageFiles, passthroughFiles } = splitImageAndPassthroughFiles(fileList);
 
     if (imageFiles.length === 0) return fileList;
     if (passthroughFiles.length > 0) {
@@ -2804,7 +2779,7 @@ export function Chat() {
               ref={fileInputRef}
               type="file"
               multiple
-              accept={ACCEPTED_TYPES.join(",")}
+              accept={ACCEPTED_ATTACHMENT_TYPES.join(",")}
               onChange={handleFileChange}
               className="file-input-hidden"
             />

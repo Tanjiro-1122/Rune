@@ -1,18 +1,11 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB } from "./attachment-prep";
 
-export const ACCEPTED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "text/plain",
-  "text/csv",
-  "text/markdown",
-];
-export const MAX_FILE_SIZE_MB = 10;
-export const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
+export const ACCEPTED_TYPES = ACCEPTED_ATTACHMENT_TYPES;
+export const MAX_FILE_SIZE_MB = MAX_ATTACHMENT_FILE_SIZE_MB;
+export const MAX_FILE_SIZE = MAX_ATTACHMENT_FILE_SIZE;
 
 export interface LightweightAttachment {
   url: string;
