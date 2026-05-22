@@ -2,7 +2,7 @@
  * lib/cross-app-intelligence.ts
  *
  * Rune Cross-App Intelligence Engine.
- * Reads live data from Base44 (Unfiltr + SWH) and Supabase (Rune memory)
+ * Reads live data from Supabase-backed app tables and Rune memory.
  * to surface patterns Javier would never notice manually.
  *
  * Read-only. No writes to any app data.
@@ -38,52 +38,56 @@ export interface CrossAppIntelligenceReport {
   error?: string;
 }
 
-// ── Base44 API client ──────────────────────────────────────────────────────
+// ── Supabase app data reader ────────────────────────────────────────────────
 
-const BASE44_API_URL = "https://api.base44.com/v1";
-
-function getBase44Key(): string {
-  return (
-    process.env.BASE44_API_KEY?.trim() ||
-    process.env.RUNE_BASE44_API_KEY?.trim() ||
-    ""
-  );
+function getAppSupabaseConfig(): { url: string; key: string } | null {
+  const url = (process.env.UNFILTR_SUPABASE_URL || process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const key = process.env.UNFILTR_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!url || !key) return null;
+  return { url, key };
 }
 
-async function base44List(
-  appId: string,
+const ENTITY_TABLES: Record<string, string> = {
+  ChatHistory: "chat_history",
+  PurchaseAudit: "purchase_audits",
+  MoodEntry: "mood_entries",
+  JournalEntry: "journal_entries",
+  ErrorLog: "error_logs",
+  TrackedBet: "tracked_bets",
+  PredictionOutcome: "prediction_outcomes",
+};
+
+async function supabaseList(
   entityName: string,
   params: Record<string, string | number> = {}
 ): Promise<unknown[]> {
-  const key = getBase44Key();
-  if (!key) return [];
+  const config = getAppSupabaseConfig();
+  const table = ENTITY_TABLES[entityName] ?? entityName;
+  if (!config) return [];
 
-  const query = new URLSearchParams();
-  query.set("limit", String(params.limit ?? 500));
-  if (params.skip) query.set("skip", String(params.skip));
-  if (params.sort) query.set("sort", String(params.sort));
-
-  // Add filter params
-  Object.entries(params).forEach(([k, v]) => {
-    if (!["limit", "skip", "sort"].includes(k)) {
-      query.set(k, String(v));
-    }
-  });
+  const url = new URL(`${config.url}/rest/v1/${table}`);
+  url.searchParams.set("select", "*");
+  url.searchParams.set("limit", String(params.limit ?? 500));
+  if (params.sort) {
+    const rawSort = String(params.sort);
+    const descending = rawSort.startsWith("-");
+    const field = descending ? rawSort.slice(1) : rawSort;
+    const mappedField = field === "created_date" ? "created_at" : field;
+    url.searchParams.set("order", `${mappedField}.${descending ? "desc" : "asc"}`);
+  }
 
   try {
-    const res = await fetch(
-      `${BASE44_API_URL}/apps/${appId}/entities/${entityName}?${query.toString()}`,
-      {
-        headers: {
-          "x-api-key": key,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }
-    );
+    const res = await fetch(url.toString(), {
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
     if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
+    return Array.isArray(data) ? data : [];
   } catch {
     return [];
   }
@@ -91,8 +95,6 @@ async function base44List(
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const UNFILTR_APP_ID = process.env.UNFILTR_APP_ID ?? "69b332a392004d139d4ba495";
-const SWH_APP_ID = process.env.SWH_APP_ID ?? "";
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -133,11 +135,11 @@ async function analyzeUnfiltr(): Promise<AppInsightSection> {
 
   // Fetch data in parallel
   const [chats, purchases, moods, journals, errors] = await Promise.all([
-    base44List(UNFILTR_APP_ID, "ChatHistory", { limit: 500, sort: "-saved_at" }),
-    base44List(UNFILTR_APP_ID, "PurchaseAudit", { limit: 500, sort: "-created_date" }),
-    base44List(UNFILTR_APP_ID, "MoodEntry", { limit: 500, sort: "-created_date" }),
-    base44List(UNFILTR_APP_ID, "JournalEntry", { limit: 500, sort: "-created_date" }),
-    base44List(UNFILTR_APP_ID, "ErrorLog", { limit: 200, sort: "-created_date" }),
+    supabaseList("ChatHistory", { limit: 500, sort: "-saved_at" }),
+    supabaseList("PurchaseAudit", { limit: 500, sort: "-created_date" }),
+    supabaseList("MoodEntry", { limit: 500, sort: "-created_date" }),
+    supabaseList("JournalEntry", { limit: 500, sort: "-created_date" }),
+    supabaseList("ErrorLog", { limit: 200, sort: "-created_date" }),
   ]);
 
   type ChatRow = { apple_user_id?: string; saved_at?: string; tier?: string; message_count?: number };
@@ -222,14 +224,12 @@ async function analyzeUnfiltr(): Promise<AppInsightSection> {
 // ── SWH Intelligence ───────────────────────────────────────────────────────
 
 async function analyzeSWH(): Promise<AppInsightSection | null> {
-  if (!SWH_APP_ID) return null;
-
   const metrics: AppInsightMetric[] = [];
   const day30 = daysAgo(30);
 
   const [bets, predictions] = await Promise.all([
-    base44List(SWH_APP_ID, "TrackedBet", { limit: 500, sort: "-created_date" }),
-    base44List(SWH_APP_ID, "PredictionOutcome", { limit: 500, sort: "-created_date" }),
+    supabaseList("TrackedBet", { limit: 500, sort: "-created_date" }),
+    supabaseList("PredictionOutcome", { limit: 500, sort: "-created_date" }),
   ]);
 
   type BetRow = { result?: string; stake?: number; payout?: number; sport?: string; confidence?: number; event_date?: string };

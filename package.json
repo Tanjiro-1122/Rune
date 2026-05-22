@@ -92,7 +92,8 @@
     "test:artifact-list": "node scripts/artifact-list-smoke-test.mjs",
     "test:artifact-drawer-section": "node scripts/artifact-drawer-section-smoke-test.mjs",
     "test:simple-builder-truth": "node scripts/simple-builder-truth-smoke-test.mjs",
-    "test:simple-builder-routing": "node scripts/simple-builder-routing-smoke-test.mjs"
+    "test:simple-builder-routing": "node scripts/simple-builder-routing-smoke-test.mjs",
+    "test:base44-runtime-drift": "node scripts/base44-runtime-drift-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
