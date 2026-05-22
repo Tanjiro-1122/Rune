@@ -9,7 +9,7 @@ import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
-import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, normalizeChatUploadAttachment, requireUploadUrl, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
+import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, createAttachmentPreviewUrls, normalizeChatUploadAttachment, requireUploadUrl, revokeAttachmentPreviewUrls, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
 import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./chat/clipboard-helpers";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
@@ -1969,11 +1969,8 @@ export function Chat() {
       })()
     : null;
 
-  // Revoke object URLs when they change or component unmounts
   useEffect(() => {
-    return () => {
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
+    return () => revokeAttachmentPreviewUrls(previewUrls);
   }, [previewUrls]);
 
   useEffect(() => {
@@ -1987,26 +1984,20 @@ export function Chat() {
   }, [artifacts, artifactPreviewId]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    revokeAttachmentPreviewUrls(previewUrls);
 
     const selected = e.target.files;
     if (!selected || selected.length === 0) {
-      setFiles(undefined);
-      setPreviewUrls([]);
-      setFileError("");
+      setFiles(undefined); setPreviewUrls([]); setFileError("");
       return;
     }
 
     const error = validateAttachmentFiles(selected);
     if (error) {
-      setFileError(error);
-      setFiles(undefined);
-      setPreviewUrls([]);
+      setFileError(error); setFiles(undefined); setPreviewUrls([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } else {
-      setFileError("");
-      setFiles(selected);
-      setPreviewUrls(Array.from(selected).map((f) => URL.createObjectURL(f)));
+      setFileError(""); setFiles(selected); setPreviewUrls(createAttachmentPreviewUrls(selected));
     }
   }
 
@@ -2112,7 +2103,7 @@ export function Chat() {
   }
 
   function clearAttachments() {
-    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    revokeAttachmentPreviewUrls(previewUrls);
     setFiles(undefined);
     setPreviewUrls([]);
     setPastedAttachments([]);

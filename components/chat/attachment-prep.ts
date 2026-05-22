@@ -84,3 +84,11 @@ export function normalizeInputBarUploadAttachment(options: {
     size: options.payload.size ?? options.file.size,
   } satisfies InputBarUploadAttachment;
 }
+
+export function revokeAttachmentPreviewUrls(urls: string[]) {
+  urls.forEach((url) => URL.revokeObjectURL(url));
+}
+
+export function createAttachmentPreviewUrls(fileList: FileList) {
+  return Array.from(fileList).map((file) => URL.createObjectURL(file));
+}
