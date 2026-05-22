@@ -34,7 +34,6 @@ export type RuneProjectIntegration = {
   };
   base44?: {
     appId?: string;
-    apiKeyEnv?: string;
     severanceStatus: "legacy_dependency" | "removed" | "not_applicable";
   };
 };
@@ -79,7 +78,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
         serviceRoleEnv: "SUPABASE_SERVICE_ROLE_KEY",
       },
       base44: {
-        severanceStatus: "legacy_dependency",
+        severanceStatus: "removed",
       },
     },
     aliases: ["rune", "jarvis", "personal ai", "super agent", "private ai", "your repo", "your own repo", "your source", "this app", "this workspace", "owner console", "command center"],
@@ -113,7 +112,6 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
       },
       base44: {
         appId: "69b332a392004d139d4ba495",
-        apiKeyEnv: "BASE44_API_KEY",
         severanceStatus: "legacy_dependency",
       },
     },
@@ -136,7 +134,6 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
         serviceAccountEnv: "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
       },
       base44: {
-        apiKeyEnv: "BASE44_API_KEY",
         severanceStatus: "legacy_dependency",
       },
     },
