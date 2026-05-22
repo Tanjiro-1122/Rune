@@ -8,7 +8,7 @@ import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment,
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
-import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
+import { buildArtifactDownloadHref, getDocumentKindLabel, getNextArtifactPreviewId, getSafeAttachmentImageUrl, getSelectedArtifact } from "./chat/attachment-artifacts";
 import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, createAttachmentPreviewUrls, normalizeChatUploadAttachment, requireUploadUrl, revokeAttachmentPreviewUrls, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
 import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./chat/clipboard-helpers";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
@@ -854,8 +854,7 @@ export function Chat() {
   const [taskClockMs, setTaskClockMs] = useState(() => Date.now());
   const selectedWorkspace =
     workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
-  const selectedArtifact =
-    artifacts.find((artifact) => artifact.id === artifactPreviewId) ?? artifacts[0] ?? null;
+  const selectedArtifact = getSelectedArtifact(artifacts, artifactPreviewId);
   const selectedProject =
     PROJECT_SWITCHBOARD_OPTIONS.find((project) => project.key === selectedProjectKey) ?? PROJECT_SWITCHBOARD_OPTIONS[0];
   const canManageWorkspaces = persistenceEnabled && schemaReady;
@@ -1974,13 +1973,8 @@ export function Chat() {
   }, [previewUrls]);
 
   useEffect(() => {
-    if (!artifacts.length) {
-      setArtifactPreviewId(null);
-      return;
-    }
-    if (!artifactPreviewId || !artifacts.some((artifact) => artifact.id === artifactPreviewId)) {
-      setArtifactPreviewId(artifacts[0].id);
-    }
+    const next = getNextArtifactPreviewId(artifacts, artifactPreviewId);
+    if (next !== artifactPreviewId) setArtifactPreviewId(next);
   }, [artifacts, artifactPreviewId]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -3855,9 +3849,7 @@ export function Chat() {
                 </div>
               )}
             </div>
-            </>
-            )}
-
+            </>)}
             {activeCabinetDrawer === "tasks" && (
             <div className="context-panel-section filing-cabinet-content">
               <div className="context-panel-header">

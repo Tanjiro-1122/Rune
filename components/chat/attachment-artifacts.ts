@@ -24,3 +24,23 @@ export function getSafeAttachmentImageUrl(
     return undefined;
   }
 }
+
+export type SelectableArtifact = {
+  id: string;
+};
+
+export function getSelectedArtifact<TArtifact extends SelectableArtifact>(
+  artifacts: TArtifact[],
+  selectedArtifactId: string | null
+) {
+  return artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? artifacts[0] ?? null;
+}
+
+export function getNextArtifactPreviewId<TArtifact extends SelectableArtifact>(
+  artifacts: TArtifact[],
+  selectedArtifactId: string | null
+) {
+  if (!artifacts.length) return null;
+  if (!selectedArtifactId || !artifacts.some((artifact) => artifact.id === selectedArtifactId)) return artifacts[0].id;
+  return selectedArtifactId;
+}

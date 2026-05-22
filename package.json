@@ -86,7 +86,8 @@
     "test:attachment-prep-decomposition": "node scripts/attachment-prep-decomposition-smoke-test.mjs",
     "test:clipboard-helpers-decomposition": "node scripts/clipboard-helpers-decomposition-smoke-test.mjs",
     "test:upload-response-normalization": "node scripts/upload-response-normalization-smoke-test.mjs",
-    "test:attachment-preview-cleanup": "node scripts/attachment-preview-cleanup-smoke-test.mjs"
+    "test:attachment-preview-cleanup": "node scripts/attachment-preview-cleanup-smoke-test.mjs",
+    "test:selected-artifact-helper": "node scripts/selected-artifact-helper-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
