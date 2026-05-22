@@ -11,11 +11,12 @@ function assert(condition, message) {
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
 const inputBar = fs.readFileSync("components/chat/chat-input-bar.tsx", "utf8");
 const pasteTest = fs.readFileSync("scripts/pasted-screenshot-submit-smoke-test.mjs", "utf8");
-const combined = `${chat}\n${inputBar}`;
+const helpers = fs.readFileSync("components/chat/clipboard-helpers.ts", "utf8");
+const combined = `${chat}\n${inputBar}\n${helpers}`;
 
 assert(combined.includes("insertPastedTextAtCursor"), "plain text paste is manually inserted into controlled textarea");
-assert(combined.includes('e.clipboardData?.getData("text/plain")') || combined.includes("e.clipboardData?.getData(\"text/plain\")"), "paste handler reads text/plain clipboard data");
-assert(combined.includes('items.filter((item) => item.type.startsWith("image/"))'), "paste handler detects image clipboard items");
+assert(helpers.includes('getData("text/plain")') && combined.includes("getClipboardPlainText"), "paste handler reads text/plain clipboard data through helper");
+assert(helpers.includes('item.type.startsWith("image/")') && combined.includes("getClipboardImageItems"), "paste handler detects image clipboard items through helper");
 assert(combined.includes('fetch("/api/upload"') && combined.includes('credentials: "include"'), "pasted images upload through authenticated upload endpoint");
 assert(chat.includes("const [pastedAttachments, setPastedAttachments] = useState<LightweightAttachment[]>([]);"), "active chat stores pasted attachments as an array");
 assert(chat.includes("setPastedAttachments((prev) => [...prev, attachment])"), "active paste path appends each pasted image attachment");

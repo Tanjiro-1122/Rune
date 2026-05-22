@@ -10,6 +10,7 @@ import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { buildArtifactDownloadHref, getDocumentKindLabel, getSafeAttachmentImageUrl } from "./chat/attachment-artifacts";
 import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, splitImageAndPassthroughFiles, validateAttachmentFiles } from "./chat/attachment-prep";
+import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./chat/clipboard-helpers";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
 import {
   CABINET_DRAWERS,
@@ -2012,24 +2013,14 @@ export function Chat() {
   }
 
   function insertPastedTextAtCursor(textarea: HTMLTextAreaElement, text: string) {
-    const selectionStart = textarea.selectionStart ?? input.length;
-    const selectionEnd = textarea.selectionEnd ?? input.length;
-    const nextInput = `${input.slice(0, selectionStart)}${text}${input.slice(selectionEnd)}`;
-    setInput(nextInput);
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = selectionStart + text.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+    applyPastedTextToTextarea({ textarea, currentValue: input, pastedText: text, setValue: setInput });
   }
 
   const handleChatPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData?.items ?? []);
-    const text = e.clipboardData?.getData("text/plain") ?? "";
-    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+    const text = getClipboardPlainText(e.clipboardData);
+    const imageItems = getClipboardImageItems(e.clipboardData?.items);
 
     // Controlled textareas can occasionally miss browser-default paste updates.
-    // Insert plain text ourselves so Ctrl+V is reliable for text, links, and code.
     if (text && imageItems.length === 0) {
       e.preventDefault();
       insertPastedTextAtCursor(e.currentTarget, text);
