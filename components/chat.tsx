@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
+import { ArtifactList } from "./chat/artifact-list";
 import { ArtifactPreviewCard } from "./chat/artifact-preview-card";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
 import { getDocumentKindLabel, getNextArtifactPreviewId, getSafeAttachmentImageUrl, getSelectedArtifact } from "./chat/attachment-artifacts";
@@ -3794,41 +3795,17 @@ export function Chat() {
               <div className="context-panel-header">
                 <div>
                   <div className="side-section-label">Artifacts</div>
-                  <p className="side-section-copy">
-                    Generated files now persist per workspace and can be
-                    downloaded later.
-                  </p>
+                  <p className="side-section-copy">Generated files now persist per workspace and can be downloaded later.</p>
                 </div>
               </div>
 
               {artifacts.length ? (
                 <>
-                  <div className="saved-artifact-list">
-                    {artifacts.map((artifact) => (
-                      <button
-                        key={artifact.id}
-                        type="button"
-                        className={`saved-artifact-item ${
-                          artifact.id === selectedArtifact?.id
-                            ? "saved-artifact-item--active"
-                            : ""
-                        }`}
-                        onClick={() => setArtifactPreviewId(artifact.id)}
-                      >
-                        <span className="saved-artifact-name">{artifact.name}</span>
-                        <span className="saved-artifact-meta">
-                          {artifact.mimeType} · {artifact.bytes} bytes
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <ArtifactList artifacts={artifacts} selectedArtifactId={selectedArtifact?.id ?? null} onSelectArtifact={setArtifactPreviewId} />
                   {selectedArtifact && <ArtifactPreviewCard artifact={selectedArtifact} formatTimestamp={formatTimestamp} />}
                 </>
               ) : (
-                <div className="context-empty">
-                  Run code that calls <code>createArtifact(...)</code> to keep a
-                  downloadable record in this workspace.
-                </div>
+                <div className="context-empty">Run code that calls <code>createArtifact(...)</code> to keep a downloadable record in this workspace.</div>
               )}
             </div>
             </>)}
