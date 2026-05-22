@@ -672,6 +672,18 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("listRepositoryTree");
   }
 
+  // Repo action / PR creation tools — wire for any natural language code change request
+  if (isRepoControlCommand(input)) {
+    add("create_repo_action_proposal");
+    add("run_repo_control_flow");
+    add("run_repo_action_stage");
+    add("run_approved_repo_action");
+    add("readRepositoryFile");
+    add("listRepositoryTree");
+    add("searchRepositoryCode");
+    add("prepare_repo_deployment_handoff");
+  }
+
   if (hasAny(["health check", "health snapshot", "app health", "release health", "store health", "build health", "overall health", "check apps", "check swh", "sports wager helper"])) {
     add("get_app_health_snapshot");
     add("get_app_intelligence");
