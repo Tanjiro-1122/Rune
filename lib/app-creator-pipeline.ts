@@ -13,6 +13,7 @@
  *  - Read-only inspection at every step — no silent mutations
  */
 
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import {
   buildAppCreatorPlan,
   createAppCreatorProposal,
@@ -174,7 +175,7 @@ async function stagePlan(input: PipelineInput): Promise<PipelineRun> {
     mustHaveFeatures: input.mustHaveFeatures,
     preferredStack: input.preferredStack ?? null,
     projectKey: "rune",
-    repo: "Tanjiro-1122/Rune",
+    repo: getRuneRuntimeIdentity().repo,
   });
 
   // Create proposal in Supabase via repo-actions
@@ -187,7 +188,7 @@ async function stagePlan(input: PipelineInput): Promise<PipelineRun> {
     mustHaveFeatures: input.mustHaveFeatures,
     preferredStack: input.preferredStack ?? null,
     projectKey: "rune",
-    repo: "Tanjiro-1122/Rune",
+    repo: getRuneRuntimeIdentity().repo,
     sessionId: null,
     workspaceId: input.workspaceId ?? null,
     conversationId: input.conversationId ?? null,
@@ -333,7 +334,7 @@ async function stageDeploy(
   }
 
   const previewUrl = handoff.previewHandoff?.ready
-    ? `https://mrruneai.vercel.app`
+    ? getRuneRuntimeIdentity().liveUrl
     : undefined;
 
   await saveProposalStatus(proposalId, "deploying", { previewUrl });
@@ -345,7 +346,7 @@ async function stageDeploy(
     proposalId,
     previewUrl,
     message: `✅ Deploy triggered for proposal ${proposalId}. Production deploy in progress.`,
-    nextAction: "Check mrruneai.vercel.app in ~2 minutes. Call stage='status' to check progress.",
+    nextAction: `Check ${getRuneRuntimeIdentity().liveUrl.replace(/^https?:\/\//, "")} in ~2 minutes. Call stage='status' to check progress.`,
     safety: "approved deploy in flight",
   };
 }

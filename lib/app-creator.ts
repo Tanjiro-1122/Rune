@@ -1,3 +1,4 @@
+import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
 import { createRepoActionProposal, isRepoActionProposalId, prepareRepoDeploymentHandoff, repoActionProposalIdError, runRepoControlFlow, type RepoControlFlowResult, type RepoDeploymentPrepResult, type RepoActionFileTarget, type RepoActionProposalRow, type RepoActionRisk } from "@/lib/repo-actions";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -325,7 +326,7 @@ export async function createAppCreatorProposal(input: AppCreatorInput): Promise<
       "This v1 step intentionally avoids direct scaffold/deploy/schema mutation until the proposal is approved.",
     ].join("\n"),
     plan: blueprint,
-    repo: input.repo || "Tanjiro-1122/Rune",
+    repo: input.repo || getRuneRuntimeIdentity().repo,
     projectKey: input.projectKey || "rune",
     riskLevel: riskForComplexity(plan.complexity),
     files,
