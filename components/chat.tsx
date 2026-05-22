@@ -7,8 +7,9 @@ import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { CommandCenterHome } from "./command-center-home";
 import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
+import { ArtifactPreviewCard } from "./chat/artifact-preview-card";
 import { getCommandPreview, getRunnerJobLabel, getTaskActivityLabel, getTaskAgeLabel, getTaskStatusLabel, isPossiblyStaleTask } from "./chat/task-activity";
-import { buildArtifactDownloadHref, getDocumentKindLabel, getNextArtifactPreviewId, getSafeAttachmentImageUrl, getSelectedArtifact } from "./chat/attachment-artifacts";
+import { getDocumentKindLabel, getNextArtifactPreviewId, getSafeAttachmentImageUrl, getSelectedArtifact } from "./chat/attachment-artifacts";
 import { ACCEPTED_ATTACHMENT_TYPES, MAX_ATTACHMENT_FILE_SIZE, MAX_ATTACHMENT_FILE_SIZE_MB, createAttachmentPreviewUrls, normalizeChatUploadAttachment, requireUploadUrl, revokeAttachmentPreviewUrls, splitImageAndPassthroughFiles, type UploadResponsePayload, validateAttachmentFiles } from "./chat/attachment-prep";
 import { applyPastedTextToTextarea, getClipboardImageItems, getClipboardPlainText } from "./chat/clipboard-helpers";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
@@ -3821,26 +3822,7 @@ export function Chat() {
                       </button>
                     ))}
                   </div>
-                  {selectedArtifact && (
-                    <div className="artifact-preview-card">
-                      <div className="artifact-card-header">
-                        <span>{selectedArtifact.name}</span>
-                        <a
-                          className="artifact-link"
-                          href={buildArtifactDownloadHref(selectedArtifact)}
-                          download={selectedArtifact.name}
-                        >
-                          Download
-                        </a>
-                      </div>
-                      <div className="artifact-meta">
-                        Saved {formatTimestamp(selectedArtifact.createdAt)}
-                      </div>
-                      <pre className="execution-output">
-                        <code>{selectedArtifact.content}</code>
-                      </pre>
-                    </div>
-                  )}
+                  {selectedArtifact && <ArtifactPreviewCard artifact={selectedArtifact} formatTimestamp={formatTimestamp} />}
                 </>
               ) : (
                 <div className="context-empty">
