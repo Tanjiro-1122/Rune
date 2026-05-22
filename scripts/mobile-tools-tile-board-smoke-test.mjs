@@ -9,21 +9,24 @@ function assert(condition, message) {
 }
 
 const chat = fs.readFileSync("components/chat.tsx", "utf8");
+const orchestrationModel = fs.readFileSync("components/chat/orchestration-model.ts", "utf8");
+const uiSource = `${chat}
+${orchestrationModel}`;
 const css = ["app/chat-mobile.css", "app/operator.css", "app/ui-components.css", "app/globals.css"].map((file) => fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "").join("\n");
 
-assert(chat.includes("mobile-tools-shell"), "mobile tools shell branch exists");
-assert(chat.includes("mobile-tools-tile-board"), "mobile tools tile board class branch exists");
+assert(uiSource.includes("mobile-tools-shell"), "mobile tools shell branch exists");
+assert(uiSource.includes("mobile-tools-tile-board"), "mobile tools tile board class branch exists");
 assert(chat.includes('data-testid="mobile-tools-tile-board"'), "mobile tile board test id exists");
 assert(chat.includes('"mobile-tools-top-tiles"'), "top-level mobile tool tiles test id branch exists");
-assert(chat.includes("mobile-tools-top-tile"), "top-level drawer buttons render as mobile tiles");
-assert(chat.includes("mobile-tools-top-tile--active"), "active top tile class exists");
-assert(chat.includes("mobile-tools-project-tile"), "project switchboard becomes a mobile project tile");
-assert(chat.includes("mobile-tools-section"), "nested drawer content uses mobile section tiles");
+assert(uiSource.includes("mobile-tools-top-tile"), "top-level drawer buttons render as mobile tiles");
+assert(uiSource.includes("mobile-tools-top-tile--active"), "active top tile class exists");
+assert(uiSource.includes("mobile-tools-project-tile"), "project switchboard becomes a mobile project tile");
+assert(uiSource.includes("mobile-tools-section"), "nested drawer content uses mobile section tiles");
 assert(chat.includes("Mobile command board"), "mobile command board intro copy exists");
 assert(chat.includes("Each drawer stays read-only"), "mobile board communicates read-only gate boundary");
 
 for (const drawer of ["operator", "memory", "health", "repo", "build", "activity", "files", "tasks"]) {
-  assert(chat.includes(`key: \"${drawer}\"`) || chat.includes(`key: "${drawer}"`), `top-level tile exists for ${drawer}`);
+  assert(uiSource.includes(`key: \"${drawer}\"`) || uiSource.includes(`key: "${drawer}"`), `top-level tile exists for ${drawer}`);
 }
 
 assert(css.includes(".mobile-tools-tile-board"), "mobile tile board CSS block exists");

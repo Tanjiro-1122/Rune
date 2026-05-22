@@ -1,13 +1,29 @@
 "use client";
 
-import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { useChat } from "ai/react";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ToolCallCard, type AppHealthSnapshotResult, type LightweightAttachment, type ToolInvocation } from "./chat/tool-cards";
 import { CommandCenterHome } from "./command-center-home";
+import { FollowUpChips, type FollowUpMessage } from "./chat/follow-up-chips";
 import { RUNE_HOME_LABEL, getRuneVisibleWorkspaceLabel } from "@/lib/rune-app-structure";
+import {
+  CABINET_DRAWERS,
+  PROJECT_MEMORY_OPTIONS,
+  PROJECT_SWITCHBOARD_OPTIONS,
+  getFilingCabinetActiveLabelClassName,
+  getFilingCabinetClassName,
+  getFilingCabinetTabClassName,
+  getOperatorConsoleClassName,
+  getProjectSwitchboardClassName,
+  getToolsPanelClassName,
+  getToolsSectionClassName,
+  getToolsShellClassName,
+  getToolsTitlebarClassName,
+  type CabinetDrawerKey,
+  type ProjectSwitchboardKey,
+} from "./chat/orchestration-model";
 import dynamic from "next/dynamic";
 import type { PlanResult } from "./chat/PlanModal";
 import type { CanvasContent } from "./chat/CanvasPane";
@@ -425,65 +441,6 @@ interface OperatorBriefingSnapshot {
   safetyNotice: string[];
 }
 
-const PROJECT_SWITCHBOARD_OPTIONS = [
-  {
-    key: "rune",
-    label: "Rune",
-    subtitle: "Private AI workspace",
-    repo: getRuneRuntimeIdentity().repo,
-    accent: "#7dd3fc",
-    safetyLabel: "Owner-console",
-    safetyTone: "owner",
-  },
-  {
-    key: "unfiltr",
-    label: "Unfiltr",
-    subtitle: "AI companion app",
-    repo: "Tanjiro-1122/UniltrbyJavierbackup",
-    accent: "#c084fc",
-    safetyLabel: "Sensitive production",
-    safetyTone: "sensitive",
-  },
-  {
-    key: "swh",
-    label: "SWH",
-    subtitle: "SportsWager Helper",
-    repo: "Tanjiro-1122/swhmobile",
-    accent: "#34d399",
-    safetyLabel: "Production app",
-    safetyTone: "production",
-  },
-  {
-    key: "unfiltr-family",
-    label: "Unfiltr Family",
-    subtitle: "Elderly-care companion",
-    repo: "Tanjiro-1122/UnfiltrFamily",
-    accent: "#fbbf24",
-    safetyLabel: "Sensitive production",
-    safetyTone: "sensitive",
-  },
-] as const;
-
-const PROJECT_MEMORY_OPTIONS = [
-  { key: "global", label: "General" },
-  ...PROJECT_SWITCHBOARD_OPTIONS.map((project) => ({ key: project.key, label: project.label })),
-];
-
-
-type CabinetDrawerKey = "operator" | "memory" | "health" | "repo" | "build" | "activity" | "files" | "tasks" | "self_test";
-
-const CABINET_DRAWERS: Array<{ key: CabinetDrawerKey; label: string; hint: string }> = [
-  { key: "operator", label: "Operator", hint: "Command view" },
-  { key: "memory", label: "Memory", hint: "Facts + rules" },
-  { key: "health", label: "Health", hint: "Setup checks" },
-  { key: "repo", label: "Repo", hint: "Approvals" },
-  { key: "build", label: "Build", hint: "GitHub + Vercel" },
-  { key: "activity", label: "Activity", hint: "Audit trail" },
-  { key: "files", label: "Files", hint: "Artifacts + docs" },
-  { key: "tasks", label: "Tasks", hint: "Timeline" },
-  { key: "self_test", label: "Self-Test", hint: "System checks" },
-];
-
 function dedupeMessages<T extends { id?: string; role?: string; content?: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const result: T[] = [];
@@ -798,69 +755,7 @@ function getSafeAttachmentImageUrl(
 }
 
 // ── Follow-up action chips ────────────────────────────────────────────────
-type UIMsg = { role?: string; content?: string; parts?: Array<{ type: string; text?: string; toolName?: string }> };
-
-function deriveFollowUpChips(message: UIMsg): string[] {
-  const text = ((message.parts ?? [])
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join(" ") || message.content || "").toLowerCase();
-
-  const toolsUsed = (message.parts ?? [])
-    .filter((p) => p.type === "tool-invocation")
-    .map((p) => (p as { type: string; toolName?: string }).toolName ?? "");
-
-  // Deploy / build related
-  if (toolsUsed.some(t => t.includes("deploy") || t.includes("build")) ||
-      /deploy|vercel|build (succeeded|failed|ready)/i.test(text)) {
-    return ["Run health check", "Check build logs", "Open Operator Console"];
-  }
-  // Repo / code changes
-  if (toolsUsed.some(t => t.includes("repo") || t.includes("pr") || t.includes("commit")) ||
-      /pull request|pr #|merged|commit|patched/i.test(text)) {
-    return ["Check PR status", "Run self-audit", "What else needs fixing?"];
-  }
-  // Health / audit
-  if (toolsUsed.some(t => t.includes("health") || t.includes("audit") || t.includes("snapshot")) ||
-      /health score|audit|readiness|signal/i.test(text)) {
-    return ["Fix the top issue", "Check deployment", "View memory"];
-  }
-  // Analytics / revenue
-  if (toolsUsed.some(t => t.includes("intelligence") || t.includes("revenuecat")) ||
-      /revenue|subscriber|mrr|retention|dau|mau/i.test(text)) {
-    return ["Compare with last week", "Run health check", "What should I focus on?"];
-  }
-  // Memory
-  if (toolsUsed.some(t => t.includes("memory") || t.includes("save_memory")) ||
-      /saved|remembered|memory/i.test(text)) {
-    return ["Show all memories", "What are the open tasks?", "Daily brief"];
-  }
-  // Web search
-  if (toolsUsed.some(t => t === "web_search") || /search results|found.*results/i.test(text)) {
-    return ["Go deeper on this", "Save this to memory", "How does this apply to my stack?"];
-  }
-  // Default — generic next moves
-  return ["Daily brief", "Run health check", "What's next?"];
-}
-
-function FollowUpChips({ lastMessage, onChipClick }: { lastMessage: UIMsg; onChipClick: (prompt: string) => void }) {
-  const chips = deriveFollowUpChips(lastMessage);
-  if (!chips.length) return null;
-  return (
-    <div className="followup-chips" aria-label="Suggested follow-up actions">
-      {chips.map((chip) => (
-        <button
-          key={chip}
-          type="button"
-          className="followup-chip"
-          onClick={() => onChipClick(chip)}
-        >
-          {chip}
-        </button>
-      ))}
-    </div>
-  );
-}
+type UIMsg = FollowUpMessage;
 
 export function Chat() {
   const router = useRouter();
@@ -892,7 +787,7 @@ export function Chat() {
   const [showWorkspaceDrawer, setShowWorkspaceDrawer] = useState(false);
   const [chatErrorMessage, setChatErrorMessage] = useState("");
   const [memories, setMemories] = useState<AgentMemorySummary[]>([]);
-  const [selectedProjectKey, setSelectedProjectKey] = useState<(typeof PROJECT_SWITCHBOARD_OPTIONS)[number]["key"]>("rune");
+  const [selectedProjectKey, setSelectedProjectKey] = useState<ProjectSwitchboardKey>("rune");
   const [memoryProjectKey, setMemoryProjectKey] = useState("rune");
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryTitle, setMemoryTitle] = useState("");
@@ -952,35 +847,16 @@ export function Chat() {
     };
   }, []);
 
-  const toolsShellClassName = isMobileToolsMode
-    ? "context-sidebar context-sidebar--open mobile-tools-shell"
-    : "context-sidebar context-sidebar--open";
-  const toolsPanelClassName = isMobileToolsMode
-    ? "context-panel mobile-tools-tile-board"
-    : "context-panel";
-  const toolsTitlebarClassName = isMobileToolsMode
-    ? "glass-drawer-titlebar mobile-tools-titlebar"
-    : "glass-drawer-titlebar";
-  const projectSwitchboardClassName = isMobileToolsMode
-    ? "context-panel-section project-switchboard-section mobile-tools-project-tile"
-    : "context-panel-section project-switchboard-section";
-  const filingCabinetClassName = isMobileToolsMode
-    ? "filing-cabinet-drawers mobile-tools-top-tiles"
-    : "filing-cabinet-drawers";
-  const filingCabinetTabClassName = (drawerKey: CabinetDrawerKey) => {
-    const active = activeCabinetDrawer === drawerKey;
-    return isMobileToolsMode
-      ? `filing-cabinet-tab mobile-tools-top-tile ${active ? "filing-cabinet-tab--active mobile-tools-top-tile--active" : ""}`
-      : `filing-cabinet-tab ${active ? "filing-cabinet-tab--active" : ""}`;
-  };
-  const filingCabinetActiveLabelClassName = isMobileToolsMode
-    ? "filing-cabinet-active-label mobile-tools-active-label"
-    : "filing-cabinet-active-label";
-  const operatorConsoleClassName = isMobileToolsMode
-    ? "operator-console-panel mobile-tools-section"
-    : "operator-console-panel";
-  const toolsSectionClassName = (baseClassName: string) =>
-    isMobileToolsMode ? `${baseClassName} mobile-tools-section` : baseClassName;
+  const toolsShellClassName = getToolsShellClassName(isMobileToolsMode);
+  const toolsPanelClassName = getToolsPanelClassName(isMobileToolsMode);
+  const toolsTitlebarClassName = getToolsTitlebarClassName(isMobileToolsMode);
+  const projectSwitchboardClassName = getProjectSwitchboardClassName(isMobileToolsMode);
+  const filingCabinetClassName = getFilingCabinetClassName(isMobileToolsMode);
+  const filingCabinetTabClassName = (drawerKey: CabinetDrawerKey) =>
+    getFilingCabinetTabClassName({ drawerKey, activeCabinetDrawer, isMobileToolsMode });
+  const filingCabinetActiveLabelClassName = getFilingCabinetActiveLabelClassName(isMobileToolsMode);
+  const operatorConsoleClassName = getOperatorConsoleClassName(isMobileToolsMode);
+  const toolsSectionClassName = (baseClassName: string) => getToolsSectionClassName(baseClassName, isMobileToolsMode);
 
   function handleCabinetDrawerSelect(drawerKey: CabinetDrawerKey) {
     setActiveCabinetDrawer(drawerKey);
