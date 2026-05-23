@@ -40,6 +40,7 @@ function buildFiles(dir, metadata) {
   const appName = metadata.appName || metadata.appPlan?.appName || "Rune Generated App";
   const features = metadata.coreFeatures || metadata.appPlan?.coreFeatures || ["Clean dashboard", "Create/edit records", "Search and filtering"];
   const screens = metadata.screens || metadata.appPlan?.screens || ["Landing", "Dashboard", "Settings"];
+  write(path.join(dir, ".gitignore"), "node_modules\ndist\n.env\n.env.local\n.DS_Store\n*.log\n");
   write(path.join(dir, "package.json"), JSON.stringify({
     name: slug(metadata.repoName || appName),
     version: "0.1.0",
@@ -50,7 +51,8 @@ function buildFiles(dir, metadata) {
     devDependencies: { "@types/react": "latest", "@types/react-dom": "latest" }
   }, null, 2) + "\n");
   write(path.join(dir, "index.html"), '<div id="root"></div><script type="module" src="/src/main.tsx"></script>\n');
-  write(path.join(dir, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ES2020", useDefineForClassFields: true, lib: ["DOM", "DOM.Iterable", "ES2020"], allowJs: false, skipLibCheck: true, esModuleInterop: true, allowSyntheticDefaultImports: true, strict: true, forceConsistentCasingInFileNames: true, module: "ESNext", moduleResolution: "Node", resolveJsonModule: true, isolatedModules: true, noEmit: true, jsx: "react-jsx" }, include: ["src"] }, null, 2) + "\n");
+  write(path.join(dir, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ES2020", useDefineForClassFields: true, lib: ["DOM", "DOM.Iterable", "ES2020"], allowJs: false, skipLibCheck: true, esModuleInterop: true, allowSyntheticDefaultImports: true, strict: true, forceConsistentCasingInFileNames: true, module: "ESNext", moduleResolution: "Bundler", resolveJsonModule: true, isolatedModules: true, noEmit: true, jsx: "react-jsx" }, include: ["src"] }, null, 2) + "\n");
+  write(path.join(dir, "src/vite-env.d.ts"), '/// <reference types="vite/client" />\n');
   write(path.join(dir, "src/main.tsx"), 'import React from "react";\nimport { createRoot } from "react-dom/client";\nimport "./index.css";\nimport App from "./App";\n\ncreateRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);\n');
   write(path.join(dir, "src/App.tsx"), `const features = ${JSON.stringify(features, null, 2)};\nconst screens = ${JSON.stringify(screens, null, 2)};\n\nexport default function App() {\n  return (\n    <main className="shell">\n      <section className="hero">\n        <p className="eyebrow">Rune App Forge v2</p>\n        <h1>${appName}</h1>\n        <p className="subtle">A clean starter app generated through Javier's approved repo creation runner.</p>\n      </section>\n      <section className="grid">\n        <div className="card"><h2>Core features</h2>{features.map((f) => <p key={f}>• {f}</p>)}</div>\n        <div className="card"><h2>Screens</h2>{screens.map((s) => <p key={s}>• {s}</p>)}</div>\n      </section>\n    </main>\n  );\n}\n`);
   write(path.join(dir, "src/index.css"), `:root{font-family:Inter,system-ui,sans-serif;color:#f8fafc;background:#07070a}body{margin:0}.shell{min-height:100vh;padding:56px;background:radial-gradient(circle at top left,#7f1d1d55,transparent 34%),linear-gradient(135deg,#07070a,#111827)}.hero{max-width:900px}.eyebrow{color:#fb7185;text-transform:uppercase;letter-spacing:.3em;font-size:12px}h1{font-size:clamp(42px,8vw,88px);line-height:.9;margin:0 0 18px}.subtle{color:#cbd5e1;font-size:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:36px}.card{border:1px solid #ffffff18;border-radius:28px;background:#ffffff0d;padding:24px;box-shadow:0 24px 80px #0008}.card h2{margin-top:0}\n`);
@@ -75,6 +77,7 @@ function main() {
   run("npm", ["run", "build"], workDir);
   run("git", ["init"], workDir);
   run("git", ["checkout", "-b", "initial-app-forge-scaffold"], workDir);
+  run("git", ["status", "--short"], workDir);
   run("git", ["add", "."], workDir);
   run("git", ["commit", "-m", "Initial Rune App Forge scaffold"], workDir);
   run("gh", ["repo", "create", repo, `--${visibility}`, "--source", workDir, "--remote", "origin", "--push"], workDir);

@@ -23,6 +23,9 @@ assert(runner.includes("App Forge repo create command does not match the allowed
 assert(runner.includes("RUNE_APP_FORGE_METADATA_BASE64"), "trusted runner passes App Forge metadata to script");
 assert(script.includes("gh") && script.includes("repo") && script.includes("create") && script.includes("npm") && script.includes("build") && script.includes("git") && script.includes("--push"), "App Forge script creates repo after build and pushes branch");
 assert(script.includes("deploy must be false") && script.includes("schemaMutation must be false"), "App Forge script revalidates no deploy/schema mutation");
+assert(script.includes(".gitignore") && script.includes("node_modules") && script.includes("dist"), "App Forge script writes gitignore before git add");
+assert(script.includes('moduleResolution: "Bundler"'), "App Forge script uses modern TypeScript bundler module resolution");
+assert(script.includes("src/vite-env.d.ts") && script.includes("vite/client"), "App Forge script writes Vite env types for CSS imports");
 assert(!/(vercel|supabase|revenuecat|appstore|eas submit|merge)\s/i.test(script), "App Forge script has no deploy/payment/store/merge commands");
 assert(chat.includes("queue_app_forge_repo_create"), "chat exposes App Forge v2 queue tool");
 assert(pkg.includes("app-forge-repo-create"), "package exposes App Forge runner script");
