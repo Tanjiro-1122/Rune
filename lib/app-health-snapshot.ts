@@ -82,14 +82,14 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
     configured: false,
     readOnly: true,
     error: undefined,
-    summary: { appId: "", bundleId: "", name: "", sku: "", latestVersions: [], blockedCapabilities: [] },
+    summary: { appId: "", app: null, latestBuilds: [], latestVersions: [] },
   };
   const skippedGooglePlay: GooglePlayReadOnlyResult = {
     ok: true,
     configured: false,
     readOnly: true,
     error: undefined,
-    summary: { packageName: "", appName: "", releaseTracks: [], blockedCapabilities: [] },
+    summary: { packageName: "", reviews: [], subscriptions: [], inAppProducts: [], blockedCapabilities: [] },
   };
 
   const [buildResult, revenueCatResult, appStoreResult, googlePlayResult] = await Promise.allSettled([
