@@ -75,7 +75,7 @@ import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-reado
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
-import { createAppForgeRepoHandoff, queueAppForgeRepoCreate } from "@/lib/app-forge";
+import { createAppForgeRepoHandoff, createAppForgePreviewHandoff, queueAppForgeRepoCreate } from "@/lib/app-forge";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 
@@ -1701,6 +1701,25 @@ Action: ${action.id}`,
           limits: ["No live preview runtime yet", "No auto-merge", "No auto-deploy"],
         };
       },
+    }),
+
+    app_forge_preview_handoff: tool({
+      description:
+        "Prepare an App Forge v3 Vercel preview handoff for a generated repo/branch. This is metadata-only: it returns review checklist and preview commands, but does not create a Vercel project, deploy, merge, mutate env vars, mutate schemas, or launch production.",
+      parameters: z.object({
+        idea: z.string().min(8).max(1600),
+        appName: optionalNonEmptyString(80),
+        targetUsers: optionalNonEmptyString(180),
+        platform: z.enum(["web", "mobile", "both"]).optional(),
+        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
+        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
+        preferredStack: optionalNonEmptyString(240),
+        owner: optionalNonEmptyString(80),
+        repo: optionalNonEmptyString(180),
+        branch: optionalNonEmptyString(120),
+        visibility: z.enum(["private", "public"]).optional(),
+      }),
+      execute: async (input) => createAppForgePreviewHandoff(input),
     }),
 
     queue_app_forge_repo_create: tool({

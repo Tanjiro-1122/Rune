@@ -137,3 +137,85 @@ export async function queueAppForgeRepoCreate(input: QueueAppForgeRepoCreateInpu
     nextAction: queued.ok ? "Run the trusted runner in execute mode to create the repo and push the initial scaffold branch." : "Fix the queue error, then retry.",
   };
 }
+
+
+export interface AppForgePreviewHandoffInput extends AppForgeRepoHandoffInput {
+  repo?: string | null;
+  branch?: string | null;
+  owner?: string | null;
+}
+
+export interface AppForgePreviewHandoffResult {
+  ok: boolean;
+  appPlan: AppCreatorPlan;
+  repo: string;
+  branch: string;
+  previewHandoff: {
+    intent: "app_forge_preview_handoff";
+    provider: "vercel";
+    repo: string;
+    branch: string;
+    appName: string;
+    slug: string;
+    ready: boolean;
+    requiredApprovalPhrase: string;
+    commands: string[];
+    checklist: string[];
+    safety: string;
+    preparedAt: string;
+  };
+  message: string;
+  safety: string;
+  nextAction: string;
+}
+
+function cleanBranchName(value?: string | null) {
+  return (value || "initial-app-forge-scaffold")
+    .replace(/[^A-Za-z0-9._/-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "initial-app-forge-scaffold";
+}
+
+export function createAppForgePreviewHandoff(input: AppForgePreviewHandoffInput): AppForgePreviewHandoffResult {
+  const repoHandoff = createAppForgeRepoHandoff(input);
+  const repo = input.repo && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(input.repo)
+    ? input.repo
+    : repoHandoff.repo;
+  const branch = cleanBranchName(input.branch);
+  const preparedAt = new Date().toISOString();
+  const commands = [
+    `vercel link --repo ${repo}`,
+    `vercel pull --yes --environment=preview`,
+    `vercel build`,
+    `vercel deploy --prebuilt --target=preview`,
+  ];
+  const checklist = [
+    "Confirm the GitHub repo is private or intentionally public.",
+    `Confirm branch ${branch} contains a passing build.` ,
+    "Confirm no production environment variables are required for the preview.",
+    "Confirm preview deployment is owner-review only before sharing.",
+  ];
+  return {
+    ok: true,
+    appPlan: repoHandoff.appPlan,
+    repo,
+    branch,
+    previewHandoff: {
+      intent: "app_forge_preview_handoff",
+      provider: "vercel",
+      repo,
+      branch,
+      appName: repoHandoff.appPlan.appName,
+      slug: repoHandoff.appPlan.slug,
+      ready: true,
+      requiredApprovalPhrase: "APPROVE APP FORGE PREVIEW DEPLOY",
+      commands,
+      checklist,
+      safety: "metadata_only_no_vercel_project_created_no_deploy_no_env_mutation_no_production_launch",
+      preparedAt,
+    },
+    message: "App Forge v3 prepared a Vercel preview handoff only. No Vercel project, deployment, environment variable, merge, schema change, or production launch happened.",
+    safety: "metadata_only_no_deploy_no_merge_no_schema_mutation_no_env_mutation",
+    nextAction: "Review the handoff. A future approved runner job can execute the preview deployment with the exact preview approval phrase.",
+  };
+}
