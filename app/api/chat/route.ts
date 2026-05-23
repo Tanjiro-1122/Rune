@@ -75,6 +75,7 @@ import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-reado
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
+import { createAppForgeRepoHandoff } from "@/lib/app-forge";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 
@@ -1702,6 +1703,24 @@ Action: ${action.id}`,
       },
     }),
 
+    app_forge_repo_handoff: tool({
+      description:
+        "Prepare an App Forge v1 new-repo handoff for a brand-new app. This returns the app plan, intended GitHub repo, starter file list, and exact commands for an approved trusted runner. It does not create a repo, write files, push commits, merge, deploy, mutate schema, or touch production.",
+      parameters: z.object({
+        idea: z.string().min(8).max(1600),
+        appName: optionalNonEmptyString(80),
+        targetUsers: optionalNonEmptyString(180),
+        platform: z.enum(["web", "mobile", "both"]).optional(),
+        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
+        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
+        preferredStack: optionalNonEmptyString(240),
+        owner: optionalNonEmptyString(80),
+        repo: optionalNonEmptyString(180),
+        visibility: z.enum(["private", "public"]).optional(),
+      }),
+      execute: async (input) => createAppForgeRepoHandoff(input),
+    }),
+
     create_app_proposal: tool({
       description:
         "Create a controlled App Creator v1 blueprint and Repo Control proposal for a brand-new app. This proves Rune can create apps through approval-gated workflow, but does not edit files, create schemas, deploy, or open a PR by itself.",
@@ -3035,7 +3054,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - For questions like "audit yourself", "are you ready", "check your brain", "system health", or "what should we patch next", call get_rune_self_audit_snapshot before answering.
 - Sensitive = banking, real customer emails, payment mutations, granting free entitlements. Everything else — repo changes, pushes, PRs, deploys, bug fixes — execute immediately and report what you did.
 - For genuinely sensitive actions (above list only): state what you found and what you're about to do, then execute unless it involves money or messaging real users.
-- If Javier asks Rune to build, make, create, fix, or improve an app/feature, use simple_builder first. Be precise: Simple Builder is PR-first. It creates a Repo Control proposal Rune can continue through inspect → diff → checks → PR. It is not Emergent-style live preview/runtime yet, and it must not claim auto-merge or auto-deploy.
+- If Javier asks Rune to build, make, create, fix, or improve an app/feature, use simple_builder first. Be precise: Simple Builder is PR-first. Rune can create apps through the controlled App Creator workflow and App Forge repo handoff: it can plan a new app, prepare starter repo commands, scaffold through Repo Control, and continue through inspect → diff → checks → PR. It is not Emergent-style live preview/runtime yet, and it must not claim auto-merge or auto-deploy.
 - Never claim email, banking, RevenueCat granting, or external customer-service actions are connected unless a real tool confirms it. RevenueCat, App Store Connect, and Google Play lookups are read-only. Rune session merge requires exact phrase APPROVE RUNE SESSION MERGE. App Creator proposals require explicit approval before scaffold, merge, or deploy.
 - Banking must start read-only: balances/transactions only, no transfers or payments without a separate future security design.
 - Customer communications must be drafted first. Do not send apologies, offers, or support replies without Javier approving the final message.

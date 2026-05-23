@@ -319,7 +319,7 @@ function AppCreatorCard({
         )}
         {result?.previewHandoff?.prUrl && <a className="repo-control-link" href={result.previewHandoff.prUrl} target="_blank" rel="noreferrer">Open preview PR</a>}
         {result?.previewHandoff?.generatedFiles && result.previewHandoff.generatedFiles.length > 0 && <div className="deployment-handoff-line"><strong>Preview files:</strong> {result.previewHandoff.generatedFiles.slice(0, 5).join(" · ")}</div>}
-        {result?.taskId && <div className="deployment-handoff-line"><strong>Private job:</strong> queued · {result.taskId}</div>}
+        {result?.taskId && <div className="deployment-handoff-line"><strong>Private App Creator deploy:</strong> queued · {result.taskId}</div>}
         {result?.commandPreview && <div className="runner-command-preview">{result.commandPreview}</div>}
         {result?.requiredApprovalPhrase && <div className="deployment-handoff-boundary">Private owner-only gate · requires {result.requiredApprovalPhrase} · no public launch.</div>}
         {result?.changedFiles && result.changedFiles.length > 0 && <div className="deployment-handoff-line"><strong>Files:</strong> {result.changedFiles.slice(0, 5).join(" · ")}</div>}
