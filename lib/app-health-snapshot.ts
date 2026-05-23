@@ -72,12 +72,31 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
   // Resolve platform flags from project registry
   const registryProject = getProjectByKey(projectKey);
   const platforms: ProjectPlatform[] = (registryProject?.platforms ?? []) as ProjectPlatform[];
+  const healthChecks = registryProject?.healthChecks ?? [];
+  const shouldCheckAppStoreConnect = healthChecks.includes("app_store_connect") || Boolean(options.appStoreAppId);
+  const shouldCheckGooglePlay = healthChecks.includes("google_play") || Boolean(options.googlePlayPackageName);
+  const shouldCheckRevenueCat = healthChecks.includes("revenuecat") || Boolean(options.revenueCatAppUserId);
+
+  const skippedAppStoreConnect: AppStoreConnectReadOnlyResult = {
+    ok: true,
+    configured: false,
+    readOnly: true,
+    error: undefined,
+    summary: { appId: null, bundleId: null, name: null, sku: null, latestVersions: [], blockedCapabilities: [] },
+  };
+  const skippedGooglePlay: GooglePlayReadOnlyResult = {
+    ok: true,
+    configured: false,
+    readOnly: true,
+    error: undefined,
+    summary: { packageName: null, appName: null, releaseTracks: [], blockedCapabilities: [] },
+  };
 
   const [buildResult, revenueCatResult, appStoreResult, googlePlayResult] = await Promise.allSettled([
     getBuildIntelligenceSnapshot({ projectKey, repo: options.repo }),
-    options.revenueCatAppUserId ? getRevenueCatSubscriberReadOnly(options.revenueCatAppUserId) : Promise.resolve(undefined),
-    getAppStoreConnectReadOnlySummary(options.appStoreAppId),
-    getGooglePlayReadOnlySummary(options.googlePlayPackageName),
+    shouldCheckRevenueCat && options.revenueCatAppUserId ? getRevenueCatSubscriberReadOnly(options.revenueCatAppUserId) : Promise.resolve(undefined),
+    shouldCheckAppStoreConnect ? getAppStoreConnectReadOnlySummary(options.appStoreAppId || registryProject?.integrations.appStoreConnect?.appId) : Promise.resolve(skippedAppStoreConnect),
+    shouldCheckGooglePlay ? getGooglePlayReadOnlySummary(options.googlePlayPackageName || registryProject?.integrations.googlePlay?.packageName) : Promise.resolve(skippedGooglePlay),
   ]);
 
   const build = settle(
@@ -105,21 +124,28 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
   if (build.vercel.error) warnings.push(`Vercel: ${build.vercel.error}`);
   else findings.push(`Vercel: latest deployment ${build.vercel.latestDeployment?.state || "visible"}.`);
 
-  if (revenueCat) addServiceSignal(findings, blockers, "RevenueCat subscriber", revenueCat);
-  else findings.push("RevenueCat subscriber: skipped because no app user ID was provided.");
-
-  addServiceSignal(findings, blockers, "App Store Connect", appStoreConnect);
-
-  // Only flag Google Play if this project has Android presence
-  const isIosOnly = platforms.length > 0 && platforms.every((p) => p === "ios");
-  if (isIosOnly) {
-    findings.push("Google Play: not applicable — project is iOS-only.");
+  if (shouldCheckRevenueCat) {
+    if (revenueCat) addServiceSignal(findings, blockers, "RevenueCat subscriber", revenueCat);
+    else findings.push("RevenueCat subscriber: skipped because no app user ID was provided.");
   } else {
-    addServiceSignal(findings, blockers, "Google Play", googlePlay);
+    findings.push("RevenueCat: not applicable for this project health profile.");
   }
 
-  // External services check — pass platforms so Google Play missing keys are not counted for iOS-only
-  const externalChecks = getExternalServicesHealth({ platforms });
+  if (shouldCheckAppStoreConnect) {
+    addServiceSignal(findings, blockers, "App Store Connect", appStoreConnect);
+  } else {
+    findings.push("App Store Connect: not applicable for this project health profile.");
+  }
+
+  if (shouldCheckGooglePlay) {
+    addServiceSignal(findings, blockers, "Google Play", googlePlay);
+  } else {
+    findings.push("Google Play: not applicable for this project health profile.");
+  }
+
+  const externalPlatforms = shouldCheckGooglePlay ? platforms : platforms.filter((platform) => platform !== "android");
+  // External services check — pass active platforms so skipped stores are not counted as missing
+  const externalChecks = getExternalServicesHealth({ platforms: externalPlatforms });
   const externalSummary = summarizeExternalServicesHealth(externalChecks);
   const externalMissing = externalSummary.missing;
   const externalPartial = externalSummary.partial;
@@ -130,9 +156,9 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
   for (const blocked of googleBlocked) findings.push(`Google Play ${blocked.name}: blocked by design — ${blocked.reason}`);
 
   const actionRecommendations = [
-    ...getKnownRemediationActions({ service: "App Store Connect", error: appStoreConnect.error }),
-    ...getKnownRemediationActions({ service: "Google Play", error: googlePlay.error }),
-    ...(revenueCat ? getKnownRemediationActions({ service: "RevenueCat subscriber", error: revenueCat.error }) : []),
+    ...(shouldCheckAppStoreConnect ? getKnownRemediationActions({ service: "App Store Connect", error: appStoreConnect.error }) : []),
+    ...(shouldCheckGooglePlay ? getKnownRemediationActions({ service: "Google Play", error: googlePlay.error }) : []),
+    ...(shouldCheckRevenueCat && revenueCat ? getKnownRemediationActions({ service: "RevenueCat subscriber", error: revenueCat.error }) : []),
   ];
 
   const status = statusFromSignals(blockers, warnings);
@@ -180,8 +206,8 @@ export async function getAppHealthSnapshot(options: AppHealthSnapshotOptions = {
         platforms,
         repo: build.github.repo,
         revenueCatChecked: Boolean(revenueCat),
-        appStoreConnectOk: appStoreConnect.ok,
-        googlePlayOk: isIosOnly ? null : googlePlay.ok,
+        appStoreConnectOk: shouldCheckAppStoreConnect ? appStoreConnect.ok : null,
+        googlePlayOk: shouldCheckGooglePlay ? googlePlay.ok : null,
         blockers: snapshot.blockers.slice(0, 8),
         actionRecommendations: actionRecommendations.map((action) => action.id).slice(0, 8),
       },

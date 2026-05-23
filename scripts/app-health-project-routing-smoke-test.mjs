@@ -17,7 +17,7 @@ assert(
 );
 
 assert(
-  buildIntelligence.includes('import { getProjectByKey } from "@/lib/project-registry"'),
+  buildIntelligence.includes('from "@/lib/project-registry"') && buildIntelligence.includes('getProjectByKey'),
   "Build intelligence must import the canonical project registry."
 );
 
