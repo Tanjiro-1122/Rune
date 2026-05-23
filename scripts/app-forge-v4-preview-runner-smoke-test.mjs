@@ -14,6 +14,8 @@ assert(forge.includes("previewOnly: true") && forge.includes("production: false"
 assert(runner.includes('["app_forge_preview_deploy", "APPROVE APP FORGE PREVIEW DEPLOY"]'), "trusted runner knows preview approval phrase");
 assert(runner.includes("App Forge preview deploy command does not match the allowed command shape"), "trusted runner validates preview command shape");
 assert(runner.includes("RUNE_APP_FORGE_PREVIEW_METADATA_BASE64"), "trusted runner passes preview metadata to script");
+assert(script.includes("repoSlug") && script.includes("toLowerCase()") && script.includes("replace(/[^a-z0-9._-]+/g"), "preview script uses sanitized lowercase project folder slug");
+assert(script.includes("vercel") && script.includes("build") && script.includes("--yes"), "preview script runs Vercel build before prebuilt deploy");
 assert(script.includes("vercel") && script.includes("--target=preview") && script.includes("--prebuilt"), "preview script deploys preview only");
 assert(script.includes("production must be false") && script.includes("envMutation must be false") && script.includes("schemaMutation must be false"), "preview script revalidates safety flags");
 assert(!/--prod|target=production|vercel\s+env|supabase|revenuecat|appstore|eas submit|merge/i.test(script), "preview script has no production/env/schema/payment/store/merge commands");
