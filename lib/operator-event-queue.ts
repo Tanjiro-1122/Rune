@@ -146,7 +146,7 @@ export async function enqueueOperatorEvent(input: OperatorQueueEventInput): Prom
 }
 
 export async function runOperatorEventQueueHealthSweep(options: { projectKeys?: string[]; workspaceId?: string | null } = {}) {
-  const projectKeys = options.projectKeys?.length ? options.projectKeys : ["unfiltr", "sports-wager-helper", "rune"];
+  const projectKeys = options.projectKeys?.length ? options.projectKeys : ["unfiltr", "sports-wager-helper", "family", "rune"];
   const results = [];
   for (const projectKey of projectKeys) {
     results.push(await enqueueOperatorEvent({ kind: "health_snapshot", projectKey, workspaceId: options.workspaceId ?? null, source: "cron.health_sweep" }));
