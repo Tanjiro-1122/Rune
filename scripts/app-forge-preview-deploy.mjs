@@ -40,12 +40,15 @@ function main() {
   if (!/^[-A-Za-z0-9_./]+$/.test(branch)) throw new Error("Invalid branch.");
 
   fs.mkdirSync(WORK_ROOT, { recursive: true });
-  const dir = path.join(WORK_ROOT, repo.replace("/", "__"));
+  const repoSlug = repo.split("/").pop().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!repoSlug) throw new Error("Unable to derive safe preview project slug.");
+  const dir = path.join(WORK_ROOT, repoSlug);
   fs.rmSync(dir, { recursive: true, force: true });
   const remote = process.env.GITHUB_TOKEN ? `https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/${repo}.git` : `https://github.com/${repo}.git`;
   run("git", ["clone", "--depth", "1", "--branch", branch, remote, dir], process.cwd());
   run("npm", ["install"], dir);
   run("npm", ["run", "build"], dir);
+  run("npx", ["vercel", "build", "--yes"], dir);
   run("npx", ["vercel", "deploy", "--prebuilt", "--target=preview", "--yes"], dir);
   console.log(JSON.stringify({ ok: true, repo, branch, target: "preview", safety: "preview_deployed_no_production_no_env_or_schema_mutation" }, null, 2));
 }
