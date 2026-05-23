@@ -94,7 +94,8 @@
     "test:simple-builder-truth": "node scripts/simple-builder-truth-smoke-test.mjs",
     "test:simple-builder-routing": "node scripts/simple-builder-routing-smoke-test.mjs",
     "test:base44-runtime-drift": "node scripts/base44-runtime-drift-smoke-test.mjs",
-    "test:operator-executor-cron": "node scripts/operator-executor-cron-smoke-test.mjs"
+    "test:operator-executor-cron": "node scripts/operator-executor-cron-smoke-test.mjs",
+    "test:app-forge-repo-handoff": "node scripts/app-forge-repo-handoff-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
