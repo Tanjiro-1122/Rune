@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { listRepoActionProposals, type RepoActionProposalRow } from "@/lib/repo-actions";
 import { RUNE_CANONICAL_PROJECTS, getProjectByKey, type RuneProjectKey } from "@/lib/project-registry";
 import { logError } from "@/lib/errors";
+import { createOperatorPriorityDecisionBrief, type OperatorPriorityDecisionBrief } from "@/lib/operator-priority-brain";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
@@ -64,6 +65,7 @@ export interface OperatorBriefing {
   proposals: OperatorBriefingProposalSummary[];
   tasks: OperatorBriefingTaskSummary[];
   memory: OperatorBriefingMemorySummary;
+  priorityDecisionBrief: OperatorPriorityDecisionBrief;
   safetyNotice: string[];
 }
 
@@ -367,13 +369,25 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     memory,
     deployStatus,
   });
-  const recommendedNextAction = chooseRecommendedNextAction({
-    overallStatus,
+  const priorityDecisionBrief = createOperatorPriorityDecisionBrief({
     projects: projectResults,
     proposals: proposalSummaries,
     tasks,
     memory,
   });
+  const recommendedNextAction = priorityDecisionBrief.topDecision.target === "none"
+    ? chooseRecommendedNextAction({
+      overallStatus,
+      projects: projectResults,
+      proposals: proposalSummaries,
+      tasks,
+      memory,
+    })
+    : {
+      title: priorityDecisionBrief.topDecision.title,
+      detail: priorityDecisionBrief.topDecision.detail,
+      target: priorityDecisionBrief.topDecision.target,
+    };
 
   return {
     generatedAt: new Date().toISOString(),
@@ -386,6 +400,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     proposals: proposalSummaries,
     tasks,
     memory,
+    priorityDecisionBrief,
     safetyNotice: [
       "Daily Operator Briefing is read-only.",
       "No repo merge, deploy, rollback, release, schema change, payment action, customer message, runner job, or entitlement change is executed.",
