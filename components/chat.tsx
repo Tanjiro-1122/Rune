@@ -426,6 +426,17 @@ interface OperatorBriefingSnapshot {
     ownerMemorySource: "env" | "not_configured";
     warning: string | null;
   };
+  priorityDecisionBrief?: {
+    brainVersion: string;
+    topDecision: {
+      title: string;
+      detail: string;
+      score: number;
+      risk: string;
+      nextStep: string;
+    };
+    rankedSignals: Array<{ id: string; title: string; score: number; risk: string; target: string }>;
+  };
   safetyNotice: string[];
 }
 
@@ -3070,6 +3081,7 @@ export function Chat() {
                       <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>Load briefing</button>
                     )}
                     {displayedOperatorBriefing?.recommendedNextAction && <small>Next: {displayedOperatorBriefing.recommendedNextAction.title}</small>}
+                    {displayedOperatorBriefing?.priorityDecisionBrief?.topDecision ? <small>Brain: {displayedOperatorBriefing.priorityDecisionBrief.topDecision.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.risk} risk · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.nextStep}</small> : null}
                     {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
                     {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}
                   </article>
