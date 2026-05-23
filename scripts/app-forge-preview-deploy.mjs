@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { request } from "node:https";
 
 const APPROVAL = "APPROVE APP FORGE PREVIEW DEPLOY";
 const WORK_ROOT = path.join(process.cwd(), ".rune-app-forge-previews");
@@ -26,7 +27,54 @@ function run(command, args, cwd) {
   return { stdout: result.stdout, stderr: result.stderr };
 }
 
-function main() {
+function extractDeploymentUrl(output) {
+  const matches = String(output || "").match(/https:\/\/[^\s]+\.vercel\.app/g) || [];
+  return matches[matches.length - 1] || "";
+}
+
+function getJson(url, token) {
+  return new Promise((resolve, reject) => {
+    const req = request(url, { headers: { Authorization: `Bearer ${token}` } }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`Vercel API ${res.statusCode}: ${body.slice(0, 300)}`));
+          return;
+        }
+        try { resolve(JSON.parse(body)); } catch (error) { reject(error); }
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function verifyPreviewDeployment({ repoSlug, branch, deploymentUrl }) {
+  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
+  if (!token) throw new Error("VERCEL_TOKEN is required to verify preview deployment target.");
+  const params = new URLSearchParams({ limit: "20" });
+  const payload = await getJson(`https://api.vercel.com/v6/deployments?${params.toString()}`, token);
+  const host = deploymentUrl.replace(/^https?:\/\//, "");
+  const deployments = Array.isArray(payload.deployments) ? payload.deployments : [];
+  const match = deployments.find((deployment) => {
+    const meta = deployment.meta || {};
+    return deployment.url === host || (deployment.name === repoSlug && meta.githubCommitRef === branch);
+  });
+  if (!match) throw new Error("Unable to verify Vercel deployment target after preview deploy.");
+  if (match.target !== "preview") {
+    throw new Error(`Preview deploy safety violation: Vercel reported target=${match.target || "null"}.`);
+  }
+  return {
+    uid: match.uid,
+    url: match.url ? `https://${match.url}` : deploymentUrl,
+    target: match.target,
+    state: match.state,
+  };
+}
+
+async function main() {
   const metadata = safeJsonEnv();
   const repo = arg("repo");
   const branch = arg("branch") || "initial-app-forge-scaffold";
@@ -49,8 +97,14 @@ function main() {
   run("npm", ["install"], dir);
   run("npm", ["run", "build"], dir);
   run("npx", ["vercel", "build", "--yes"], dir);
-  run("npx", ["vercel", "deploy", "--prebuilt", "--target=preview", "--yes"], dir);
-  console.log(JSON.stringify({ ok: true, repo, branch, target: "preview", safety: "preview_deployed_no_production_no_env_or_schema_mutation" }, null, 2));
+  const deployResult = run("npx", ["vercel", "deploy", "--prebuilt", "--target=preview", "--yes"], dir);
+  const deploymentUrl = extractDeploymentUrl(`${deployResult.stdout}\n${deployResult.stderr}`);
+  if (!deploymentUrl) throw new Error("Unable to capture Vercel deployment URL for target verification.");
+  const verified = await verifyPreviewDeployment({ repoSlug, branch, deploymentUrl });
+  console.log(JSON.stringify({ ok: true, repo, branch, target: verified.target, url: verified.url, deploymentUid: verified.uid, state: verified.state, safety: "preview_verified_no_production_no_env_or_schema_mutation" }, null, 2));
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
