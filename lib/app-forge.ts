@@ -75,6 +75,7 @@ export function createAppForgeRepoHandoff(input: AppForgeRepoHandoffInput): AppF
 
 
 export const APP_FORGE_REPO_CREATE_APPROVAL_PHRASE = "APPROVE APP FORGE REPO CREATE";
+export const APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE = "APPROVE APP FORGE PREVIEW DEPLOY";
 
 export interface QueueAppForgeRepoCreateInput extends AppForgeRepoHandoffInput {
   approvalText: string;
@@ -208,7 +209,7 @@ export function createAppForgePreviewHandoff(input: AppForgePreviewHandoffInput)
       appName: repoHandoff.appPlan.appName,
       slug: repoHandoff.appPlan.slug,
       ready: true,
-      requiredApprovalPhrase: "APPROVE APP FORGE PREVIEW DEPLOY",
+      requiredApprovalPhrase: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
       commands,
       checklist,
       safety: "metadata_only_no_vercel_project_created_no_deploy_no_env_mutation_no_production_launch",
@@ -217,5 +218,64 @@ export function createAppForgePreviewHandoff(input: AppForgePreviewHandoffInput)
     message: "App Forge v3 prepared a Vercel preview handoff only. No Vercel project, deployment, environment variable, merge, schema change, or production launch happened.",
     safety: "metadata_only_no_deploy_no_merge_no_schema_mutation_no_env_mutation",
     nextAction: "Review the handoff. A future approved runner job can execute the preview deployment with the exact preview approval phrase.",
+  };
+}
+
+
+export interface QueueAppForgePreviewDeployInput extends AppForgePreviewHandoffInput {
+  approvalText: string;
+  workspaceId?: string | null;
+  conversationId?: string | null;
+}
+
+export async function queueAppForgePreviewDeploy(input: QueueAppForgePreviewDeployInput) {
+  const handoff = createAppForgePreviewHandoff(input);
+  if (input.approvalText !== APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE) {
+    return {
+      ok: false as const,
+      handoff,
+      requiredApprovalPhrase: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
+      error: "Exact approval phrase is required before queuing App Forge preview deployment.",
+      safety: "approval_required_no_preview_deploy_no_env_mutation_no_production_launch",
+    };
+  }
+  const metadata = {
+    appForgeVersion: 4,
+    repo: handoff.repo,
+    branch: handoff.branch,
+    appName: handoff.appPlan.appName,
+    appPlan: handoff.appPlan,
+    approval_text: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
+    previewOnly: true,
+    target: "preview",
+    production: false,
+    publicLaunch: false,
+    merge: false,
+    schemaMutation: false,
+    paymentsChange: false,
+    envMutation: false,
+    customerFacing: false,
+    safety: "queued_preview_deploy_only_no_production_no_merge_no_env_or_schema_mutation",
+  };
+  const command = `npm run app-forge-preview-deploy -- --repo=${handoff.repo} --branch=${handoff.branch}`;
+  const queued = await queueCliRunnerJob({
+    workspaceId: input.workspaceId ?? null,
+    conversationId: input.conversationId ?? null,
+    title: `App Forge preview deploy: ${handoff.appPlan.appName}`,
+    command,
+    kind: "app_forge_preview_deploy",
+    riskLevel: "high",
+    approvalText: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
+    reason: `Create a Vercel preview deployment for ${handoff.repo}@${handoff.branch}.`,
+    metadata: { ...metadata, metadataEnv: encodeMetadata(metadata) },
+  });
+  return {
+    ...queued,
+    handoff,
+    repo: handoff.repo,
+    branch: handoff.branch,
+    requiredApprovalPhrase: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
+    safety: queued.ok ? "queued_only_no_local_execution_preview_only_no_production" : "queue_failed_no_preview_deploy",
+    nextAction: queued.ok ? "Run the trusted runner in execute mode to create the preview deployment." : "Fix the queue error, then retry.",
   };
 }
