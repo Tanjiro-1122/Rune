@@ -15,6 +15,7 @@ const EXACT_APPROVALS = new Map([
   ["vercel_rollback", "APPROVE RUNE ROLLBACK"],
   ["private_app_creator_deploy", "APPROVE PRIVATE RUNE DEPLOY"],
   ["app_forge_repo_create", "APPROVE APP FORGE REPO CREATE"],
+  ["app_forge_preview_deploy", "APPROVE APP FORGE PREVIEW DEPLOY"],
 ]);
 
 function requireEnv() {
@@ -140,6 +141,24 @@ function validateTask(task) {
     if (blockers.length) return { ok: false, error: `App Forge repo create blocked: ${blockers.join(", ")}.` };
     return { ok: true, kind, command, metadata, metadataEnv: metadata.metadataEnv };
   }
+  if (kind === "app_forge_preview_deploy") {
+    if (!/^npm run app-forge-preview-deploy -- --repo=[-A-Za-z0-9_.]+\/[\-A-Za-z0-9_.]+ --branch=[-A-Za-z0-9_.\/]+$/.test(command)) {
+      return { ok: false, error: "App Forge preview deploy command does not match the allowed command shape." };
+    }
+    const blockers = [];
+    if (metadata.approval_text !== EXACT_APPROVALS.get("app_forge_preview_deploy")) blockers.push("approval_phrase_mismatch");
+    if (metadata.previewOnly !== true) blockers.push("preview_only_must_be_true");
+    if (metadata.target !== "preview") blockers.push("target_must_be_preview");
+    if (metadata.production !== false) blockers.push("production_must_be_false");
+    if (metadata.publicLaunch !== false) blockers.push("public_launch_must_be_false");
+    if (metadata.merge !== false) blockers.push("merge_must_be_false");
+    if (metadata.schemaMutation !== false) blockers.push("schema_mutation_must_be_false");
+    if (metadata.envMutation !== false) blockers.push("env_mutation_must_be_false");
+    if (metadata.paymentsChange !== false) blockers.push("payments_change_must_be_false");
+    if (!metadata.metadataEnv || typeof metadata.metadataEnv !== "string") blockers.push("missing_metadata_env");
+    if (blockers.length) return { ok: false, error: `App Forge preview deploy blocked: ${blockers.join(", ")}.` };
+    return { ok: true, kind, command, metadata, metadataEnv: metadata.metadataEnv };
+  }
   if (kind === "private_app_creator_deploy") {
     if (!/^npm run private-owner-deploy -- --proposal-id=[0-9a-f-]+ --owner-only=true$/.test(command)) {
       return { ok: false, error: "Private App Creator deployment command does not match the owner-only command shape." };
@@ -163,6 +182,15 @@ function commandToSpawn(validation) {
       command: "npm",
       args: ["run", "app-forge-repo-create", "--", `--repo=${repo}`],
       extraEnv: { RUNE_APP_FORGE_METADATA_BASE64: validation.metadataEnv || "" },
+    };
+  }
+  if (validation.kind === "app_forge_preview_deploy") {
+    const [, repo, branch] = validation.command.match(/^npm run app-forge-preview-deploy -- --repo=([-A-Za-z0-9_.]+\/[\-A-Za-z0-9_.]+) --branch=([-A-Za-z0-9_.\/]+)$/) || [];
+    if (!repo || !branch) throw new Error("Unable to parse App Forge preview deploy command.");
+    return {
+      command: "npm",
+      args: ["run", "app-forge-preview-deploy", "--", `--repo=${repo}`, `--branch=${branch}`],
+      extraEnv: { RUNE_APP_FORGE_PREVIEW_METADATA_BASE64: validation.metadataEnv || "" },
     };
   }
   if (validation.kind === "private_app_creator_deploy") {

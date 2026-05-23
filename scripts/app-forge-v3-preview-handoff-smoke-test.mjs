@@ -9,7 +9,9 @@ function assert(condition, message) {
 }
 
 const forge = fs.readFileSync("lib/app-forge.ts", "utf8");
-const previewHelper = forge.slice(forge.indexOf("export function createAppForgePreviewHandoff"));
+const previewStart = forge.indexOf("export function createAppForgePreviewHandoff");
+const previewEnd = forge.indexOf("export interface QueueAppForgePreviewDeployInput");
+const previewHelper = forge.slice(previewStart, previewEnd > previewStart ? previewEnd : undefined);
 const route = fs.readFileSync("app/api/app-forge/preview-handoff/route.ts", "utf8");
 const chat = fs.readFileSync("app/api/chat/route.ts", "utf8");
 const pkg = fs.readFileSync("package.json", "utf8");

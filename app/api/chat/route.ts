@@ -75,7 +75,7 @@ import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-reado
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
-import { createAppForgeRepoHandoff, createAppForgePreviewHandoff, queueAppForgeRepoCreate } from "@/lib/app-forge";
+import { createAppForgeRepoHandoff, createAppForgePreviewHandoff, queueAppForgePreviewDeploy, queueAppForgeRepoCreate } from "@/lib/app-forge";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 
@@ -1701,6 +1701,26 @@ Action: ${action.id}`,
           limits: ["No live preview runtime yet", "No auto-merge", "No auto-deploy"],
         };
       },
+    }),
+
+    queue_app_forge_preview_deploy: tool({
+      description:
+        "Queue an App Forge v4 trusted-runner job to create a Vercel preview deployment for a generated repo/branch. Requires exact approval phrase APPROVE APP FORGE PREVIEW DEPLOY. It never deploys production, merges, mutates env vars, mutates schemas, changes payments, or launches customer-facing systems.",
+      parameters: z.object({
+        idea: z.string().min(8).max(1600),
+        approvalText: z.string().max(80),
+        appName: optionalNonEmptyString(80),
+        targetUsers: optionalNonEmptyString(180),
+        platform: z.enum(["web", "mobile", "both"]).optional(),
+        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
+        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
+        preferredStack: optionalNonEmptyString(240),
+        owner: optionalNonEmptyString(80),
+        repo: optionalNonEmptyString(180),
+        branch: optionalNonEmptyString(120),
+        visibility: z.enum(["private", "public"]).optional(),
+      }),
+      execute: async (input) => queueAppForgePreviewDeploy(input),
     }),
 
     app_forge_preview_handoff: tool({
