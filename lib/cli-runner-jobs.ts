@@ -1,7 +1,7 @@
 import { logActionEvent } from "@/lib/action-events";
 import { createQueuedWorkspaceJob, getWorkspaceTask } from "@/lib/tasks";
 
-export type CliRunnerJobKind = "vercel_redeploy" | "vercel_rollback" | "private_app_creator_deploy" | "repo_check" | "maintenance";
+export type CliRunnerJobKind = "vercel_redeploy" | "vercel_rollback" | "private_app_creator_deploy" | "app_forge_repo_create" | "repo_check" | "maintenance";
 
 const ALLOWED_COMMAND_PREFIXES = ["vercel redeploy ", "vercel rollback ", "npm ", "npx ", "git "];
 

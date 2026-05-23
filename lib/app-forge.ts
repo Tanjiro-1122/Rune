@@ -1,4 +1,5 @@
 import { buildAppCreatorPlan, type AppCreatorInput, type AppCreatorPlan } from "@/lib/app-creator";
+import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
 
 export interface AppForgeRepoHandoffInput extends AppCreatorInput {
   owner?: string | null;
@@ -69,5 +70,70 @@ export function createAppForgeRepoHandoff(input: AppForgeRepoHandoffInput): AppF
     safety: "repo_handoff_only_no_repo_created_no_files_written_no_deploy",
     message: "App Forge v1 prepared a new-repo handoff plan. It did not create a GitHub repo, write files, deploy, merge, mutate schemas, or touch production.",
     nextAction: "Approve a follow-up trusted runner job to create the repo and generate the scaffold, or ask Rune to refine the app plan first.",
+  };
+}
+
+
+export const APP_FORGE_REPO_CREATE_APPROVAL_PHRASE = "APPROVE APP FORGE REPO CREATE";
+
+export interface QueueAppForgeRepoCreateInput extends AppForgeRepoHandoffInput {
+  approvalText: string;
+  workspaceId?: string | null;
+  conversationId?: string | null;
+}
+
+function encodeMetadata(metadata: Record<string, unknown>) {
+  return Buffer.from(JSON.stringify(metadata), "utf8").toString("base64url");
+}
+
+export async function queueAppForgeRepoCreate(input: QueueAppForgeRepoCreateInput) {
+  const handoff = createAppForgeRepoHandoff(input);
+  if (input.approvalText !== APP_FORGE_REPO_CREATE_APPROVAL_PHRASE) {
+    return {
+      ok: false as const,
+      handoff,
+      requiredApprovalPhrase: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
+      error: "Exact approval phrase is required before queuing App Forge repo creation.",
+      safety: "approval_required_no_repo_created_no_files_written_no_deploy",
+    };
+  }
+
+  const metadata = {
+    appForgeVersion: 2,
+    repo: handoff.repo,
+    repoName: handoff.repoName,
+    visibility: handoff.visibility,
+    appName: handoff.appPlan.appName,
+    appPlan: handoff.appPlan,
+    coreFeatures: handoff.appPlan.coreFeatures,
+    screens: handoff.appPlan.screens,
+    approval_text: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
+    publicLaunch: false,
+    deploy: false,
+    merge: false,
+    schemaMutation: false,
+    paymentsChange: false,
+    customerFacing: false,
+    safety: "queued_repo_create_branch_push_no_deploy_no_merge_no_schema_mutation",
+  };
+  const command = `npm run app-forge-repo-create -- --repo=${handoff.repo}`;
+  const queued = await queueCliRunnerJob({
+    workspaceId: input.workspaceId ?? null,
+    conversationId: input.conversationId ?? null,
+    title: `App Forge repo create: ${handoff.appPlan.appName}`,
+    command,
+    kind: "app_forge_repo_create",
+    riskLevel: "high",
+    approvalText: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
+    reason: `Create private starter repo ${handoff.repo} and push initial scaffold branch.`,
+    metadata: { ...metadata, metadataEnv: encodeMetadata(metadata) },
+  });
+  return {
+    ...queued,
+    handoff,
+    repo: handoff.repo,
+    requiredApprovalPhrase: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
+    safety: queued.ok ? "queued_only_no_local_execution_no_deploy_no_merge_no_schema_mutation" : "queue_failed_no_repo_created",
+    nextAction: queued.ok ? "Run the trusted runner in execute mode to create the repo and push the initial scaffold branch." : "Fix the queue error, then retry.",
   };
 }
