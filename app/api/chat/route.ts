@@ -75,7 +75,7 @@ import { getAppStoreConnectReadOnlySummary } from "@/lib/app-store-connect-reado
 import { getGooglePlayReadOnlySummary } from "@/lib/google-play-readonly";
 import { getAppHealthSnapshot } from "@/lib/app-health-snapshot";
 import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorPreviewHandoff, previewAppCreatorProposal, queuePrivateAppCreatorDeploy, refineAppCreatorProposal, runAppCreatorScaffoldBridge } from "@/lib/app-creator";
-import { createAppForgeRepoHandoff } from "@/lib/app-forge";
+import { createAppForgeRepoHandoff, queueAppForgeRepoCreate } from "@/lib/app-forge";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 
@@ -1701,6 +1701,25 @@ Action: ${action.id}`,
           limits: ["No live preview runtime yet", "No auto-merge", "No auto-deploy"],
         };
       },
+    }),
+
+    queue_app_forge_repo_create: tool({
+      description:
+        "Queue an App Forge v2 trusted-runner job to create a brand-new GitHub repo, generate starter files, run build checks, and push the initial scaffold branch. Requires exact approval phrase APPROVE APP FORGE REPO CREATE. It does not deploy, merge, mutate schemas, change payments, or launch anything to customers.",
+      parameters: z.object({
+        idea: z.string().min(8).max(1600),
+        approvalText: z.string().max(80),
+        appName: optionalNonEmptyString(80),
+        targetUsers: optionalNonEmptyString(180),
+        platform: z.enum(["web", "mobile", "both"]).optional(),
+        complexity: z.enum(["simple", "standard", "advanced"]).optional(),
+        mustHaveFeatures: z.array(z.string().min(1).max(140)).max(8).optional(),
+        preferredStack: optionalNonEmptyString(240),
+        owner: optionalNonEmptyString(80),
+        repo: optionalNonEmptyString(180),
+        visibility: z.enum(["private", "public"]).optional(),
+      }),
+      execute: async (input) => queueAppForgeRepoCreate(input),
     }),
 
     app_forge_repo_handoff: tool({

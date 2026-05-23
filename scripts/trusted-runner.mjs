@@ -14,6 +14,7 @@ const EXACT_APPROVALS = new Map([
   ["vercel_redeploy", "APPROVE RUNE REDEPLOY"],
   ["vercel_rollback", "APPROVE RUNE ROLLBACK"],
   ["private_app_creator_deploy", "APPROVE PRIVATE RUNE DEPLOY"],
+  ["app_forge_repo_create", "APPROVE APP FORGE REPO CREATE"],
 ]);
 
 function requireEnv() {
@@ -124,6 +125,21 @@ function validateTask(task) {
   if (kind === "vercel_rollback" && !/^vercel rollback \S+ --token=\$VERCEL_TOKEN$/.test(command)) {
     return { ok: false, error: "Rollback command does not match the allowed Vercel command shape." };
   }
+  if (kind === "app_forge_repo_create") {
+    if (!/^npm run app-forge-repo-create -- --repo=[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+$/.test(command)) {
+      return { ok: false, error: "App Forge repo create command does not match the allowed command shape." };
+    }
+    const blockers = [];
+    if (metadata.approval_text !== EXACT_APPROVALS.get("app_forge_repo_create")) blockers.push("approval_phrase_mismatch");
+    if (metadata.publicLaunch !== false) blockers.push("public_launch_must_be_false");
+    if (metadata.deploy !== false) blockers.push("deploy_must_be_false");
+    if (metadata.merge !== false) blockers.push("merge_must_be_false");
+    if (metadata.schemaMutation !== false) blockers.push("schema_mutation_must_be_false");
+    if (metadata.paymentsChange !== false) blockers.push("payments_change_must_be_false");
+    if (!metadata.metadataEnv || typeof metadata.metadataEnv !== "string") blockers.push("missing_metadata_env");
+    if (blockers.length) return { ok: false, error: `App Forge repo create blocked: ${blockers.join(", ")}.` };
+    return { ok: true, kind, command, metadata, metadataEnv: metadata.metadataEnv };
+  }
   if (kind === "private_app_creator_deploy") {
     if (!/^npm run private-owner-deploy -- --proposal-id=[0-9a-f-]+ --owner-only=true$/.test(command)) {
       return { ok: false, error: "Private App Creator deployment command does not match the owner-only command shape." };
@@ -140,6 +156,15 @@ function validateTask(task) {
 }
 
 function commandToSpawn(validation) {
+  if (validation.kind === "app_forge_repo_create") {
+    const [, repo] = validation.command.match(/^npm run app-forge-repo-create -- --repo=([-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+)$/) || [];
+    if (!repo) throw new Error("Unable to parse App Forge repo create command.");
+    return {
+      command: "npm",
+      args: ["run", "app-forge-repo-create", "--", `--repo=${repo}`],
+      extraEnv: { RUNE_APP_FORGE_METADATA_BASE64: validation.metadataEnv || "" },
+    };
+  }
   if (validation.kind === "private_app_creator_deploy") {
     const [, proposalId] = validation.command.match(/^npm run private-owner-deploy -- --proposal-id=([0-9a-f-]+) --owner-only=true$/) || [];
     if (!proposalId) throw new Error("Unable to parse private owner deploy command.");
