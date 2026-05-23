@@ -112,7 +112,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
       },
       base44: {
         appId: "69b332a392004d139d4ba495",
-        severanceStatus: "legacy_dependency",
+        severanceStatus: "removed",
       },
     },
     aliases: ["unfiltr", "unfiltr by javier", "main app", "ai companion", "mental wellness app"],
@@ -134,7 +134,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
         serviceAccountEnv: "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
       },
       base44: {
-        severanceStatus: "legacy_dependency",
+        severanceStatus: "removed",
       },
     },
     aliases: ["swh", "sportswager helper", "sports wager helper", "sports wager", "sports app", "betting app"],

@@ -23,7 +23,7 @@ for (const metadata of [
   'appId: "6760604917"',
   'packageName: "com.huertas.sportswagerhelper"',
   'projectRef: "hvvrbpvsgjxiicigkwhu"',
-  'severanceStatus: "legacy_dependency"',
+  'severanceStatus: "removed"',
 ]) {
   assert(registry.includes(metadata), `registry includes ${metadata}`);
 }
@@ -34,3 +34,8 @@ for (const helper of ["getProjectLiveUrl", "getProjectVercelProjectId", "getProj
 
 assert(!registry.includes('canonicalName: "SportsWager Helper"'), "SWH canonical name is human-spaced consistently");
 console.log("✅ Project registry source-of-truth smoke test passed.");
+
+const unfiltrBlock = registry.slice(registry.indexOf('key: "unfiltr"'), registry.indexOf('key: "swh"'));
+const swhBlock = registry.slice(registry.indexOf('key: "swh"'), registry.indexOf('key: "family"'));
+assert(unfiltrBlock.includes('severanceStatus: "removed"') && !unfiltrBlock.includes('severanceStatus: "legacy_dependency"'), "Unfiltr is marked Base44 removed");
+assert(swhBlock.includes('severanceStatus: "removed"') && !swhBlock.includes('severanceStatus: "legacy_dependency"'), "SWH is marked Base44 removed");
