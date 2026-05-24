@@ -120,7 +120,8 @@
     "test:privileged-sensitive-scaffolds": "node scripts/privileged-sensitive-scaffolds-smoke-test.mjs",
     "test:repo-action-reality-guard": "node scripts/repo-action-reality-guard-smoke-test.mjs",
     "test:repo-action-completion-verifier": "node scripts/repo-action-completion-verifier-smoke-test.mjs",
-    "test:operator-executor-proof-contract": "node scripts/operator-executor-proof-contract-smoke-test.mjs"
+    "test:operator-executor-proof-contract": "node scripts/operator-executor-proof-contract-smoke-test.mjs",
+    "test:app-forge-proof-contract": "node scripts/app-forge-proof-contract-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

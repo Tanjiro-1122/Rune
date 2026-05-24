@@ -1,12 +1,49 @@
 import { buildAppCreatorPlan, type AppCreatorInput, type AppCreatorPlan } from "@/lib/app-creator";
 import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
 
+export type AppForgeCompletionTruth =
+  | "handoff_only_no_repo_created"
+  | "queued_not_executed_no_repo_created"
+  | "queued_not_executed_no_preview_deployed"
+  | "not_completed_yet_do_not_claim_app_created";
+
+export interface AppForgeProofContract {
+  completed: false;
+  completionTruth: AppForgeCompletionTruth;
+  completionEvidence: {
+    repoUrl?: string | null;
+    branch?: string | null;
+    commitSha?: string | null;
+    prUrl?: string | null;
+    deploymentUrl?: string | null;
+    verifiedAt?: string | null;
+    missing: string[];
+  };
+}
+
+function appForgeProofContract(completionTruth: AppForgeCompletionTruth, missing: string[], extra: Partial<AppForgeProofContract["completionEvidence"]> = {}): AppForgeProofContract {
+  return {
+    completed: false,
+    completionTruth,
+    completionEvidence: {
+      repoUrl: null,
+      branch: null,
+      commitSha: null,
+      prUrl: null,
+      deploymentUrl: null,
+      verifiedAt: new Date().toISOString(),
+      ...extra,
+      missing,
+    },
+  };
+}
+
 export interface AppForgeRepoHandoffInput extends AppCreatorInput {
   owner?: string | null;
   visibility?: "private" | "public";
 }
 
-export interface AppForgeRepoHandoffResult {
+export interface AppForgeRepoHandoffResult extends AppForgeProofContract {
   ok: boolean;
   appPlan: AppCreatorPlan;
   repo: string;
@@ -61,6 +98,7 @@ export function createAppForgeRepoHandoff(input: AppForgeRepoHandoffInput): AppF
 
   return {
     ok: true,
+    ...appForgeProofContract("handoff_only_no_repo_created", ["github_repo", "branch", "commit_sha", "pr_url", "deployment_url"]),
     appPlan,
     repo,
     repoName,
@@ -92,6 +130,7 @@ export async function queueAppForgeRepoCreate(input: QueueAppForgeRepoCreateInpu
   if (input.approvalText !== APP_FORGE_REPO_CREATE_APPROVAL_PHRASE) {
     return {
       ok: false as const,
+      ...appForgeProofContract("not_completed_yet_do_not_claim_app_created", ["approval", "github_repo", "branch", "commit_sha", "pr_url", "deployment_url"]),
       handoff,
       requiredApprovalPhrase: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
       error: "Exact approval phrase is required before queuing App Forge repo creation.",
@@ -131,6 +170,7 @@ export async function queueAppForgeRepoCreate(input: QueueAppForgeRepoCreateInpu
   });
   return {
     ...queued,
+    ...appForgeProofContract("queued_not_executed_no_repo_created", ["runner_execution", "github_repo_verification", "branch_verification", "commit_sha", "pr_url", "deployment_url"], { repoUrl: `https://github.com/${handoff.repo}` }),
     handoff,
     repo: handoff.repo,
     requiredApprovalPhrase: APP_FORGE_REPO_CREATE_APPROVAL_PHRASE,
@@ -146,7 +186,7 @@ export interface AppForgePreviewHandoffInput extends AppForgeRepoHandoffInput {
   owner?: string | null;
 }
 
-export interface AppForgePreviewHandoffResult {
+export interface AppForgePreviewHandoffResult extends AppForgeProofContract {
   ok: boolean;
   appPlan: AppCreatorPlan;
   repo: string;
@@ -198,6 +238,7 @@ export function createAppForgePreviewHandoff(input: AppForgePreviewHandoffInput)
   ];
   return {
     ok: true,
+    ...appForgeProofContract("handoff_only_no_repo_created", ["github_repo_verification", "branch_verification", "preview_deployment_url"], { repoUrl: `https://github.com/${repo}`, branch }),
     appPlan: repoHandoff.appPlan,
     repo,
     branch,
@@ -233,6 +274,7 @@ export async function queueAppForgePreviewDeploy(input: QueueAppForgePreviewDepl
   if (input.approvalText !== APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE) {
     return {
       ok: false as const,
+      ...appForgeProofContract("not_completed_yet_do_not_claim_app_created", ["approval", "preview_deployment_url"], { repoUrl: `https://github.com/${handoff.repo}`, branch: handoff.branch }),
       handoff,
       requiredApprovalPhrase: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
       error: "Exact approval phrase is required before queuing App Forge preview deployment.",
@@ -271,6 +313,7 @@ export async function queueAppForgePreviewDeploy(input: QueueAppForgePreviewDepl
   });
   return {
     ...queued,
+    ...appForgeProofContract("queued_not_executed_no_preview_deployed", ["runner_execution", "deployment_url", "live_smoke"], { repoUrl: `https://github.com/${handoff.repo}`, branch: handoff.branch }),
     handoff,
     repo: handoff.repo,
     branch: handoff.branch,
