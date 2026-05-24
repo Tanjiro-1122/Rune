@@ -426,6 +426,10 @@ interface OperatorBriefingSnapshot {
     ownerMemorySource: "env" | "not_configured";
     warning: string | null;
   };
+  completionLedger?: {
+    latestSummary: string | null;
+    recentCompletions: Array<{ prNumber: number; title: string; mergedAt: string; url: string }>;
+  };
   priorityDecisionBrief?: {
     brainVersion: string;
     topDecision: {
@@ -3101,6 +3105,7 @@ export function Chat() {
                     )}
                     {displayedOperatorBriefing?.recommendedNextAction && <small>Next: {displayedOperatorBriefing.recommendedNextAction.title}</small>}
                     {displayedOperatorBriefing?.priorityDecisionBrief?.topDecision ? <small>Brain: {displayedOperatorBriefing.priorityDecisionBrief.topDecision.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.risk} risk · {displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.confidence ?? "medium"} confidence · {displayedOperatorBriefing.priorityDecisionBrief.decisionHistory?.isRecurring ? `Recurring +${displayedOperatorBriefing.priorityDecisionBrief.decisionHistory.recurrenceBoost}` : "New signal"} · {displayedOperatorBriefing.priorityDecisionBrief.rootCauseRunbook?.applies ? `Runbook: ${displayedOperatorBriefing.priorityDecisionBrief.rootCauseRunbook.safeInvestigationSteps[0]}` : (displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.allowedNextStep ?? displayedOperatorBriefing.priorityDecisionBrief.topDecision.nextStep)}</small> : null}
+                    {displayedOperatorBriefing?.completionLedger?.latestSummary ? <small>Completed: {displayedOperatorBriefing.completionLedger.latestSummary}</small> : null}
                     {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
                     {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}
                   </article>
