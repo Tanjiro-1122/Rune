@@ -103,7 +103,8 @@
     "test:app-forge-v4-preview-runner": "node scripts/app-forge-v4-preview-runner-smoke-test.mjs",
     "test:app-health-platform-expectations": "node scripts/app-health-platform-expectations-smoke-test.mjs",
     "test:operator-priority-brain": "node scripts/operator-priority-brain-smoke-test.mjs",
-    "test:operator-decision-memory": "node scripts/operator-decision-memory-smoke-test.mjs"
+    "test:operator-decision-memory": "node scripts/operator-decision-memory-smoke-test.mjs",
+    "test:operator-decision-history": "node scripts/operator-decision-history-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

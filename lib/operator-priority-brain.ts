@@ -34,6 +34,7 @@ export interface OperatorPriorityDecisionBrief {
   brainVersion: "operator_priority_brain_v1";
   topDecision: OperatorDecisionSignal;
   decisionExplanation: OperatorDecisionExplanation;
+  decisionHistory?: import("@/lib/operator-decision-history").OperatorDecisionHistorySignal;
   rankedSignals: OperatorDecisionSignal[];
   safetyBoundary: string[];
 }

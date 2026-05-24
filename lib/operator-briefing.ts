@@ -6,6 +6,7 @@ import { listRepoActionProposals, type RepoActionProposalRow } from "@/lib/repo-
 import { RUNE_CANONICAL_PROJECTS, getProjectByKey, type RuneProjectKey } from "@/lib/project-registry";
 import { logError } from "@/lib/errors";
 import { createOperatorPriorityDecisionBrief, type OperatorPriorityDecisionBrief } from "@/lib/operator-priority-brain";
+import { applyDecisionHistoryBoost, getOperatorDecisionHistorySignal } from "@/lib/operator-decision-history";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
@@ -369,12 +370,27 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     memory,
     deployStatus,
   });
-  const priorityDecisionBrief = createOperatorPriorityDecisionBrief({
+  const basePriorityDecisionBrief = createOperatorPriorityDecisionBrief({
     projects: projectResults,
     proposals: proposalSummaries,
     tasks,
     memory,
   });
+  const decisionHistory = await getOperatorDecisionHistorySignal(basePriorityDecisionBrief.topDecision).catch(() => ({
+    decisionId: basePriorityDecisionBrief.topDecision.id,
+    seenCount: 0,
+    lastSeenAt: null,
+    isRecurring: false,
+    recurrenceBoost: 0,
+    summary: "Decision history unavailable.",
+  }));
+  const boostedTopDecision = applyDecisionHistoryBoost(basePriorityDecisionBrief.topDecision, decisionHistory);
+  const priorityDecisionBrief = {
+    ...basePriorityDecisionBrief,
+    topDecision: boostedTopDecision,
+    decisionHistory,
+    rankedSignals: [boostedTopDecision, ...basePriorityDecisionBrief.rankedSignals.filter((signal) => signal.id !== boostedTopDecision.id)],
+  };
   const recommendedNextAction = priorityDecisionBrief.topDecision.target === "none"
     ? chooseRecommendedNextAction({
       overallStatus,
