@@ -75,6 +75,20 @@ A command response is not complete unless Rune can report the relevant proof:
 
 Rune has briefing/outbox foundations. It does not yet have a verified owned inbound WhatsApp command webhook on main.
 
+
+## Scaffold added after v1 proof
+
+`/api/commands/inbound` is now the locked inbound-command scaffold. It is intentionally not a working command executor yet.
+
+Current behavior:
+
+- WhatsApp Cloud verification challenge can only pass when `WHATSAPP_CLOUD_VERIFY_TOKEN` matches.
+- POST requests are blocked until provider signature verification and owner sender allowlist are implemented.
+- Blocked probes are logged to `rune_action_events` when Supabase is configured.
+- No outbound messages, merges, deploys, payment changes, entitlement grants, DNS changes, or schema mutations occur.
+
+Next implementation proof must add provider-specific signature verification, owner allowlist, command event persistence, queue/runner handoff, and owned outbound proof responses.
+
 ## Local verification
 
 ```bash
