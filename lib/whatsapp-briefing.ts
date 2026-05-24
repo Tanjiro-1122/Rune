@@ -33,6 +33,19 @@ function formatMoney(value: number | null, currency = "USD"): string {
   }).format(value);
 }
 
+
+function compact(value: string | null | undefined, max = 130): string {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function formatOutcome(status: string | undefined): string {
+  if (status === "likely_resolved") return "likely resolved";
+  if (status === "recurring") return "recurring";
+  if (status === "pending") return "pending";
+  return "unknown";
+}
+
 function formatDayOfWeek(): string {
   return new Date().toLocaleDateString("en-US", {
     weekday: "short",
@@ -95,15 +108,32 @@ export function buildWhatsAppBriefingMessage(opts: WhatsAppBriefingOptions): str
 
   lines.push("");
 
-  // ── Action Item ──────────────────────────────────────────────────────────
+  // ── Brain / Outcome / Action ─────────────────────────────────────────────
+  const brain = briefing.priorityDecisionBrief;
   const action = briefing.recommendedNextAction;
+  if (brain?.topDecision && brain.topDecision.target !== "none") {
+    const outcome = brain.outcomeScore;
+    const recurring = brain.decisionHistory?.isRecurring ? ` · recurring +${brain.decisionHistory.recurrenceBoost}` : "";
+    lines.push(`🧠 *Brain:* ${brain.topDecision.score}/100 ${brain.topDecision.risk} risk${recurring}`);
+    if (outcome) {
+      lines.push(`🎯 *Outcome:* ${formatOutcome(outcome.status)} · ${outcome.score}/100 · ${compact(outcome.suggestedAdjustment, 120)}`);
+    }
+    if (brain.rootCauseRunbook?.applies && brain.rootCauseRunbook.safeInvestigationSteps?.[0]) {
+      lines.push(`🧭 *Runbook:* ${compact(brain.rootCauseRunbook.safeInvestigationSteps[0], 120)}`);
+    }
+  }
+
   if (action && action.target !== "none" && action.title) {
     lines.push(`⚡ *Action:* ${action.title}`);
     if (action.detail && action.detail !== action.title) {
-      lines.push(`   ${action.detail.slice(0, 120)}`);
+      lines.push(`   ${compact(action.detail, 120)}`);
     }
   } else {
     lines.push(`⚡ *Action:* All clear — nothing urgent`);
+  }
+
+  if (briefing.completionLedger?.latestSummary) {
+    lines.push(`✅ *Completed:* ${compact(briefing.completionLedger.latestSummary, 120)}`);
   }
 
   // ── Open Proposals ────────────────────────────────────────────────────────
