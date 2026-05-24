@@ -56,6 +56,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow owned command-channel webhooks to reach their route handlers.
+  // The handlers remain locked by provider verification and owner allowlists;
+  // middleware cannot validate third-party webhook signatures because handlers
+  // need the raw request body/provider-specific headers.
+  if (pathname.startsWith("/api/commands/inbound")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+
   // Allow an external isolated runner to poll the runner API with a dedicated
   // bearer token. This route still remains closed unless RUNE_RUNNER_TOKEN is set.
   if (pathname.startsWith("/api/runner")) {

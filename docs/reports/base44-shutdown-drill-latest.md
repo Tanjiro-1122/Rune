@@ -1,13 +1,13 @@
 # Base44 shutdown drill report
 
-Generated: 2026-05-24T21:39:36.433Z
+Generated: 2026-05-24T23:40:47.574Z
 
 ## Result
 
 - Runtime Base44 dependency scan: PASS
-- Base44 reference files found: 19
+- Base44 reference files found: 20
 - Allowed documentation/test references: 12
-- Needs review references: 7
+- Needs review references: 8
 
 ## Runtime drift test output
 
@@ -29,6 +29,7 @@ None detected.
 - allowed: docs/reports/base44-shutdown-drill-v1.md
 - allowed: docs/reports/branch-reconciliation-v1.md
 - allowed: docs/reports/supabase-persistence-proof-contract-v1.md
+- review: docs/reports/whatsapp-command-control-proof-v1.md
 - allowed: docs/self-owned-superagent-buildout-audit.md
 - allowed: docs/setup.md
 - review: lib/email.ts
