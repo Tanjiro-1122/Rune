@@ -126,7 +126,8 @@
     "test:runner-app-forge-proof-ingestion": "node scripts/runner-app-forge-proof-ingestion-smoke-test.mjs",
     "test:supabase-persistence-proof-contract": "node scripts/supabase-persistence-proof-contract-smoke-test.mjs",
     "proof:production": "node scripts/production-proof-runner.mjs",
-    "proof:base44-shutdown-drill": "node scripts/base44-shutdown-drill-report.mjs"
+    "proof:base44-shutdown-drill": "node scripts/base44-shutdown-drill-report.mjs",
+    "test:whatsapp-command-control-proof": "node scripts/whatsapp-command-control-proof-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
