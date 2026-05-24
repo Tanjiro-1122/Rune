@@ -21,6 +21,7 @@ import {
 } from "@/lib/repo-actions";
 import { classifyOperatorFailure, getOperatorRetryDecision, type OperatorFailureClassification } from "@/lib/operator-failure-classifier";
 import { checkRepoAccessCapability, type RepoAccessCapabilityReport } from "@/lib/repo-access-capability";
+import { verifyPullRequestProof, type RepoActionCompletionEvidence } from "@/lib/repo-action-completion-verifier";
 
 export type OperatorExecutionActionType =
   | "inspect_repo"
@@ -70,6 +71,9 @@ export interface OperatorExecutorResult {
   plan?: OperatorExecutionPlan;
   proposalId?: string;
   prUrl?: string;
+  completionEvidence?: RepoActionCompletionEvidence;
+  completionTruth?: RepoActionCompletionEvidence["completionTruth"];
+  completed?: boolean;
   steps: Array<{ action: string; ok: boolean; proof?: string; error?: string }>;
   message: string;
   error?: string;
@@ -338,9 +342,13 @@ export async function runOperatorExecutorBridge(options: {
     if (!tempWorkspace.ok) throw new Error(tempWorkspace.error || "Temporary workspace check failed.");
 
     let prUrl: string | undefined;
+    let completionEvidence: RepoActionCompletionEvidence | undefined;
     if (options.openPrIfApproved) {
       const pr = await runStageWithRetry({ action: "open_pr_if_approved", maxAttempts: options.maxAttempts ?? 3, steps, proof: (result) => "prUrl" in result && typeof result.prUrl === "string" ? result.prUrl : undefined, run: () => openRepoActionPullRequest({ id: proposalResult.proposal.id }) });
       prUrl = "prUrl" in pr && typeof pr.prUrl === "string" ? pr.prUrl : undefined;
+      if (prUrl) {
+        completionEvidence = await verifyPullRequestProof({ repo: getRuneRuntimeIdentity().repo, prUrl, requiredProof: ["pr", "merge"] });
+      }
       if (!pr.ok) {
         await addWorkspaceTaskCheckpoint(task.id, {
           label: "Executor stopped at PR gate",
@@ -362,11 +370,11 @@ export async function runOperatorExecutorBridge(options: {
         : `Repo Control proposal ${proposalResult.proposal.id} was created and safe checks ran. Executor Bridge v2 stopped before PR, merge, deploy, or external edits.`,
       completedStep: prUrl ? "open_pr_if_approved" : "temp_workspace_check",
       nextStep: prUrl ? "Review the PR. Merge/deploy still require separate approval gates." : "Approve the Repo Control proposal if PR creation is desired.",
-      metadata: { runnerId, proposalId: proposalResult.proposal.id, prUrl, steps, plan },
+      metadata: { runnerId, proposalId: proposalResult.proposal.id, prUrl, steps, plan, completionEvidence, completionTruth: completionEvidence?.completionTruth, completed: completionEvidence?.completed ?? false },
     });
 
     await completeWorkspaceTask(task.id, prUrl
-      ? `Executor Bridge v2 opened PR ${prUrl} and stopped before merge/deploy.`
+      ? `Executor Bridge v2 opened PR ${prUrl}; verifier says ${completionEvidence?.summary || "completion proof is still pending"}. Merge/deploy were not performed.`
       : `Executor Bridge v2 prepared Repo Control proposal ${proposalResult.proposal.id}. No PR, merge, deploy, or external account mutation happened.`);
     return {
       ok: true,
@@ -375,9 +383,12 @@ export async function runOperatorExecutorBridge(options: {
       plan,
       proposalId: proposalResult.proposal.id,
       prUrl,
+      completionEvidence,
+      completionTruth: completionEvidence?.completionTruth ?? "not_completed_yet_do_not_claim_done",
+      completed: completionEvidence?.completed ?? false,
       steps,
       message: prUrl
-        ? "Executor Bridge v2 opened a PR after approval/check gates and stopped before merge/deploy."
+        ? `Executor Bridge v2 opened a PR after approval/check gates. ${completionEvidence?.summary || "Completion proof is still pending."} Merge/deploy were not performed.`
         : "Executor Bridge v2 completed safe checks and stopped before PR/merge/deploy gates.",
     };
   } catch (error) {
