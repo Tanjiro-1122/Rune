@@ -458,6 +458,13 @@ interface OperatorBriefingSnapshot {
       trigger: string;
       safeInvestigationSteps: string[];
     };
+    outcomeScore?: {
+      status: string;
+      score: number;
+      confidence: string;
+      summary: string;
+      suggestedAdjustment: string;
+    };
     rankedSignals: Array<{ id: string; title: string; score: number; risk: string; target: string }>;
   };
   safetyNotice: string[];
@@ -3105,6 +3112,7 @@ export function Chat() {
                     )}
                     {displayedOperatorBriefing?.recommendedNextAction && <small>Next: {displayedOperatorBriefing.recommendedNextAction.title}</small>}
                     {displayedOperatorBriefing?.priorityDecisionBrief?.topDecision ? <small>Brain: {displayedOperatorBriefing.priorityDecisionBrief.topDecision.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.risk} risk · {displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.confidence ?? "medium"} confidence · {displayedOperatorBriefing.priorityDecisionBrief.decisionHistory?.isRecurring ? `Recurring +${displayedOperatorBriefing.priorityDecisionBrief.decisionHistory.recurrenceBoost}` : "New signal"} · {displayedOperatorBriefing.priorityDecisionBrief.rootCauseRunbook?.applies ? `Runbook: ${displayedOperatorBriefing.priorityDecisionBrief.rootCauseRunbook.safeInvestigationSteps[0]}` : (displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.allowedNextStep ?? displayedOperatorBriefing.priorityDecisionBrief.topDecision.nextStep)}</small> : null}
+                    {displayedOperatorBriefing?.priorityDecisionBrief?.outcomeScore ? <small>Outcome: {displayedOperatorBriefing.priorityDecisionBrief.outcomeScore.status} · {displayedOperatorBriefing.priorityDecisionBrief.outcomeScore.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.outcomeScore.suggestedAdjustment}</small> : null}
                     {displayedOperatorBriefing?.completionLedger?.latestSummary ? <small>Completed: {displayedOperatorBriefing.completionLedger.latestSummary}</small> : null}
                     {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
                     {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}

@@ -9,6 +9,7 @@ import { createOperatorPriorityDecisionBrief, type OperatorPriorityDecisionBrief
 import { applyDecisionHistoryBoost, getOperatorDecisionHistorySignal } from "@/lib/operator-decision-history";
 import { createOperatorRootCauseRunbook } from "@/lib/operator-root-cause-runbook";
 import { getOperatorCompletionLedger, type OperatorCompletionLedger } from "@/lib/operator-completion-ledger";
+import { scoreOperatorOutcome } from "@/lib/operator-outcome-scoring";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
@@ -390,11 +391,17 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
   }));
   const boostedTopDecision = applyDecisionHistoryBoost(basePriorityDecisionBrief.topDecision, decisionHistory);
   const rootCauseRunbook = createOperatorRootCauseRunbook({ decision: boostedTopDecision, history: decisionHistory });
+  const outcomeScore = scoreOperatorOutcome({
+    decision: boostedTopDecision,
+    history: decisionHistory,
+    completionLedger,
+  });
   const priorityDecisionBrief = {
     ...basePriorityDecisionBrief,
     topDecision: boostedTopDecision,
     decisionHistory,
     rootCauseRunbook,
+    outcomeScore,
     rankedSignals: [boostedTopDecision, ...basePriorityDecisionBrief.rankedSignals.filter((signal) => signal.id !== boostedTopDecision.id)],
   };
   const recommendedNextAction = priorityDecisionBrief.topDecision.target === "none"

@@ -36,6 +36,7 @@ export interface OperatorPriorityDecisionBrief {
   decisionExplanation: OperatorDecisionExplanation;
   decisionHistory?: import("@/lib/operator-decision-history").OperatorDecisionHistorySignal;
   rootCauseRunbook?: import("@/lib/operator-root-cause-runbook").OperatorRootCauseRunbook;
+  outcomeScore?: import("@/lib/operator-outcome-scoring").OperatorOutcomeScore;
   rankedSignals: OperatorDecisionSignal[];
   safetyBoundary: string[];
 }
