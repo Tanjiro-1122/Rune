@@ -2,6 +2,7 @@ import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
 import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
+import { auditPrivilegedOperationGate, evaluatePrivilegedOperationGate } from "@/lib/privileged-operations";
 
 export type DeploymentControlAction = "inspect" | "prepare_redeploy" | "prepare_rollback" | "execute_redeploy" | "execute_rollback";
 
@@ -188,9 +189,13 @@ function getDeploymentMutationMode() {
   return ((process.env.RUNE_DEPLOYMENT_MUTATION_MODE ?? process.env.JARVIS_DEPLOYMENT_MUTATION_MODE) || "disabled").trim().toLowerCase();
 }
 
+function privilegedKindForDeploymentAction(action: "execute_redeploy" | "execute_rollback") {
+  return action === "execute_redeploy" ? "deploy" : "rollback";
+}
+
 function expectedDeploymentApprovalText(action: "execute_redeploy" | "execute_rollback") {
   return action === "execute_redeploy"
-    ? "APPROVE RUNE REDEPLOY"
+    ? "APPROVE RUNE DEPLOY"
     : "APPROVE RUNE ROLLBACK";
 }
 
@@ -216,8 +221,46 @@ export async function executeDeploymentControlAction(options: {
         ? inspection.deployments[0] ?? null
         : null;
 
+  const privilegedKind = privilegedKindForDeploymentAction(options.action);
+  const scope = options.action === "execute_redeploy"
+    ? {
+        project: project || getRuneRuntimeIdentity().vercelProjectId || "runeai",
+        environment: "production",
+        commit_sha: selectedDeployment?.uid || selectedDeployment?.url || "selected-vercel-deployment",
+      }
+    : {
+        project: project || getRuneRuntimeIdentity().vercelProjectId || "runeai",
+        environment: "production",
+        rollback_target: selectedDeployment?.uid || selectedDeployment?.url || "selected-vercel-deployment",
+      };
+  const evidence = options.action === "execute_redeploy"
+    ? {
+        build_passed: selectedDeployment?.state || "inspection_required",
+        target_environment: "production",
+        release_summary: `Redeploy selected Vercel deployment ${selectedDeployment?.url || selectedDeployment?.uid || "unknown"}`,
+        rollback_plan: "Use the paired privileged rollback gate to restore the previous READY production deployment.",
+      }
+    : {
+        incident_summary: options.reason || "Rollback requested by owner.",
+        current_deployment: inspection.ok ? inspection.deployments[0]?.url || inspection.deployments[0]?.uid || "unknown" : "inspection_failed",
+        target_rollback_deployment: selectedDeployment?.url || selectedDeployment?.uid || "unknown",
+        blast_radius: "Production Vercel deployment alias for Rune.",
+      };
+  const gate = evaluatePrivilegedOperationGate({
+    kind: privilegedKind,
+    approvalText,
+    dryRun: true,
+    scope,
+    evidence,
+    requestedBy: "deployment-control",
+    projectKey: "rune",
+    workspaceId: options.workspaceId ?? null,
+    conversationId: options.conversationId ?? null,
+  });
+
   const baseMetadata = {
     action: options.action,
+    privilegedKind,
     reason: options.reason || null,
     selectedDeployment,
     expectedApproval,
@@ -226,23 +269,37 @@ export async function executeDeploymentControlAction(options: {
     configured: Boolean(token),
     project: project || null,
     teamId: teamId || null,
+    privilegedGate: gate,
   };
 
-  if (approvalText !== expectedApproval) {
+  await auditPrivilegedOperationGate({
+    kind: privilegedKind,
+    approvalText,
+    dryRun: true,
+    scope,
+    evidence,
+    requestedBy: "deployment-control",
+    projectKey: "rune",
+    workspaceId: options.workspaceId ?? null,
+    conversationId: options.conversationId ?? null,
+  }, gate);
+
+  if (!gate.canExecute) {
     await logActionEvent({
       eventType: `deployment.${options.action}.blocked`,
-      summary: `Deployment ${options.action.replace("execute_", "")} blocked: approval phrase missing`,
+      summary: `Deployment ${options.action.replace("execute_", "")} blocked by privileged gate`,
       status: "blocked",
       approvalStage: "approval",
       riskLevel: "high",
       projectKey: "rune",
-      metadata: { ...baseMetadata, reason_blocked: "approval_text_mismatch" },
+      metadata: { ...baseMetadata, reason_blocked: "privileged_gate_blocked" },
     });
     return {
       ok: false,
       blocked: true,
-      error: `Deployment mutation requires exact approval text: ${expectedApproval}`,
+      error: `Deployment mutation requires the privileged gate: ${expectedApproval}`,
       expectedApproval,
+      privilegedGate: gate,
       safety: "blocked_no_deployment_mutation",
     };
   }
@@ -293,7 +350,7 @@ export async function executeDeploymentControlAction(options: {
     return {
       ok: false,
       blocked: true,
-      error: "Approval was valid, but deployment mutation is disabled because JARVIS_DEPLOYMENT_MUTATION_MODE is not set to cli_runner.",
+      error: "Approval was valid, but deployment mutation is disabled because RUNE_DEPLOYMENT_MUTATION_MODE is not set to cli_runner.",
       action: options.action,
       deployment: selectedDeployment,
       documentedCommand: command,
