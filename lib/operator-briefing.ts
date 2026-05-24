@@ -8,6 +8,7 @@ import { logError } from "@/lib/errors";
 import { createOperatorPriorityDecisionBrief, type OperatorPriorityDecisionBrief } from "@/lib/operator-priority-brain";
 import { applyDecisionHistoryBoost, getOperatorDecisionHistorySignal } from "@/lib/operator-decision-history";
 import { createOperatorRootCauseRunbook } from "@/lib/operator-root-cause-runbook";
+import { getOperatorCompletionLedger, type OperatorCompletionLedger } from "@/lib/operator-completion-ledger";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
@@ -68,6 +69,7 @@ export interface OperatorBriefing {
   tasks: OperatorBriefingTaskSummary[];
   memory: OperatorBriefingMemorySummary;
   priorityDecisionBrief: OperatorPriorityDecisionBrief;
+  completionLedger: OperatorCompletionLedger;
   safetyNotice: string[];
 }
 
@@ -335,7 +337,7 @@ function chooseRecommendedNextAction(options: {
 }
 
 export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
-  const [deployResult, memory, tasks, proposals] = await Promise.all([
+  const [deployResult, memory, tasks, proposals, completionLedger] = await Promise.all([
     getDeployHealthSnapshot({ skipActionLog: true }).catch((error) => {
       logError("operatorBriefing.deployHealth", error);
       return null;
@@ -343,6 +345,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     getMemorySummary(),
     getRecentWorkspaceTasks(),
     listRepoActionProposals({ limit: 12 }),
+    getOperatorCompletionLedger({ limit: 6 }),
   ]);
 
   const projectResults = await Promise.all(
@@ -420,6 +423,7 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     tasks,
     memory,
     priorityDecisionBrief,
+    completionLedger,
     safetyNotice: [
       "Daily Operator Briefing is read-only.",
       "No repo merge, deploy, rollback, release, schema change, payment action, customer message, runner job, or entitlement change is executed.",
