@@ -435,6 +435,13 @@ interface OperatorBriefingSnapshot {
       risk: string;
       nextStep: string;
     };
+    decisionExplanation?: {
+      summary: string;
+      whyItMatters: string;
+      allowedNextStep: string;
+      blockedActions: string[];
+      confidence: string;
+    };
     rankedSignals: Array<{ id: string; title: string; score: number; risk: string; target: string }>;
   };
   safetyNotice: string[];
@@ -3081,7 +3088,7 @@ export function Chat() {
                       <button type="button" onClick={() => void refreshOperatorConsole(selectedProjectKey)} disabled={operatorBusy || buildIntelBusy || deployHealthBusy}>Load briefing</button>
                     )}
                     {displayedOperatorBriefing?.recommendedNextAction && <small>Next: {displayedOperatorBriefing.recommendedNextAction.title}</small>}
-                    {displayedOperatorBriefing?.priorityDecisionBrief?.topDecision ? <small>Brain: {displayedOperatorBriefing.priorityDecisionBrief.topDecision.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.risk} risk · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.nextStep}</small> : null}
+                    {displayedOperatorBriefing?.priorityDecisionBrief?.topDecision ? <small>Brain: {displayedOperatorBriefing.priorityDecisionBrief.topDecision.score}/100 · {displayedOperatorBriefing.priorityDecisionBrief.topDecision.risk} risk · {displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.confidence ?? "medium"} confidence · {displayedOperatorBriefing.priorityDecisionBrief.decisionExplanation?.allowedNextStep ?? displayedOperatorBriefing.priorityDecisionBrief.topDecision.nextStep}</small> : null}
                     {selectedBriefingProject?.warnings?.length ? <small>{selectedBriefingProject.label}: {selectedBriefingProject.warnings[0]}</small> : null}
                     {operatorBriefingStatus && <small>{operatorBriefingStatus}</small>}
                   </article>
