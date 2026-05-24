@@ -106,7 +106,8 @@
     "test:operator-decision-memory": "node scripts/operator-decision-memory-smoke-test.mjs",
     "test:operator-decision-history": "node scripts/operator-decision-history-smoke-test.mjs",
     "test:operator-root-cause-runbook": "node scripts/operator-root-cause-runbook-smoke-test.mjs",
-    "test:operator-completion-ledger": "node scripts/operator-completion-ledger-smoke-test.mjs"
+    "test:operator-completion-ledger": "node scripts/operator-completion-ledger-smoke-test.mjs",
+    "test:operator-outcome-scoring": "node scripts/operator-outcome-scoring-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
