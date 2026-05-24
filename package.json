@@ -128,7 +128,9 @@
     "proof:production": "node scripts/production-proof-runner.mjs",
     "proof:base44-shutdown-drill": "node scripts/base44-shutdown-drill-report.mjs",
     "test:whatsapp-command-control-proof": "node scripts/whatsapp-command-control-proof-smoke-test.mjs",
-    "test:owned-command-inbound-scaffold": "node scripts/owned-command-inbound-scaffold-smoke-test.mjs"
+    "test:owned-command-inbound-scaffold": "node scripts/owned-command-inbound-scaffold-smoke-test.mjs",
+    "test:command-inbound-middleware-allow": "node scripts/command-inbound-middleware-allow-smoke-test.mjs",
+    "proof:owned-command-inbound": "node scripts/owned-command-inbound-production-proof.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
