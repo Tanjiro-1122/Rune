@@ -111,7 +111,8 @@
     "test:whatsapp-operator-brain-summary": "node scripts/whatsapp-operator-brain-summary-smoke-test.mjs",
     "test:operator-failure-evidence-bundle": "node scripts/operator-failure-evidence-bundle-smoke-test.mjs",
     "test:repo-access-capability": "node scripts/repo-access-capability-smoke-test.mjs",
-    "test:privileged-operations-control-plane": "node scripts/privileged-operations-control-plane-smoke-test.mjs"
+    "test:privileged-operations-control-plane": "node scripts/privileged-operations-control-plane-smoke-test.mjs",
+    "test:privileged-merge": "node scripts/privileged-merge-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
