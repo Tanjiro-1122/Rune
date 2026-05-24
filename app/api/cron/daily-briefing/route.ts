@@ -16,6 +16,7 @@ import { sendPushNotificationsToAll } from "@/lib/push-notify";
 import { getRevenueCatOverview } from "@/lib/revenuecat-overview";
 import { buildWhatsAppBriefingMessage } from "@/lib/whatsapp-briefing";
 import { getCrossAppIntelligence } from "@/lib/cross-app-intelligence";
+import { writeOperatorDecisionMemory } from "@/lib/operator-decision-memory";
 
 function isAuthorizedCron(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -123,6 +124,17 @@ export async function GET(req: NextRequest) {
     // Save today's score for tomorrow's trend
     await saveTodayHealthScore(supabase, avgScore);
 
+    // Save the top operator decision as compact long-term memory.
+    // This is intentionally in the cron path, not the read-only briefing GET route.
+    const decisionMemory = await writeOperatorDecisionMemory({
+      briefingGeneratedAt: briefing.generatedAt,
+      overallStatus: briefing.overallStatus,
+      priorityDecisionBrief: briefing.priorityDecisionBrief,
+    }).catch((error) => {
+      console.warn("[cron/daily-briefing] decision memory writeback failed:", error);
+      return { ok: false, error: String(error) };
+    });
+
     // Build the structured WhatsApp message
     const message = buildWhatsAppBriefingMessage({ briefing, rc, previousScore, openAiSpend });
 
@@ -158,6 +170,7 @@ export async function GET(req: NextRequest) {
       openAiSpend,
       message,
       pushResult,
+      decisionMemory,
       weeklyHighlight: intelligence.weeklyHighlight,
       crossAppInsight: intelligence.crossAppInsight,
     });
