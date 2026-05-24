@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import { createRepoActionProposal, runRepoControlFlow, updateRepoActionStatus, isRepoAllowed } from "@/lib/repo-actions";
 import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logError } from "@/lib/errors";
+import { verifyPullRequestProof } from "@/lib/repo-action-completion-verifier";
 
 const APPROVAL_PHRASE = "APPROVE SAFE FILE CREATE";
 const MAX_CONTENT_BYTES = 20_000;
@@ -117,7 +118,8 @@ export async function runSafeFileCreateFlow(input: SafeFileCreateInput): Promise
     const flow = await runRepoControlFlow({ id: proposalId, openPr: true, trackPr: true });
     if (!flow.ok) throw new Error("message" in flow ? String(flow.message) : "Repo Control flow failed for safe file create.");
     const prUrl = "prUrl" in flow ? flow.prUrl : undefined;
-    return { ok: true, approved: true, completed: false, completionState: "pr_opened_not_merged", completionProof: prUrl ? `PR opened: ${prUrl}. File ${path} is not on the default branch until merge.` : `Repo Control flow completed for proposal ${proposalId}, but no PR URL was returned.`, proposalId, prUrl, approvalPhrase: APPROVAL_PHRASE, message: `Safe file-create checks passed and a PR was opened, but ${path} is not on the default branch until the PR is merged. No merge or deploy happened.` };
+    const prEvidence = await verifyPullRequestProof({ repo: slug, prUrl, requiredProof: ["pr"] });
+    return { ok: true, approved: true, completed: false, completionState: "pr_opened_not_merged", completionProof: prEvidence.proof.find((item) => item.kind === "pr" && item.ok)?.url ? `Verified PR opened: ${prUrl}. File ${path} is not on the default branch until merge.` : `Repo Control flow completed for proposal ${proposalId}, but PR proof was not verified.`, proposalId, prUrl, approvalPhrase: APPROVAL_PHRASE, message: `Safe file-create checks passed and PR proof was checked, but ${path} is not on the default branch until the PR is merged. No merge or deploy happened.` };
   } catch (error) {
     logError("safeFileCreateFlow.run", error);
     return { ok: false, approved, completed: false, completionState: "failed", completionProof: null, approvalPhrase: APPROVAL_PHRASE, message: "Safe file create failed. No file was created, merged, or deployed.", error: error instanceof Error ? error.message : String(error) };

@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import { createRepoActionProposal, runRepoControlFlow, updateRepoActionStatus, isRepoAllowed } from "@/lib/repo-actions";
 import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logError } from "@/lib/errors";
+import { verifyPullRequestProof } from "@/lib/repo-action-completion-verifier";
 
 const APPROVAL_PHRASE = "APPROVE SAFE TEXT EDIT";
 const MAX_FILE_BYTES = 120_000;
