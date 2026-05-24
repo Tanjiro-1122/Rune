@@ -20,6 +20,7 @@ import {
   trackRepoActionPullRequest,
 } from "@/lib/repo-actions";
 import { classifyOperatorFailure, getOperatorRetryDecision, type OperatorFailureClassification } from "@/lib/operator-failure-classifier";
+import { checkRepoAccessCapability, type RepoAccessCapabilityReport } from "@/lib/repo-access-capability";
 
 export type OperatorExecutionActionType =
   | "inspect_repo"
@@ -40,6 +41,7 @@ export interface OperatorExecutionPlanAction {
 export interface OperatorExecutionPlan {
   taskType: "fix_code";
   safety: "repo_local_verifiable";
+  repoAccess?: RepoAccessCapabilityReport;
   targetFiles: string[];
   actions: OperatorExecutionPlanAction[];
   verification: string[];
@@ -266,6 +268,19 @@ export async function runOperatorExecutorBridge(options: {
     return { ok: false, taskId: task.id, runnerId, steps, message: planResult.error, error: planResult.error };
   }
   const plan = planResult.plan;
+  const repoAccess = await checkRepoAccessCapability(getRuneRuntimeIdentity().repo);
+  plan.repoAccess = repoAccess;
+  if (!repoAccess.ok || repoAccess.classification !== "fixable_by_code") {
+    await addWorkspaceTaskCheckpoint(task.id, {
+      label: "Executor blocked before repo mutation",
+      summary: repoAccess.reason,
+      blocker: repoAccess.reason,
+      nextStep: "Repair GitHub token/allowlist/repo access before attempting code remediation.",
+      metadata: { runnerId, plan, repoAccess },
+    });
+    await failWorkspaceTask(task.id, repoAccess.reason);
+    return { ok: false, taskId: task.id, runnerId, plan, steps, message: repoAccess.reason, error: repoAccess.reason };
+  }
 
   const claimed = await claimWorkspaceTaskForRunner({ taskId: task.id, runnerId, expectedWorkspaceId: options.workspaceId ?? null });
   if (!claimed) {

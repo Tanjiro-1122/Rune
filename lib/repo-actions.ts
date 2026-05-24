@@ -237,7 +237,7 @@ function parseUnifiedDiff(preview: string): ParsedDiffFile[] {
 }
 
 
-function getAllowedRepoSlugs() {
+export function getAllowedRepoSlugs() {
   const configured = (process.env.JARVIS_ALLOWED_REPOS || "")
     .split(",")
     .map((repo) => repo.trim())
@@ -245,7 +245,7 @@ function getAllowedRepoSlugs() {
   return new Set([DEFAULT_REPO, process.env.RUNE_GITHUB_REPO || DEFAULT_REPO, process.env.JARVIS_GITHUB_REPO || DEFAULT_REPO, ...configured].map((repo) => getRepoParts(repo).slug.toLowerCase()));
 }
 
-function isRepoAllowed(repoSlug: string) {
+export function isRepoAllowed(repoSlug: string) {
   return getAllowedRepoSlugs().has(getRepoParts(repoSlug).slug.toLowerCase());
 }
 
