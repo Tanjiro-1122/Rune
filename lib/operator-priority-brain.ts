@@ -20,11 +20,20 @@ export interface OperatorDecisionSignal {
   nextStep: string;
 }
 
+export interface OperatorDecisionExplanation {
+  summary: string;
+  whyItMatters: string;
+  allowedNextStep: string;
+  blockedActions: string[];
+  confidence: "low" | "medium" | "high";
+}
+
 export interface OperatorPriorityDecisionBrief {
   generatedAt: string;
   readOnly: true;
   brainVersion: "operator_priority_brain_v1";
   topDecision: OperatorDecisionSignal;
+  decisionExplanation: OperatorDecisionExplanation;
   rankedSignals: OperatorDecisionSignal[];
   safetyBoundary: string[];
 }
@@ -125,6 +134,47 @@ function memorySignals(memory: OperatorBriefingMemorySummary): OperatorDecisionS
   }];
 }
 
+
+function confidenceFor(signal: OperatorDecisionSignal, rankedSignals: OperatorDecisionSignal[]): "low" | "medium" | "high" {
+  if (signal.target === "none") return "high";
+  const secondScore = rankedSignals[1]?.score ?? 0;
+  if (signal.score >= 70 && signal.score - secondScore >= 10) return "high";
+  if (signal.score >= 40) return "medium";
+  return "low";
+}
+
+function explainDecision(signal: OperatorDecisionSignal, rankedSignals: OperatorDecisionSignal[]): OperatorDecisionExplanation {
+  if (signal.target === "none") {
+    return {
+      summary: "Rune does not see an urgent operator action right now.",
+      whyItMatters: "This keeps the operator from inventing work when health, task, proposal, and memory signals are calm.",
+      allowedNextStep: signal.nextStep,
+      blockedActions: ["Do not create busywork PRs.", "Do not deploy or mutate production without a real signal."],
+      confidence: "high",
+    };
+  }
+
+  const whyByTarget: Record<OperatorDecisionTarget, string> = {
+    health: "Project health issues can affect user-facing reliability, builds, deployments, or runtime confidence.",
+    repo: "Repo Control proposals are where code changes become auditable before any PR or release action.",
+    memory: "Rune depends on persistent owner/project memory to avoid repeating mistakes and losing context.",
+    tasks: "Runner tasks represent active or failed operator work that may need proof review before another step.",
+    none: "No action required.",
+  };
+
+  return {
+    summary: `${signal.title} is the current top-ranked operator decision at ${signal.score}/100 priority.`,
+    whyItMatters: whyByTarget[signal.target],
+    allowedNextStep: signal.nextStep,
+    blockedActions: [
+      "No merge without Javier approval.",
+      "No production deploy or rollback from this decision brief.",
+      "No schema, payment, entitlement, or customer-message mutation.",
+    ],
+    confidence: confidenceFor(signal, rankedSignals),
+  };
+}
+
 const noActionSignal = (): OperatorDecisionSignal => ({
   id: "none:calm",
   target: "none",
@@ -150,12 +200,14 @@ export function createOperatorPriorityDecisionBrief(input: {
   ].sort((a, b) => b.score - a.score).slice(0, 8);
 
   const topDecision = rankedSignals[0] || noActionSignal();
+  const decisionExplanation = explainDecision(topDecision, rankedSignals);
 
   return {
     generatedAt: new Date().toISOString(),
     readOnly: true,
     brainVersion: "operator_priority_brain_v1",
     topDecision,
+    decisionExplanation,
     rankedSignals,
     safetyBoundary: [
       "Decision brief is read-only ranking only.",
