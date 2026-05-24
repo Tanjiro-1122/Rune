@@ -5,10 +5,12 @@ export type AppForgeCompletionTruth =
   | "handoff_only_no_repo_created"
   | "queued_not_executed_no_repo_created"
   | "queued_not_executed_no_preview_deployed"
-  | "not_completed_yet_do_not_claim_app_created";
+  | "not_completed_yet_do_not_claim_app_created"
+  | "repo_created_with_github_proof"
+  | "preview_deployed_with_live_proof";
 
 export interface AppForgeProofContract {
-  completed: false;
+  completed: boolean;
   completionTruth: AppForgeCompletionTruth;
   completionEvidence: {
     repoUrl?: string | null;
@@ -320,5 +322,97 @@ export async function queueAppForgePreviewDeploy(input: QueueAppForgePreviewDepl
     requiredApprovalPhrase: APP_FORGE_PREVIEW_DEPLOY_APPROVAL_PHRASE,
     safety: queued.ok ? "queued_only_no_local_execution_preview_only_no_production" : "queue_failed_no_preview_deploy",
     nextAction: queued.ok ? "Run the trusted runner in execute mode to create the preview deployment." : "Fix the queue error, then retry.",
+  };
+}
+
+
+export interface VerifyAppForgeRunnerResultInput {
+  kind: "repo_create" | "preview_deploy";
+  repo: string;
+  branch?: string | null;
+  commitSha?: string | null;
+  prUrl?: string | null;
+  deploymentUrl?: string | null;
+  liveSmokeOk?: boolean | null;
+  runnerTaskId?: string | null;
+  runnerStatus?: string | null;
+}
+
+function normalizeRepoUrl(repo: string) {
+  const normalized = repo.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "");
+  return `https://github.com/${normalized}`;
+}
+
+function validGithubRepoSlug(repo: string) {
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, ""));
+}
+
+function validGithubPrUrl(prUrl?: string | null) {
+  return !prUrl || /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+$/i.test(prUrl);
+}
+
+function validCommitSha(commitSha?: string | null) {
+  return Boolean(commitSha && /^[a-f0-9]{7,40}$/i.test(commitSha));
+}
+
+function validDeploymentUrl(deploymentUrl?: string | null) {
+  return Boolean(deploymentUrl && /^https:\/\//i.test(deploymentUrl));
+}
+
+export function verifyAppForgeRunnerResult(input: VerifyAppForgeRunnerResultInput): AppForgeProofContract & {
+  ok: boolean;
+  kind: VerifyAppForgeRunnerResultInput["kind"];
+  repo: string;
+  branch?: string | null;
+  runnerTaskId?: string | null;
+  runnerStatus?: string | null;
+  message: string;
+  safety: string;
+} {
+  const repo = input.repo.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "");
+  const missing: string[] = [];
+  if (!validGithubRepoSlug(repo)) missing.push("github_repo_verification");
+  if (!input.branch) missing.push("branch_verification");
+  if (!validCommitSha(input.commitSha)) missing.push("commit_sha");
+  if (!validGithubPrUrl(input.prUrl)) missing.push("valid_pr_url");
+
+  if (input.kind === "preview_deploy") {
+    if (!validDeploymentUrl(input.deploymentUrl)) missing.push("deployment_url");
+    if (input.liveSmokeOk !== true) missing.push("live_smoke");
+  }
+
+  const completed = missing.length === 0;
+  const completionTruth: AppForgeCompletionTruth = completed
+    ? input.kind === "repo_create"
+      ? "repo_created_with_github_proof"
+      : "preview_deployed_with_live_proof"
+    : input.kind === "repo_create"
+      ? "queued_not_executed_no_repo_created"
+      : "queued_not_executed_no_preview_deployed";
+
+  return {
+    ok: true,
+    kind: input.kind,
+    repo,
+    branch: input.branch || null,
+    runnerTaskId: input.runnerTaskId || null,
+    runnerStatus: input.runnerStatus || null,
+    completed,
+    completionTruth,
+    completionEvidence: {
+      repoUrl: normalizeRepoUrl(repo),
+      branch: input.branch || null,
+      commitSha: input.commitSha || null,
+      prUrl: input.prUrl || null,
+      deploymentUrl: input.deploymentUrl || null,
+      verifiedAt: new Date().toISOString(),
+      missing,
+    },
+    message: completed
+      ? input.kind === "repo_create"
+        ? "App Forge runner result verified: GitHub repo, branch, commit SHA, and optional PR URL proof are present."
+        : "App Forge preview runner result verified: deployment URL and live smoke proof are present."
+      : `App Forge runner result is not complete. Missing proof: ${missing.join(", ")}. Do not claim the app/repo/deployment is complete.`,
+    safety: "verification_only_no_repo_no_deploy_no_schema_payment_dns_customer_mutation",
   };
 }
