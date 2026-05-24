@@ -79,6 +79,7 @@ import { createAppForgeRepoHandoff, createAppForgePreviewHandoff, queueAppForgeP
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 import { runSafeTextEditFlow } from "@/lib/safe-text-edit-flow";
+import { runSafeFileCreateFlow } from "@/lib/safe-file-create-flow";
 
 export const maxDuration = 60; // model: gpt-4.1 | last-patched: 2026-05-20 //5-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -434,6 +435,13 @@ function isCodeExecutionIntent(input: string, codeExecutionAvailable: boolean) {
   return hasCodeBlock || artifactIntent || (executionVerb && executionNoun);
 }
 
+function isSimpleSafeFileCreateIntent(input: string) {
+  return /\b(create|add|make|write)\b/i.test(input)
+    && /\b(file)\b/i.test(input)
+    && /\b(repo|rune|github)\b/i.test(input)
+    && !/\b(component|route|function|code|api|schema|database|payment|dns|customer)\b/i.test(input);
+}
+
 function isRepoControlCommand(input: string) {
   if (!input.trim()) return false;
   // Match explicit repo control commands
@@ -534,7 +542,8 @@ function getForcedToolChoice(
         | "get_rune_capability_snapshot"
         | "get_rune_self_audit_snapshot"
         | "get_tool_lifecycle_diagnostic"
-        | "execute_rune_session_merge";
+        | "execute_rune_session_merge"
+        | "run_safe_file_create_flow";
     }
   | null {
   if (isApprovedRuneSessionMergeIntent(input)) {
@@ -542,6 +551,9 @@ function getForcedToolChoice(
   }
   if (isFrozenDiagnosticIntent(input)) {
     return { type: "tool", toolName: "get_tool_lifecycle_diagnostic" };
+  }
+  if (isSimpleSafeFileCreateIntent(input)) {
+    return { type: "tool", toolName: "run_safe_file_create_flow" };
   }
   if (isRepoControlCommand(input)) {
     return null;
@@ -564,7 +576,7 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
   if (isRepoControlCommand(input)) {
     hints.push(
-      "- Strong routing signal: this is a code/repo change request. For small exact text replacements in README/Markdown/docs files, prefer run_safe_text_edit_flow after inspecting the real file; if Javier supplies APPROVE SAFE TEXT EDIT, it can run checks and open a PR. For broader code changes, follow this exact sequence: (1) use readRepositoryFile or listRepositoryTree to inspect real files first, (2) call create_repo_action_proposal with the exact diff/plan, (3) call run_repo_control_flow with the proposalId to execute and open the PR. NEVER use calculate, execute_code, or prose-only responses for file/repo changes. NEVER pretend a PR was opened without calling the real flow and getting a real prUrl back."
+      "- Strong routing signal: this is a code/repo change request. Never call calculate for repo/file mutation requests. For simple new text-file requests, use run_safe_file_create_flow. For small exact text replacements in README/Markdown/docs files, prefer run_safe_text_edit_flow after inspecting the real file. If Javier supplies the exact approval phrase, these flows can run checks and open a PR. For broader code changes, follow this exact sequence: (1) use readRepositoryFile or listRepositoryTree to inspect real files first, (2) call create_repo_action_proposal with the exact diff/plan, (3) call run_repo_control_flow with the proposalId to execute and open the PR. NEVER use calculate, execute_code, or prose-only responses for file/repo changes. NEVER pretend a PR was opened without calling the real flow and getting a real prUrl back."
     );
   }
 
@@ -1810,6 +1822,37 @@ Action: ${action.id}`,
         return {
           success: result.ok,
           ...result,
+        };
+      },
+    }),
+
+    run_safe_file_create_flow: tool({
+      description:
+        "Deterministically handle simple new text-file creation requests. It creates an exact Repo Control patch and if Javier supplies APPROVE SAFE FILE CREATE, approves the proposal, runs checks, and opens a PR. It never merges or deploys, and it never claims the file exists on main until verified after merge.",
+      parameters: z.object({
+        path: z.string().min(1).max(240).describe("Path of the new file to create, e.g. docs/note.md or a root text file"),
+        content: z.string().max(20000).optional().default(""),
+        repo: z.string().max(160).optional(),
+        projectKey: z.string().max(80).optional(),
+        approvalText: z.string().max(80).optional(),
+      }),
+      execute: async ({ path, content, repo, projectKey, approvalText }) => {
+        const result = await runSafeFileCreateFlow({
+          path,
+          content,
+          repo: repo || null,
+          projectKey: projectKey || "rune",
+          approvalText,
+          workspaceId: workspaceId ?? null,
+          conversationId: conversationId ?? null,
+        });
+        return {
+          success: result.completed,
+          actionSucceeded: result.ok,
+          ...result,
+          completionTruth: result.completed
+            ? "completed_with_proof"
+            : "not_completed_yet_do_not_claim_file_created",
         };
       },
     }),
@@ -3175,6 +3218,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - If a self-audit/tool card appeared delayed or stuck, explain the lifecycle plainly: tool call started, result/summary rendering lagged, and the next product fix is task lifecycle visibility — not a fake backend outage unless logs prove one.
 - Frozen/stuck diagnostic rule: when Javier asks why Rune froze, got stuck, stopped responding, was lost for a second, says the answer appears only after sending a question mark, or asks follow-ups like "?," "fix it," "go ahead," "recheck," or "did you find the same problem" in that context, use the lightweight tool lifecycle diagnostic. Do not answer with generic claims like "temporary processing delay," "the system was busy," "system load," "high traffic," "resource allocation," "caching opportunities," "excessive logging," or "backend lag" unless a real log/tool result proves it. State the exact verified evidence, then the most likely unverified cause, then the concrete patch path.
 - Never say "I reviewed system load," "I reviewed performance metrics," "I confirmed high traffic," or "I analyzed current request handling" unless an actual runtime/log/code-inspection tool result appears in the current answer context. If no such tool ran, say the claim is unverified and propose the safe inspection path.
+- Repo action proof rule: if a tool result lacks a real PR URL, commit SHA, merge result, deployment URL, or verified GitHub file-content proof, do not say a PR/merge/file creation happened. If the wrong tool, especially calculate, was called for a repo task, admit the routing failure and stop; do not invent success.
 - Repo completion truth rule: for repo/file tasks, never say "done", "changed", "fixed", "updated", or "completed" unless the current tool result contains concrete completion proof such as a PR URL, commit SHA, merge result, deployment URL, or verified file content on the default branch. Creating a proposal is not completion. Opening a PR is not the same as changing main. If the tool result says completed=false or completionTruth=not_completed_yet_do_not_claim_file_changed, say exactly what happened and what remains.
 - Lead with the answer, not a label. Skip phrases like "Short answer:" or "Here's what matters:" — just say the thing directly.
 - Avoid ending with "If you need anything else" or "please let me know." End with a specific suggested next action.
