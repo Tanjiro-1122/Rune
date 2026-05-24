@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { listPrivilegedOperationPolicies, evaluatePrivilegedOperationGate } from "@/lib/privileged-operations";
 import { runPrivilegedMerge } from "@/lib/privileged-merge";
+import { runPrivilegedDeployment } from "@/lib/privileged-deployment";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
 
 const OperationSchema = z.object({
-  action: z.enum(["list_policies", "evaluate_gate", "merge"]),
+  action: z.enum(["list_policies", "evaluate_gate", "merge", "deploy", "rollback"]),
   kind: z.enum(["merge", "deploy", "rollback", "change_payments", "grant_entitlements", "mutate_schema", "mutate_dns", "mutate_customer_systems"]).optional(),
   approvalText: z.string().max(120).nullable().optional(),
   dryRun: z.boolean().default(true),
@@ -13,6 +14,12 @@ const OperationSchema = z.object({
   evidence: z.record(z.string(), z.unknown()).nullable().optional(),
   repo: z.string().max(180).optional(),
   prNumber: z.number().int().positive().optional(),
+  deploymentId: z.string().max(180).nullable().optional(),
+  project: z.string().max(120).nullable().optional(),
+  environment: z.string().max(80).nullable().optional(),
+  commitSha: z.string().max(120).nullable().optional(),
+  reason: z.string().max(500).nullable().optional(),
+  buildPassed: z.boolean().nullable().optional(),
   projectKey: z.string().max(80).nullable().optional(),
   workspaceId: z.string().uuid().nullable().optional(),
   conversationId: z.string().uuid().nullable().optional(),
@@ -63,6 +70,25 @@ export async function POST(req: NextRequest) {
       prNumber: parsed.data.prNumber,
       approvalText: parsed.data.approvalText,
       dryRun: parsed.data.dryRun,
+      requestedBy: sessionId,
+      projectKey: parsed.data.projectKey || "rune",
+      workspaceId: parsed.data.workspaceId,
+      conversationId: parsed.data.conversationId,
+    });
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  }
+
+  if (parsed.data.action === "deploy" || parsed.data.action === "rollback") {
+    const result = await runPrivilegedDeployment({
+      kind: parsed.data.action,
+      deploymentId: parsed.data.deploymentId,
+      approvalText: parsed.data.approvalText,
+      dryRun: parsed.data.dryRun,
+      project: parsed.data.project,
+      environment: parsed.data.environment,
+      commitSha: parsed.data.commitSha,
+      reason: parsed.data.reason,
+      buildPassed: parsed.data.buildPassed,
       requestedBy: sessionId,
       projectKey: parsed.data.projectKey || "rune",
       workspaceId: parsed.data.workspaceId,
