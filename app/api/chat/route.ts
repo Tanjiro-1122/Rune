@@ -78,6 +78,7 @@ import { createAppCreatorProposal, createApprovedAppScaffold, prepareAppCreatorP
 import { createAppForgeRepoHandoff, createAppForgePreviewHandoff, queueAppForgePreviewDeploy, queueAppForgeRepoCreate } from "@/lib/app-forge";
 import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
+import { runSafeTextEditFlow } from "@/lib/safe-text-edit-flow";
 
 export const maxDuration = 60; // model: gpt-4.1 | last-patched: 2026-05-20 //5-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
@@ -563,7 +564,7 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
   if (isRepoControlCommand(input)) {
     hints.push(
-      "- Strong routing signal: this is a code/repo change request. ALWAYS follow this exact sequence: (1) use readRepositoryFile or listRepositoryTree to inspect real files first, (2) call create_repo_action_proposal with the exact diff/plan, (3) call run_repo_control_flow with the proposalId to execute and open the PR. NEVER use calculate, execute_code, or prose-only responses for file/repo changes. NEVER pretend a PR was opened without calling run_repo_control_flow and getting a real prUrl back."
+      "- Strong routing signal: this is a code/repo change request. For small exact text replacements in README/Markdown/docs files, prefer run_safe_text_edit_flow after inspecting the real file; if Javier supplies APPROVE SAFE TEXT EDIT, it can run checks and open a PR. For broader code changes, follow this exact sequence: (1) use readRepositoryFile or listRepositoryTree to inspect real files first, (2) call create_repo_action_proposal with the exact diff/plan, (3) call run_repo_control_flow with the proposalId to execute and open the PR. NEVER use calculate, execute_code, or prose-only responses for file/repo changes. NEVER pretend a PR was opened without calling the real flow and getting a real prUrl back."
     );
   }
 
@@ -1810,6 +1811,32 @@ Action: ${action.id}`,
           success: result.ok,
           ...result,
         };
+      },
+    }),
+
+    run_safe_text_edit_flow: tool({
+      description:
+        "Deterministically handle small approved text replacements in README/Markdown/docs files. It inspects the real GitHub file, creates an exact Repo Control patch, and if Javier supplies APPROVE SAFE TEXT EDIT, approves the proposal, runs checks, and opens a PR. It never merges or deploys.",
+      parameters: z.object({
+        path: z.string().min(1).max(240),
+        search: z.string().min(1).max(500),
+        replace: z.string().max(500),
+        repo: z.string().max(160).optional(),
+        projectKey: z.string().max(80).optional(),
+        approvalText: z.string().max(80).optional(),
+      }),
+      execute: async ({ path, search, replace, repo, projectKey, approvalText }) => {
+        const result = await runSafeTextEditFlow({
+          path,
+          search,
+          replace,
+          repo: repo || null,
+          projectKey: projectKey || "rune",
+          approvalText,
+          workspaceId: workspaceId ?? null,
+          conversationId: conversationId ?? null,
+        });
+        return { success: result.ok, ...result };
       },
     }),
 
