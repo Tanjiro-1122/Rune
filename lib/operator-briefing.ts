@@ -7,6 +7,7 @@ import { RUNE_CANONICAL_PROJECTS, getProjectByKey, type RuneProjectKey } from "@
 import { logError } from "@/lib/errors";
 import { createOperatorPriorityDecisionBrief, type OperatorPriorityDecisionBrief } from "@/lib/operator-priority-brain";
 import { applyDecisionHistoryBoost, getOperatorDecisionHistorySignal } from "@/lib/operator-decision-history";
+import { createOperatorRootCauseRunbook } from "@/lib/operator-root-cause-runbook";
 
 export type OperatorBriefingStatus = "healthy" | "warning" | "blocked";
 
@@ -385,10 +386,12 @@ export async function getDailyOperatorBriefing(): Promise<OperatorBriefing> {
     summary: "Decision history unavailable.",
   }));
   const boostedTopDecision = applyDecisionHistoryBoost(basePriorityDecisionBrief.topDecision, decisionHistory);
+  const rootCauseRunbook = createOperatorRootCauseRunbook({ decision: boostedTopDecision, history: decisionHistory });
   const priorityDecisionBrief = {
     ...basePriorityDecisionBrief,
     topDecision: boostedTopDecision,
     decisionHistory,
+    rootCauseRunbook,
     rankedSignals: [boostedTopDecision, ...basePriorityDecisionBrief.rankedSignals.filter((signal) => signal.id !== boostedTopDecision.id)],
   };
   const recommendedNextAction = priorityDecisionBrief.topDecision.target === "none"
