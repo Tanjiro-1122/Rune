@@ -10,6 +10,12 @@ Rune's owned command channel must be proven in stages. The first safe production
 - `POST /api/commands/inbound` returns `403` with `blocked: true`.
 - The POST response lists the missing proof needed before command execution, including provider signature verification.
 
+## Middleware boundary
+
+The production webhook path must be allowed through `middleware.ts` so the route handler can perform provider-specific verification and return the locked contract. Middleware should not try to validate WhatsApp/Twilio signatures because the route handler needs provider-specific headers and raw body handling.
+
+The route must still block execution by default until signature verification, owner allowlist, command persistence, queue handoff, and owned outbound proof responses are implemented.
+
 ## What this proof does not do
 
 - It does not execute commands.
