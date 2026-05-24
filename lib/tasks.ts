@@ -409,8 +409,9 @@ export async function createWorkspaceTask(options: {
   inputText: string;
   intent?: string | null;
   steps: WorkspaceTaskStepInput[];
+  runnerMetadata?: Record<string, unknown> | null;
 }) {
-  const { workspaceId, conversationId, title, inputText, intent, steps } = options;
+  const { workspaceId, conversationId, title, inputText, intent, steps, runnerMetadata } = options;
   const supabase = getSupabaseClient();
   if (!supabase || !workspaceId) return null;
 
@@ -425,6 +426,7 @@ export async function createWorkspaceTask(options: {
       status: "queued",
       progress: 0,
       resume_count: 0,
+      runner_metadata: runnerMetadata ?? {},
     })
     .select(WORKSPACE_TASK_SELECT)
     .single();
