@@ -46,6 +46,21 @@ export interface OperatorExecutionPlan {
   forbiddenActions: string[];
 }
 
+export interface OperatorFailureEvidenceBundle {
+  parentTaskId: string;
+  failureClass: OperatorFailureClassification["failureClass"];
+  disposition: OperatorFailureClassification["disposition"];
+  reason: string;
+  failedStage: string | null;
+  failedStageError: string;
+  targetFiles: string[];
+  verification: string[];
+  attemptedRetries: number;
+  stageProofs: Array<{ action: string; ok: boolean; proof?: string; error?: string }>;
+  nextSafeAction: string;
+  forbiddenActions: string[];
+}
+
 export interface OperatorExecutorResult {
   ok: boolean;
   taskId: string;
@@ -150,15 +165,56 @@ async function runStageWithRetry<T extends OperatorStageResult>(input: {
   return lastResult as T;
 }
 
+
+function createFailureEvidenceBundle(input: {
+  task: WorkspaceTaskSummary;
+  classification: OperatorFailureClassification;
+  message: string;
+  plan?: OperatorExecutionPlan;
+  steps: OperatorExecutorResult["steps"];
+  attemptedRetries: number;
+}): OperatorFailureEvidenceBundle {
+  const failed = [...input.steps].reverse().find((step) => !step.ok) ?? null;
+  return {
+    parentTaskId: input.task.id,
+    failureClass: input.classification.failureClass,
+    disposition: input.classification.disposition,
+    reason: input.classification.reason,
+    failedStage: failed?.action ?? null,
+    failedStageError: failed?.error || input.message,
+    targetFiles: input.plan?.targetFiles ?? [],
+    verification: input.plan?.verification ?? [],
+    attemptedRetries: input.attemptedRetries,
+    stageProofs: input.steps.slice(-8).map((step) => ({
+      action: step.action,
+      ok: step.ok,
+      proof: step.proof,
+      error: step.error,
+    })),
+    nextSafeAction: "Inspect this evidence bundle, inspect target files, then prepare a small gated Repo Control follow-up proposal. Stop before merge/deploy/external mutations.",
+    forbiddenActions: input.plan?.forbiddenActions ?? ["merge", "deploy", "rollback", "external_account_edit", "database_migration", "payment_change"],
+  };
+}
+
 async function createFailureFollowUpTask(input: {
   task: WorkspaceTaskSummary;
   classification: OperatorFailureClassification;
   message: string;
   plan?: OperatorExecutionPlan;
   steps: OperatorExecutorResult["steps"];
+  attemptedRetries: number;
 }) {
   if (input.classification.disposition !== "non_retryable") return null;
   if (!["invalid_patch", "build_compile_error", "test_failure", "missing_target_file"].includes(input.classification.failureClass)) return null;
+
+  const failureEvidenceBundle = createFailureEvidenceBundle({
+    task: input.task,
+    classification: input.classification,
+    message: input.message,
+    plan: input.plan,
+    steps: input.steps,
+    attemptedRetries: input.attemptedRetries,
+  });
 
   return createWorkspaceTask({
     workspaceId: input.task.workspaceId,
@@ -168,9 +224,16 @@ async function createFailureFollowUpTask(input: {
       `Parent task: ${input.task.id}`,
       `Failure class: ${input.classification.failureClass}`,
       `Reason: ${input.classification.reason}`,
+      `Failed stage: ${failureEvidenceBundle.failedStage ?? "unknown"}`,
       `Error: ${input.message}`,
+      `Next safe action: ${failureEvidenceBundle.nextSafeAction}`,
     ].join("\n"),
     intent: "fix_code",
+    runnerMetadata: {
+      failureEvidenceBundle,
+      parentTaskId: input.task.id,
+      source: "operator_executor_failure_recovery",
+    },
     steps: [
       { key: "inspect_failure", label: "Inspect preserved executor failure proof" },
       ...(input.plan?.targetFiles ?? []).map((path, index) => ({ key: `inspect_target_${index + 1}`, label: `Inspect ${path}` })),
@@ -306,7 +369,8 @@ export async function runOperatorExecutorBridge(options: {
     const message = error instanceof Error ? error.message : "Operator executor failed.";
     const classification = classifyOperatorFailure(message);
     const attemptedRetries = Math.max(0, steps.filter((step) => /:attempt_\d+$/.test(step.action)).length);
-    const followUpTaskId = await createFailureFollowUpTask({ task, classification, message, plan, steps });
+    const followUpTaskId = await createFailureFollowUpTask({ task, classification, message, plan, steps, attemptedRetries });
+    const failureEvidenceBundle = createFailureEvidenceBundle({ task, classification, message, plan, steps, attemptedRetries });
     await addWorkspaceTaskCheckpoint(task.id, {
       label: "Executor stopped with classified failure",
       summary: `${classification.failureClass}: ${message}`,
@@ -319,6 +383,7 @@ export async function runOperatorExecutorBridge(options: {
           classification,
           retryPolicy: { maxAttempts: options.maxAttempts ?? 3, attemptedRetries },
           followUpTaskId,
+          failureEvidenceBundle,
         },
       },
     });
