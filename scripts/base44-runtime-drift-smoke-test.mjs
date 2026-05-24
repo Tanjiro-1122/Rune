@@ -8,6 +8,7 @@ const allowed = new Set([
   "app/ui-components.css",
   "scripts/migration_schema.sql",
   "scripts/base44-runtime-drift-smoke-test.mjs",
+  "scripts/base44-shutdown-drill-report.mjs",
 ]);
 const banned = [/api\.base44\.com/i, /base44\.app\/api/i, /BASE44_API_KEY/, /RUNE_BASE44_API_KEY/, /base44List\(/, /base44\.entities/i, /@\/api\/entities/];
 function walk(dir) {
