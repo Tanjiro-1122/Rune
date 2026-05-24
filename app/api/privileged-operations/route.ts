@@ -4,9 +4,10 @@ import { listPrivilegedOperationPolicies, evaluatePrivilegedOperationGate } from
 import { runPrivilegedMerge } from "@/lib/privileged-merge";
 import { runPrivilegedDeployment } from "@/lib/privileged-deployment";
 import { resolveOwnerSessionId } from "@/lib/owner-session";
+import { isSensitivePrivilegedKind, runPrivilegedSensitiveScaffold } from "@/lib/privileged-sensitive-scaffolds";
 
 const OperationSchema = z.object({
-  action: z.enum(["list_policies", "evaluate_gate", "merge", "deploy", "rollback"]),
+  action: z.enum(["list_policies", "evaluate_gate", "merge", "deploy", "rollback", "change_payments", "grant_entitlements", "mutate_schema", "mutate_dns", "mutate_customer_systems"]),
   kind: z.enum(["merge", "deploy", "rollback", "change_payments", "grant_entitlements", "mutate_schema", "mutate_dns", "mutate_customer_systems"]).optional(),
   approvalText: z.string().max(120).nullable().optional(),
   dryRun: z.boolean().default(true),
@@ -89,6 +90,21 @@ export async function POST(req: NextRequest) {
       commitSha: parsed.data.commitSha,
       reason: parsed.data.reason,
       buildPassed: parsed.data.buildPassed,
+      requestedBy: sessionId,
+      projectKey: parsed.data.projectKey || "rune",
+      workspaceId: parsed.data.workspaceId,
+      conversationId: parsed.data.conversationId,
+    });
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  }
+
+  if (isSensitivePrivilegedKind(parsed.data.action)) {
+    const result = await runPrivilegedSensitiveScaffold({
+      kind: parsed.data.action,
+      approvalText: parsed.data.approvalText,
+      dryRun: parsed.data.dryRun,
+      scope: parsed.data.scope,
+      evidence: parsed.data.evidence,
       requestedBy: sessionId,
       projectKey: parsed.data.projectKey || "rune",
       workspaceId: parsed.data.workspaceId,
