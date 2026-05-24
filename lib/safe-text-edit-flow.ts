@@ -18,9 +18,17 @@ export interface SafeTextEditInput {
   conversationId?: string | null;
 }
 
+export type SafeTextEditCompletionState =
+  | "proposal_created_not_applied"
+  | "pr_opened_not_merged"
+  | "failed";
+
 export interface SafeTextEditResult {
   ok: boolean;
   approved: boolean;
+  completed: boolean;
+  completionState: SafeTextEditCompletionState;
+  completionProof?: string | null;
   proposalId?: string;
   prUrl?: string;
   replacements?: number;
@@ -121,16 +129,47 @@ export async function runSafeTextEditFlow(input: SafeTextEditInput): Promise<Saf
     const proposalId = proposalResult.proposal.id;
 
     if (!approved) {
-      return { ok: true, approved: false, proposalId, replacements, approvalPhrase: APPROVAL_PHRASE, message: `Safe text edit proposal created. To run checks and open a PR, approve with: ${APPROVAL_PHRASE}` };
+      return {
+        ok: true,
+        approved: false,
+        completed: false,
+        completionState: "proposal_created_not_applied",
+        completionProof: `Repo Control proposal ${proposalId} created; no file was changed on the default branch.`,
+        proposalId,
+        replacements,
+        approvalPhrase: APPROVAL_PHRASE,
+        message: `Safe text edit proposal created, but the file is not changed yet. To run checks and open a PR, approve with: ${APPROVAL_PHRASE}`,
+      };
     }
 
     const approval = await updateRepoActionStatus({ id: proposalId, status: "approved", approvalNote: "Approved via Safe Text Edit exact approval phrase." });
     if (!approval.ok) throw new Error(approval.error || "Could not approve safe text edit proposal.");
     const flow = await runRepoControlFlow({ id: proposalId, openPr: true, trackPr: true });
     if (!flow.ok) throw new Error("message" in flow ? String(flow.message) : "Repo Control flow failed for safe text edit.");
-    return { ok: true, approved: true, proposalId, prUrl: "prUrl" in flow ? flow.prUrl : undefined, replacements, approvalPhrase: APPROVAL_PHRASE, message: "Safe text edit checks passed and PR was opened. No merge or deploy happened." };
+    const prUrl = "prUrl" in flow ? flow.prUrl : undefined;
+    return {
+      ok: true,
+      approved: true,
+      completed: false,
+      completionState: "pr_opened_not_merged",
+      completionProof: prUrl ? `PR opened: ${prUrl}. Default branch is not changed until merge.` : `Repo Control flow completed for proposal ${proposalId}, but no PR URL was returned.`,
+      proposalId,
+      prUrl,
+      replacements,
+      approvalPhrase: APPROVAL_PHRASE,
+      message: "Safe text edit checks passed and a PR was opened, but the requested file is not changed on the default branch until the PR is merged. No merge or deploy happened.",
+    };
   } catch (error) {
     logError("safeTextEditFlow.run", error);
-    return { ok: false, approved, approvalPhrase: APPROVAL_PHRASE, message: "Safe text edit flow failed. No merge or deploy happened.", error: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      approved,
+      completed: false,
+      completionState: "failed",
+      completionProof: null,
+      approvalPhrase: APPROVAL_PHRASE,
+      message: "Safe text edit flow failed. No file was changed, merged, or deployed.",
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

@@ -1836,7 +1836,14 @@ Action: ${action.id}`,
           workspaceId: workspaceId ?? null,
           conversationId: conversationId ?? null,
         });
-        return { success: result.ok, ...result };
+        return {
+          success: result.completed,
+          actionSucceeded: result.ok,
+          ...result,
+          completionTruth: result.completed
+            ? "completed_with_proof"
+            : "not_completed_yet_do_not_claim_file_changed",
+        };
       },
     }),
 
@@ -3168,6 +3175,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - If a self-audit/tool card appeared delayed or stuck, explain the lifecycle plainly: tool call started, result/summary rendering lagged, and the next product fix is task lifecycle visibility — not a fake backend outage unless logs prove one.
 - Frozen/stuck diagnostic rule: when Javier asks why Rune froze, got stuck, stopped responding, was lost for a second, says the answer appears only after sending a question mark, or asks follow-ups like "?," "fix it," "go ahead," "recheck," or "did you find the same problem" in that context, use the lightweight tool lifecycle diagnostic. Do not answer with generic claims like "temporary processing delay," "the system was busy," "system load," "high traffic," "resource allocation," "caching opportunities," "excessive logging," or "backend lag" unless a real log/tool result proves it. State the exact verified evidence, then the most likely unverified cause, then the concrete patch path.
 - Never say "I reviewed system load," "I reviewed performance metrics," "I confirmed high traffic," or "I analyzed current request handling" unless an actual runtime/log/code-inspection tool result appears in the current answer context. If no such tool ran, say the claim is unverified and propose the safe inspection path.
+- Repo completion truth rule: for repo/file tasks, never say "done", "changed", "fixed", "updated", or "completed" unless the current tool result contains concrete completion proof such as a PR URL, commit SHA, merge result, deployment URL, or verified file content on the default branch. Creating a proposal is not completion. Opening a PR is not the same as changing main. If the tool result says completed=false or completionTruth=not_completed_yet_do_not_claim_file_changed, say exactly what happened and what remains.
 - Lead with the answer, not a label. Skip phrases like "Short answer:" or "Here's what matters:" — just say the thing directly.
 - Avoid ending with "If you need anything else" or "please let me know." End with a specific suggested next action.
 
