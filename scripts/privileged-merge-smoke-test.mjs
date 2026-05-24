@@ -13,7 +13,7 @@ assert(merge.includes("merge_method: \"squash\""), "Privileged merge uses squash
 assert(merge.includes("input.dryRun || !canExecute"), "Privileged merge blocks execution during dry-run or failed gate");
 assert(merge.includes("APPROVE RUNE MERGE") === false, "Executor relies on shared policy rather than hardcoding phrase");
 assert(route.includes("privileged-operations"), "Privileged operations route exists");
-assert(route.includes("action: z.enum([\"list_policies\", \"evaluate_gate\", \"merge\"])"), "Route exposes list/evaluate/merge actions");
+assert(route.includes("\"list_policies\", \"evaluate_gate\", \"merge\"") && route.includes("\"deploy\", \"rollback\""), "Route exposes list/evaluate/merge plus deploy/rollback actions");
 assert(route.includes("dryRun: z.boolean().default(true)"), "Route defaults to dry-run");
 assert(route.includes("runPrivilegedMerge"), "Route wires privileged merge executor");
 assert(pkg.scripts["test:privileged-merge"] === "node scripts/privileged-merge-smoke-test.mjs", "Package exposes privileged merge smoke test");

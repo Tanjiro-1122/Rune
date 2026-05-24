@@ -113,7 +113,8 @@
     "test:repo-access-capability": "node scripts/repo-access-capability-smoke-test.mjs",
     "test:privileged-operations-control-plane": "node scripts/privileged-operations-control-plane-smoke-test.mjs",
     "test:privileged-merge": "node scripts/privileged-merge-smoke-test.mjs",
-    "test:safe-text-edit-flow": "node scripts/safe-text-edit-flow-smoke-test.mjs"
+    "test:safe-text-edit-flow": "node scripts/safe-text-edit-flow-smoke-test.mjs",
+    "test:privileged-deployment": "node scripts/privileged-deployment-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
