@@ -1681,24 +1681,23 @@ const baseAgentTools = {
         const { getSupabaseClient } = await import("@/lib/supabase");
         const supabase = getSupabaseClient();
         if (!supabase) return { error: "Supabase not configured" };
-      try {
         const { data: steps, error } = await supabase
           .from("workspace_task_steps")
           .select("step_key, label, status, detail, order_index, started_at, completed_at")
           .eq("task_id", taskId)
           .order("order_index", { ascending: true });
         if (error) return { error: error.message };
-        const completed = (steps || []).filter(s => s.status === "completed");
-        const failed    = (steps || []).filter(s => s.status === "failed");
-        const pending   = (steps || []).filter(s => s.status === "pending");
-        const running   = (steps || []).filter(s => s.status === "running");
+        const completed = (steps || []).filter((s: any) => s.status === "completed");
+        const failed    = (steps || []).filter((s: any) => s.status === "failed");
+        const pending   = (steps || []).filter((s: any) => s.status === "pending");
+        const running   = (steps || []).filter((s: any) => s.status === "running");
         return {
           taskId,
           totalSteps: (steps || []).length,
-          completedSteps: completed.map(s => ({ key: s.step_key, label: s.label, detail: s.detail })),
-          failedSteps:    failed.map(s => ({ key: s.step_key, label: s.label, detail: s.detail })),
-          pendingSteps:   pending.map(s => ({ key: s.step_key, label: s.label })),
-          runningSteps:   running.map(s => ({ key: s.step_key, label: s.label })),
+          completedSteps: completed.map((s: any) => ({ key: s.step_key, label: s.label, detail: s.detail })),
+          failedSteps:    failed.map((s: any) => ({ key: s.step_key, label: s.label, detail: s.detail })),
+          pendingSteps:   pending.map((s: any) => ({ key: s.step_key, label: s.label })),
+          runningSteps:   running.map((s: any) => ({ key: s.step_key, label: s.label })),
           resumeFromIndex: completed.length + 1,
           summary: `${completed.length} completed, ${failed.length} failed, ${pending.length} pending`,
         };
@@ -1722,7 +1721,6 @@ const baseAgentTools = {
         const { getSupabaseClient } = await import("@/lib/supabase");
         const supabase = getSupabaseClient();
         if (!supabase) return { error: "Supabase not configured" };
-      try {
         const { data, error } = await supabase
           .from("workspace_task_steps")
           .select("*")
@@ -1732,7 +1730,7 @@ const baseAgentTools = {
           .limit(1)
           .maybeSingle();
         if (error) return { error: error.message };
-        if (!data) return { message: "No failed steps found for this task — task may already be complete." };
+        if (!data) return { message: "No failed steps found for this task." };
         return {
           lastFailedStep: {
             key: data.step_key,
