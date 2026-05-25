@@ -4,7 +4,7 @@ import { Octokit } from "@octokit/rest";
 export const maxDuration = 15;
 
 export async function GET() {
-  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
   if (!token) {
     return NextResponse.json({ expiry: "no token", configured: false });
   }
