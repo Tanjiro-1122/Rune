@@ -1312,6 +1312,16 @@ const baseAgentTools = {
     }),
     execute: async ({ owner, repo, path }) => {
       try {
+        // Debug: verify token availability at request time — check Vercel function logs
+        const _tok = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+        console.log('GitHub token present:', !!_tok, '| source:', process.env.GITHUB_TOKEN ? 'GITHUB_TOKEN' : process.env.RUNE_GITHUB_TOKEN ? 'RUNE_GITHUB_TOKEN' : process.env.JARVIS_GITHUB_TOKEN ? 'JARVIS_GITHUB_TOKEN' : 'NONE');
+        if (!_tok) {
+          return {
+            success: false,
+            error: "GitHub credentials missing: none of GITHUB_TOKEN, RUNE_GITHUB_TOKEN, or JARVIS_GITHUB_TOKEN are set in this Vercel environment. Add one and redeploy.",
+            path,
+          };
+        }
         if (isPlaceholderRepoPath(path)) {
           return {
             success: false,
@@ -1349,7 +1359,13 @@ const baseAgentTools = {
         const decodedContent = Buffer.from(data.content, "base64").toString("utf-8");
         return { success: true, path, content: decodedContent };
       } catch (err: unknown) {
-        return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+        const msg = err instanceof Error ? err.message : String(err);
+        const status = (err as any)?.status ?? (err as any)?.response?.status;
+        console.error('readRepositoryFile error:', status, msg);
+        if (status === 401) return { success: false, error: `GitHub 401 Unauthorized — token is set but may be invalid, expired, or lack repo read scope. Detail: ${msg}` };
+        if (status === 403) return { success: false, error: `GitHub 403 Forbidden — token lacks permission to read this repo. Detail: ${msg}` };
+        if (status === 404) return { success: false, error: `File not found at path '${path}' in ${owner}/${repo}. Verify the path with listRepositoryTree first.` };
+        return { success: false, error: msg };
       }
     },
   }),
@@ -1363,6 +1379,9 @@ const baseAgentTools = {
     }),
     execute: async ({ owner, repo }) => {
       try {
+        const _tok = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+        console.log('GitHub token present (listRepositoryTree):', !!_tok);
+        if (!_tok) return { success: false, error: "GitHub credentials missing: GITHUB_TOKEN / RUNE_GITHUB_TOKEN / JARVIS_GITHUB_TOKEN not set in Vercel." };
         const octokit = getOctokitClient();
         const resolved = splitRepoSlug(`${owner}/${repo}`);
         const { data: repoData } = await octokit.repos.get({ owner: resolved.owner, repo: resolved.repo });
