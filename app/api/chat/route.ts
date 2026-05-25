@@ -1507,7 +1507,7 @@ const baseAgentTools = {
       const [owner, repoName] = repo.split("/");
       const octokit = getOctokitClient();
       try {
-        const ref = await octokit.git.getRef({ owner, repo: repoName, ref: \`heads/\${branch}\` });
+        const ref = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` });
         const baseSha = ref.data.object.sha;
         const baseCommit = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: baseSha });
         const baseTreeSha = baseCommit.data.tree.sha;
@@ -1527,12 +1527,12 @@ const baseAgentTools = {
           tree: tree.data.sha, parents: [baseSha],
           author: { name: "Rune Agent", email: "rune-agent@users.noreply.github.com", date: new Date().toISOString() },
         });
-        await octokit.git.updateRef({ owner, repo: repoName, ref: \`heads/\${branch}\`, sha: commit.data.sha });
+        await octokit.git.updateRef({ owner, repo: repoName, ref: `heads/${branch}`, sha: commit.data.sha });
 
         return {
           ok: true,
           commitSha: commit.data.sha,
-          commitUrl: \`https://github.com/\${repo}/commit/\${commit.data.sha}\`,
+          commitUrl: `https://github.com/${repo}/commit/${commit.data.sha}`,
           filesChanged: files.length,
           paths: files.map(f => f.path),
         };
@@ -1580,7 +1580,7 @@ const baseAgentTools = {
         return {
           ok: true,
           commitSha: result.data.commit.sha,
-          commitUrl: \`https://github.com/\${repo}/commit/\${result.data.commit.sha}\`,
+          commitUrl: `https://github.com/${repo}/commit/${result.data.commit.sha}`,
           linesReplaced: endLine - startLine + 1,
           newLineCount: lines.length,
         };
@@ -1621,7 +1621,7 @@ const baseAgentTools = {
           stillHasRemovedText: hasUnexpected,
           message: verified
             ? "✓ Change verified successfully"
-            : \`✗ Verification failed — \${!hasExpected ? "expected text not found" : "removed text still present"}\`,
+            : `✗ Verification failed — ${!hasExpected ? "expected text not found" : "removed text still present"}`,
         };
       } catch (err: any) {
         return { error: err.message };
@@ -1645,8 +1645,8 @@ const baseAgentTools = {
         return { error: "VERCEL_TOKEN or VERCEL_PROJECT_ID not configured. Add them to Vercel environment variables." };
       }
       try {
-        const response = await fetch(\`https://api.vercel.com/v6/deployments?projectId=\${projectId}&limit=3\`, {
-          headers: { Authorization: \`Bearer \${token}\` },
+        const response = await fetch(`https://api.vercel.com/v6/deployments?projectId=${projectId}&limit=3`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json() as any;
         const deployment = data.deployments?.[0];
@@ -1656,7 +1656,7 @@ const baseAgentTools = {
           ready: deployment.state === "READY",
           error: deployment.state === "ERROR",
           building: deployment.state === "BUILDING",
-          url: deployment.url ? \`https://\${deployment.url}\` : null,
+          url: deployment.url ? `https://${deployment.url}` : null,
           commitMessage: deployment.meta?.githubCommitMessage,
           commitSha: deployment.meta?.githubCommitSha?.slice(0, 8),
           createdAt: deployment.createdAt,
@@ -1677,8 +1677,10 @@ const baseAgentTools = {
       taskId: z.string().describe("The workspace_tasks UUID to resume"),
     }),
     execute: async ({ taskId }) => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return { error: "Supabase not configured" };
+      try {
+        const { getSupabaseClient } = await import("@/lib/supabase");
+        const supabase = getSupabaseClient();
+        if (!supabase) return { error: "Supabase not configured" };
       try {
         const { data: steps, error } = await supabase
           .from("workspace_task_steps")
@@ -1698,7 +1700,7 @@ const baseAgentTools = {
           pendingSteps:   pending.map(s => ({ key: s.step_key, label: s.label })),
           runningSteps:   running.map(s => ({ key: s.step_key, label: s.label })),
           resumeFromIndex: completed.length + 1,
-          summary: \`\${completed.length} completed, \${failed.length} failed, \${pending.length} pending\`,
+          summary: `${completed.length} completed, ${failed.length} failed, ${pending.length} pending`,
         };
       } catch (err: any) {
         return { error: err.message };
@@ -1716,8 +1718,10 @@ const baseAgentTools = {
       modifiedApproach: z.string().describe("Brief description of what you will do differently this retry"),
     }),
     execute: async ({ taskId, modifiedApproach }) => {
-      const supabase = getSupabaseClient();
-      if (!supabase) return { error: "Supabase not configured" };
+      try {
+        const { getSupabaseClient } = await import("@/lib/supabase");
+        const supabase = getSupabaseClient();
+        if (!supabase) return { error: "Supabase not configured" };
       try {
         const { data, error } = await supabase
           .from("workspace_task_steps")
@@ -1737,7 +1741,7 @@ const baseAgentTools = {
             failedAt: data.completed_at,
           },
           modifiedApproach,
-          instruction: \`Retrying step '\${data.label}' with new approach: \${modifiedApproach}\`,
+          instruction: `Retrying step '${data.label}' with new approach: ${modifiedApproach}`,
         };
       } catch (err: any) {
         return { error: err.message };
@@ -3664,8 +3668,8 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - Do not call sandboxed code a test of Supabase, Vercel, GitHub, memory, files, or runner health unless the code actually contacted the relevant system.
 - Do NOT use generic disclaimers such as "I can't access the internet" or "I have no access to external systems" as blanket statements
 - Be precise: if a specific tool is available and configured, say so and use it
-- If \`web_search\` is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
-- If \`analyze_github_repo\` fails because a repo is private, say so and ask the user to paste the relevant code or file contents
+- If `web_search` is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
+- If `analyze_github_repo` fails because a repo is private, say so and ask the user to paste the relevant code or file contents
 - If sandboxed code execution is available, describe the limits precisely: small JavaScript/TypeScript only, no imports, no network/filesystem/process access, and strict timeout/output limits
 - If sandboxed code execution is unavailable, say exactly why based on the deployment configuration instead of using a generic disclaimer
 - If a capability is genuinely absent (e.g., writing files outside the sandbox or sending emails), state the specific limitation and suggest the best available alternative
@@ -3701,7 +3705,7 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - No "Key Findings:", no "Summary:", no "Next Steps:" section headers. Ever.
 - For tool results: lead with the one-line answer, then the relevant detail. Not a structured report.
 - NEVER end with "Would you like to proceed with that?", "Let me know if you need anything else", or any generic offer. End with a specific suggested next move if anything.
-- Use fenced code blocks for actual code. Inline \`backticks\` for file paths, env var names, commands.
+- Use fenced code blocks for actual code. Inline `backticks` for file paths, env var names, commands.
 - Keep it tight. If the answer is 2 sentences, send 2 sentences.
 
 ## ANTI-CONSULTING PITCH
