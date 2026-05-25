@@ -172,7 +172,15 @@ function ActivityPanel({ activeProject }: { activeProject: string }) {
               <div style={{ fontSize:11, color:"#ccc", fontWeight:500 }}>{ev.summary}</div>
               <div style={{ fontSize:10, color:"#444", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ev.event_type}{ev.project_key ? ` · ${ev.project_key}` : ""}</div>
             </div>
-            <div style={{ fontSize:9, color:"#333", flexShrink:0, paddingTop:2 }}>{timeAgo(ev.created_at)}</div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3, flexShrink:0 }}>
+              <div style={{ fontSize:9, color:"#333" }}>{timeAgo(ev.created_at)}</div>
+              {/* Verification badge */}
+              {ev.status === "executed" || ev.status === "success" || ev.status === "completed" ? (
+                <span style={{ fontSize:8, color:"#4ade80", border:"1px solid #4ade8044", borderRadius:3, padding:"0 4px" }}>✓ verified</span>
+              ) : ev.status === "failed" ? (
+                <span style={{ fontSize:8, color:"#c0392b", border:"1px solid #c0392b44", borderRadius:3, padding:"0 4px" }}>✗ failed</span>
+              ) : null}
+            </div>
           </div>
         );
       })}
@@ -182,24 +190,41 @@ function ActivityPanel({ activeProject }: { activeProject: string }) {
 
 // ── Tasks panel ─────────────────────────────────────────────────────────────
 function TasksPanel({ project }: { project: string }) {
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks]         = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [expanded, setExpanded]   = useState<Record<string, boolean>>({});
+  const [steps, setSteps]         = useState<Record<string, any[]>>({});
+  const [stepsLoading, setStepsLoading] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
+  function loadTasks() {
     setLoading(true);
-    // Fix 4: bypass /api/tasks — use /api/tasks-direct which queries Supabase directly
     fetch("/api/tasks-direct")
       .then(r => r.ok ? r.json() : Promise.reject(`tasks-direct ${r.status}`))
       .then(d => {
-        console.log("[TasksPanel] /api/tasks-direct response:", d);
-        const rows: any[] = Array.isArray(d) ? d
-                          : Array.isArray(d?.tasks) ? d.tasks
-                          : [];
+        const rows: any[] = Array.isArray(d) ? d : Array.isArray(d?.tasks) ? d.tasks : [];
         setTasks(rows);
       })
       .catch(e => { console.warn("[TasksPanel] fetch failed:", e); setTasks([]); })
       .finally(() => setLoading(false));
-  }, [project]);
+  }
+
+  useEffect(() => { loadTasks(); }, [project]);
+
+  async function toggleSteps(taskId: string) {
+    const isOpen = !!expanded[taskId];
+    setExpanded(prev => ({ ...prev, [taskId]: !isOpen }));
+    if (!isOpen && !steps[taskId]) {
+      setStepsLoading(prev => ({ ...prev, [taskId]: true }));
+      try {
+        const r = await fetch(`/api/tasks-direct?taskId=${taskId}&includeSteps=1`);
+        const d = await r.json();
+        const stepsArr: any[] = Array.isArray(d?.steps) ? d.steps
+          : Array.isArray(d) ? d : [];
+        setSteps(prev => ({ ...prev, [taskId]: stepsArr }));
+      } catch { setSteps(prev => ({ ...prev, [taskId]: [] })); }
+      finally { setStepsLoading(prev => ({ ...prev, [taskId]: false })); }
+    }
+  }
 
   const knownStatuses = ["running", "completed", "failed"];
   const groups = {
@@ -212,50 +237,97 @@ function TasksPanel({ project }: { project: string }) {
   const statusColor: Record<string, string> = {
     running: "#f59e0b", completed: "#4ade80", failed: "#c0392b", other: "#60a5fa",
   };
+  const stepColor: Record<string, string> = {
+    completed: "#4ade80", failed: "#c0392b", running: "#f59e0b", pending: "#333",
+  };
 
   if (loading) return (
-    <div style={{ padding:"20px", color:"#444", fontSize:12 }}>Loading tasks...</div>
+    <div style={{ padding:"20px", color:"#444", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+      Loading tasks…
+      <button onClick={loadTasks} style={{ marginLeft:"auto", fontSize:9, color:"#555", background:"none", border:"1px solid #222", borderRadius:4, padding:"2px 8px", cursor:"pointer", fontFamily:"inherit" }}>↺ Retry</button>
+    </div>
   );
 
   if (!tasks.length) return (
-    <div style={{ padding:"20px", color:"#444", fontSize:12 }}>No tasks yet.</div>
+    <div style={{ padding:"20px", color:"#444", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+      No tasks yet.
+      <button onClick={loadTasks} style={{ marginLeft:"auto", fontSize:9, color:"#555", background:"none", border:"1px solid #222", borderRadius:4, padding:"2px 8px", cursor:"pointer", fontFamily:"inherit" }}>↺ Refresh</button>
+    </div>
   );
 
   return (
     <div style={{ padding:"14px 16px" }}>
-      {(["running", "completed", "failed", "other"] as const).map(group => (
+      <div style={{ display:"flex", alignItems:"center", marginBottom:12 }}>
+        <span style={{ fontSize:9, color:"#333", textTransform:"uppercase", letterSpacing:"0.1em" }}>Tasks — {tasks.length} total</span>
+        <button onClick={loadTasks} style={{ marginLeft:"auto", fontSize:9, color:"#555", background:"none", border:"1px solid #222", borderRadius:4, padding:"2px 8px", cursor:"pointer", fontFamily:"inherit" }}>↺ Refresh</button>
+      </div>
+      {(["running", "failed", "completed", "other"] as const).map(group => (
         groups[group].length > 0 && (
           <div key={group} style={{ marginBottom:20 }}>
-            <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>
+            <div style={{ fontSize:9, color: statusColor[group] ?? "#444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>
               {group} ({groups[group].length})
             </div>
             {groups[group].map((task: any, i: number) => (
-              <div key={task?.id || i} style={{
-                padding:"10px 0", borderBottom:"1px solid #1a1a1a",
-                display:"flex", alignItems:"flex-start", gap:10
-              }}>
-                <div style={{
-                  width:8, height:8, borderRadius:"50%", flexShrink:0, marginTop:4,
-                  background: statusColor[group] || "#555"
-                }} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12, color:"#ccc", fontWeight:500 }}>
-                    {task?.title || "Untitled task"}
+              <div key={task?.id || i} style={{ borderBottom:"1px solid #1a1a1a" }}>
+                {/* Task row */}
+                <div style={{ padding:"10px 0", display:"flex", alignItems:"flex-start", gap:10 }}>
+                  <div style={{
+                    width:8, height:8, borderRadius:"50%", flexShrink:0, marginTop:4,
+                    background: statusColor[group] || "#555",
+                    boxShadow: group === "running" ? `0 0 6px ${statusColor.running}66` : "none",
+                  }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, color:"#ccc", fontWeight:500 }}>{task?.title || "Untitled task"}</div>
+                    {task?.result_summary && (
+                      <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{task.result_summary}</div>
+                    )}
+                    {task?.error_message && (
+                      <div style={{ fontSize:10, color:"#c0392b", marginTop:2 }}>✗ {task.error_message}</div>
+                    )}
+                    {task?.progress != null && task.status === "running" && (
+                      <div style={{ marginTop:6, height:2, background:"#222", borderRadius:2 }}>
+                        <div style={{ width:`${task.progress}%`, height:"100%", background:"#f59e0b", borderRadius:2 }} />
+                      </div>
+                    )}
                   </div>
-                  {task?.result_summary && (
-                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
-                      {task.result_summary}
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
+                    <div style={{ fontSize:9, color:"#333" }}>
+                      {task?.created_at ? new Date(task.created_at).toLocaleDateString() : ""}
                     </div>
-                  )}
-                  {task?.progress != null && task.status === "running" && (
-                    <div style={{ marginTop:6, height:2, background:"#222", borderRadius:2 }}>
-                      <div style={{ width:`${task.progress}%`, height:"100%", background:"#f59e0b", borderRadius:2 }} />
-                    </div>
-                  )}
+                    {task?.id && (
+                      <button onClick={() => toggleSteps(task.id)}
+                        style={{ fontSize:9, color:"#555", background:"none", border:"1px solid #222", borderRadius:4, padding:"2px 6px", cursor:"pointer", fontFamily:"inherit" }}
+                      >{expanded[task.id] ? "▲ steps" : "▼ steps"}</button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize:9, color:"#444", flexShrink:0 }}>
-                  {task?.created_at ? new Date(task.created_at).toLocaleDateString() : ""}
-                </div>
+                {/* Steps drawer */}
+                {expanded[task?.id] && (
+                  <div style={{ paddingBottom:8, paddingLeft:18 }}>
+                    {stepsLoading[task.id] && (
+                      <div style={{ fontSize:10, color:"#444" }}>Loading steps…</div>
+                    )}
+                    {!stepsLoading[task.id] && (steps[task.id] || []).length === 0 && (
+                      <div style={{ fontSize:10, color:"#333" }}>No steps recorded.</div>
+                    )}
+                    {(steps[task.id] || []).map((step: any, si: number) => (
+                      <div key={step.id ?? si} style={{ display:"flex", alignItems:"flex-start", gap:6, padding:"4px 0" }}>
+                        <div style={{ width:6, height:6, borderRadius:"50%", flexShrink:0, marginTop:3, background: stepColor[step.status] ?? "#333" }} />
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:10, color:"#aaa" }}>{step.label || step.step_key}</span>
+                          {step.detail && <span style={{ fontSize:9, color:"#444", marginLeft:6 }}>{step.detail}</span>}
+                        </div>
+                        {/* Verification badge */}
+                        {step.status === "completed" && (
+                          <span style={{ fontSize:9, color:"#4ade80", border:"1px solid #4ade8044", borderRadius:3, padding:"0 4px" }}>✓ verified</span>
+                        )}
+                        {step.status === "failed" && (
+                          <span style={{ fontSize:9, color:"#c0392b", border:"1px solid #c0392b44", borderRadius:3, padding:"0 4px" }}>✗ failed</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
