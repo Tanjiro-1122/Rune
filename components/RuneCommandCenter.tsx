@@ -3,38 +3,68 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const PROJECTS = [
-  { key: "rune",    label: "Rune",          repo: "Tanjiro-1122/Rune",                  tag: "OWNER-CONSOLE",       color: "#c0392b" },
+  { key: "rune",    label: "Rune",          repo: "Tanjiro-1122/Rune",                  tag: "OWNER-CONSOLE",        color: "#c0392b" },
   { key: "unfiltr", label: "Unfiltr",        repo: "Tanjiro-1122/unfiltrbyjavierbackup", tag: "SENSITIVE PRODUCTION", color: "#e67e22" },
   { key: "swh",     label: "SWH",            repo: "Tanjiro-1122/swhmobile",             tag: "PRODUCTION APP",       color: "#27ae60" },
   { key: "family",  label: "Unfiltr Family", repo: "Tanjiro-1122/UnfiltrFamily",         tag: "SENSITIVE PRODUCTION", color: "#8e44ad" },
 ];
 
+// Nav items: id maps to a panel rendered inside this component.
+// No router.push — these are all panels within the SPA, not separate pages.
 const NAV = [
-  { id: "home",     icon: "⌘", label: "Command center", route: "/"              },
-  { id: "repo",     icon: "⎇", label: "Repo control",   route: "/repo-actions"  },
-  { id: "tasks",    icon: "✓", label: "Tasks",           route: "/tasks"         },
-  { id: "memory",   icon: "◈", label: "Memory",          route: "/memory"        },
-  { id: "deploy",   icon: "↑", label: "Deploy",          route: "/deploy-health" },
-  { id: "activity", icon: "≋", label: "Activity",        route: "/history"       },
+  { id: "home",     icon: "⌘", label: "Command center" },
+  { id: "repo",     icon: "⎇", label: "Repo control"   },
+  { id: "tasks",    icon: "✓", label: "Tasks"           },
+  { id: "memory",   icon: "◈", label: "Memory"          },
+  { id: "deploy",   icon: "↑", label: "Deploy"          },
+  { id: "activity", icon: "≋", label: "Activity"        },
 ];
 
 type FeedItem = { type: "pr"|"deploy"|"task"|"error"|"info"; title: string; desc: string; time: string; };
 
 const MOCK_FEED: FeedItem[] = [
-  { type: "pr",     title: "PR #195 opened — Safe file create: test-write.md",  desc: "Tanjiro-1122/Rune · edge_function_octokit · executed",          time: "2m ago" },
-  { type: "deploy", title: "Deployed a845334 to production",                     desc: "replace openRepoActionPullRequest with pure Octokit API",        time: "1h ago" },
-  { type: "pr",     title: "PR #194 — Add source truth count guard",             desc: "Tanjiro-1122/Rune · opened by Saving Grace",                    time: "1h ago" },
-  { type: "task",   title: "Task completed — create test-write.md",             desc: "100% · Capture → Execute → Persist",                            time: "5m ago" },
-  { type: "error",  title: "GitHub token expiring in 2 days",                   desc: "Saving Grace token · update in Vercel + Supabase secrets",       time: "now"    },
+  { type: "pr",     title: "PR #195 opened — Safe file create: test-write.md",  desc: "Tanjiro-1122/Rune · edge_function_octokit · executed",    time: "2m ago" },
+  { type: "deploy", title: "Deployed a845334 to production",                     desc: "replace openRepoActionPullRequest with pure Octokit API",  time: "1h ago" },
+  { type: "pr",     title: "PR #194 — Add source truth count guard",             desc: "Tanjiro-1122/Rune · opened by Saving Grace",              time: "1h ago" },
+  { type: "task",   title: "Task completed — create test-write.md",             desc: "100% · Capture → Execute → Persist",                      time: "5m ago" },
+  { type: "error",  title: "GitHub token expiring in 2 days",                   desc: "Saving Grace token · update in Vercel + Supabase secrets", time: "now"    },
 ];
 
-const FEED_COLORS: Record<FeedItem["type"], {bg:string;color:string;symbol:string}> = {
+const FEED_COLORS: Record<FeedItem["type"], { bg: string; color: string; symbol: string }> = {
   pr:     { bg: "#0d1f0d", color: "#4ade80", symbol: "⎇" },
   deploy: { bg: "#0d1520", color: "#60a5fa", symbol: "↑" },
   task:   { bg: "#1f1a08", color: "#f59e0b", symbol: "✓" },
   error:  { bg: "#200d0d", color: "#c0392b", symbol: "!" },
   info:   { bg: "#161616", color: "#888",    symbol: "i" },
 };
+
+const PANEL_LABELS: Record<string, string> = {
+  home:     "Command center",
+  repo:     "Repo control",
+  tasks:    "Tasks",
+  memory:   "Memory",
+  deploy:   "Deploy health",
+  activity: "Activity",
+};
+
+// Placeholder panel content for non-home views
+function PlaceholderPanel({ id }: { id: string }) {
+  const labels: Record<string, { icon: string; desc: string }> = {
+    repo:     { icon: "⎇", desc: "Repo proposals, open PRs, and execution history." },
+    tasks:    { icon: "✓", desc: "Workspace tasks and their step-by-step progress." },
+    memory:   { icon: "◈", desc: "Semantic memory entries and long-term context." },
+    deploy:   { icon: "↑", desc: "Vercel deployment status and health checks." },
+    activity: { icon: "≋", desc: "Full activity log across all projects." },
+  };
+  const { icon, desc } = labels[id] ?? { icon: "·", desc: "Coming soon." };
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"#333", gap:12 }}>
+      <div style={{ fontSize:40 }}>{icon}</div>
+      <div style={{ fontSize:13, color:"#555" }}>{PANEL_LABELS[id]}</div>
+      <div style={{ fontSize:11, color:"#333", maxWidth:280, textAlign:"center" }}>{desc}</div>
+    </div>
+  );
+}
 
 export default function RuneCommandCenter() {
   const router = useRouter();
@@ -50,11 +80,6 @@ export default function RuneCommandCenter() {
 
   const proj = PROJECTS.find(p => p.key === activeProject)!;
 
-  function handleNav(n: typeof NAV[number]) {
-    setActiveNav(n.id);
-    router.push(n.route);
-  }
-
   return (
     <div style={{ display:"grid", gridTemplateColumns:"48px 200px 1fr", gridTemplateRows:"44px 1fr", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
 
@@ -64,7 +89,7 @@ export default function RuneCommandCenter() {
         <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
         <span style={{ fontSize:10, color:"#333", marginLeft:2 }}>command center</span>
 
-        {/* Project pills — clicking switches active project + updates header repo */}
+        {/* Project pills — switch active project + update header repo */}
         <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
           {PROJECTS.map(p => (
             <button
@@ -81,20 +106,22 @@ export default function RuneCommandCenter() {
         </div>
       </div>
 
-      {/* ── Icon nav rail ──────────────────────────────────────────────────── */}
+      {/* ── Icon nav rail — switches panels, never navigates away ─────────── */}
       <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
         {NAV.map((n, i) => (
           <div key={n.id}>
             {i === 4 && <div style={{ width:28, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
             <button
-              onClick={() => handleNav(n)}
+              onClick={() => setActiveNav(n.id)}
               title={n.label}
               style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background: activeNav===n.id ? "#1e0a0a" : "transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", fontSize:16, fontFamily:"inherit" }}
             >{n.icon}</button>
           </div>
         ))}
+        {/* Settings — the only real separate page */}
         <button
           onClick={() => router.push("/vault")}
+          title="Settings / Vault"
           style={{ marginTop:"auto", width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
         >⚙</button>
       </div>
@@ -105,9 +132,9 @@ export default function RuneCommandCenter() {
           {
             label: "Repo control",
             items: [
-              { icon:"⎇", text:"Open PRs",        badge:"3",  bc:"#c0392b", onClick: () => router.push("/repo-actions")  },
-              { icon:"○", text:"Pending approval", badge:"1",  bc:"#e67e22", onClick: () => router.push("/repo-actions")  },
-              { icon:"✓", text:"Executed",          badge:"12", bc:"#333",    onClick: () => router.push("/history")       },
+              { icon:"⎇", text:"Open PRs",        badge:"3",  bc:"#c0392b", onClick: () => setActiveNav("repo")     },
+              { icon:"○", text:"Pending approval", badge:"1",  bc:"#e67e22", onClick: () => setActiveNav("repo")     },
+              { icon:"✓", text:"Executed",          badge:"12", bc:"#333",    onClick: () => setActiveNav("activity") },
             ],
           },
           {
@@ -120,9 +147,9 @@ export default function RuneCommandCenter() {
           {
             label: "Quick actions",
             items: [
-              { icon:"+", text:"Create file", badge: null, bc:"", onClick: () => router.push("/app-forge")      },
-              { icon:"✎", text:"Edit file",   badge: null, bc:"", onClick: () => router.push("/files/signed-url") },
-              { icon:"↑", text:"Deploy",      badge: null, bc:"", onClick: () => router.push("/deploy-health")   },
+              { icon:"+", text:"Create file", badge: null, bc:"", onClick: () => setActiveNav("repo")   },
+              { icon:"✎", text:"Edit file",   badge: null, bc:"", onClick: () => setActiveNav("repo")   },
+              { icon:"↑", text:"Deploy",      badge: null, bc:"", onClick: () => setActiveNav("deploy") },
             ],
           },
         ].map(section => (
@@ -143,45 +170,50 @@ export default function RuneCommandCenter() {
         ))}
       </div>
 
-      {/* ── Main panel ─────────────────────────────────────────────────────── */}
+      {/* ── Main panel — renders active panel content ─────────────────────── */}
       <div style={{ gridRow:2, display:"flex", flexDirection:"column", background:"#0e0e0e", overflow:"hidden" }}>
         <div style={{ padding:"12px 20px", borderBottom:"1px solid #141414", display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ color:"#c0392b", fontSize:15 }}>⌘</span>
-          <span style={{ fontSize:13, fontWeight:600, color:"#e8e8e8" }}>Command center</span>
-          {/* Header repo updates when project pill is clicked */}
+          <span style={{ color:"#c0392b", fontSize:15 }}>{NAV.find(n => n.id === activeNav)?.icon ?? "⌘"}</span>
+          <span style={{ fontSize:13, fontWeight:600, color:"#e8e8e8" }}>{PANEL_LABELS[activeNav]}</span>
           <span style={{ fontSize:10, color:"#333", marginLeft:"auto" }}>{proj.repo} · main</span>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, padding:"14px 20px", borderBottom:"1px solid #141414" }}>
-          {[
-            { label:"Open PRs",        value:"3",     color:"#e8e8e8" },
-            { label:"Last deploy",     value:"✓ live", color:"#27ae60" },
-            { label:"Pending approval",value:"1",     color:"#f59e0b" },
-            { label:"Token expiry",    value:"2d",    color:"#c0392b" },
-          ].map(s => (
-            <div key={s.label} style={{ background:"#111", border:"1px solid #1e1e1e", borderRadius:7, padding:"10px 12px" }}>
-              <div style={{ fontSize:9, color:"#444", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase" }}>{s.label}</div>
-              <div style={{ fontSize:20, fontWeight:600, color:s.color }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
-          <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Recent activity</div>
-          {MOCK_FEED.map((item, i) => {
-            const c = FEED_COLORS[item.type];
-            return (
-              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 0", borderBottom:"1px solid #141414" }}>
-                <div style={{ width:28, height:28, borderRadius:6, flexShrink:0, background:c.bg, color:c.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, marginTop:1 }}>{c.symbol}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:11, color:"#ccc", fontWeight:500 }}>{item.title}</div>
-                  <div style={{ fontSize:10, color:"#444", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.desc}</div>
+        {activeNav === "home" ? (
+          <>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, padding:"14px 20px", borderBottom:"1px solid #141414" }}>
+              {[
+                { label:"Open PRs",        value:"3",      color:"#e8e8e8" },
+                { label:"Last deploy",     value:"✓ live", color:"#27ae60" },
+                { label:"Pending approval",value:"1",      color:"#f59e0b" },
+                { label:"Token expiry",    value:"2d",     color:"#c0392b" },
+              ].map(s => (
+                <div key={s.label} style={{ background:"#111", border:"1px solid #1e1e1e", borderRadius:7, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:"#444", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase" }}>{s.label}</div>
+                  <div style={{ fontSize:20, fontWeight:600, color:s.color }}>{s.value}</div>
                 </div>
-                <div style={{ fontSize:9, color:"#333", flexShrink:0, paddingTop:2 }}>{item.time}</div>
-              </div>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
+              <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Recent activity</div>
+              {MOCK_FEED.map((item, i) => {
+                const c = FEED_COLORS[item.type];
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 0", borderBottom:"1px solid #141414" }}>
+                    <div style={{ width:28, height:28, borderRadius:6, flexShrink:0, background:c.bg, color:c.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, marginTop:1 }}>{c.symbol}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:11, color:"#ccc", fontWeight:500 }}>{item.title}</div>
+                      <div style={{ fontSize:10, color:"#444", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.desc}</div>
+                    </div>
+                    <div style={{ fontSize:9, color:"#333", flexShrink:0, paddingTop:2 }}>{item.time}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <PlaceholderPanel id={activeNav} />
+        )}
 
         <div style={{ borderTop:"1px solid #141414", padding:"10px 16px", display:"flex", alignItems:"center", gap:10, background:"#090909" }}>
           <input
