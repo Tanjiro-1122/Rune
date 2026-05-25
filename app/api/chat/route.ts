@@ -2774,6 +2774,39 @@ function shouldCreateWorkspaceTask(input: string, intent: string, resumeTaskId?:
   ].includes(intent) && /\b(change|edit|fix|patch|implement|create|write|run|execute|deploy|pr|pull request)\b/.test(text);
 }
 
+
+// ── Step 5: Live business context for system prompt ──────────────────────────
+async function getBusinessContext(supabase: any): Promise<string> {
+  try {
+    const [unfiltrUsers, swhUsers, proposals] = await Promise.all([
+      supabase.from("unfiltr_user_profiles").select("id, tier, created_at").limit(100),
+      supabase.from("swh_users").select("id, is_premium, created_at").limit(100),
+      supabase
+        .from("jarvis_repo_action_proposals")
+        .select("title, status, repo")
+        .in("status", ["proposed", "approved"])
+        .limit(5),
+    ]);
+
+    const unfiltrTotal = unfiltrUsers.data?.length ?? 0;
+    const unfiltrPro   = unfiltrUsers.data?.filter((u: any) => u.tier === "pro").length ?? 0;
+    const swhTotal     = swhUsers.data?.length ?? 0;
+    const swhPro       = swhUsers.data?.filter((u: any) => u.is_premium).length ?? 0;
+    const pendingProposals: any[] = proposals.data ?? [];
+
+    return [
+      "## Your business context (live from Supabase)",
+      `Unfiltr: ${unfiltrTotal} total users, ${unfiltrPro} pro (${unfiltrTotal ? Math.round((unfiltrPro / unfiltrTotal) * 100) : 0}% conversion)`,
+      `SportsWager Helper: ${swhTotal} total users, ${swhPro} premium`,
+      pendingProposals.length
+        ? `Pending repo proposals: ${pendingProposals.map((p: any) => p.title).join(", ")}`
+        : "No pending proposals",
+    ].join("\n");
+  } catch {
+    return "";
+  }
+}
+
 export async function POST(req: Request) {
   // Clean up stale running tasks on each request (fire-and-forget)
   void cleanupStaleTasks(30).catch(() => {});
@@ -3057,6 +3090,11 @@ export async function POST(req: Request) {
     const resolvedSupabaseMemory =
       supabaseMemorySection.status === "fulfilled" ? supabaseMemorySection.value : "";
 
+    // Step 5: Live business context injection
+    const { getSupabaseClient: _getSbForBiz } = await import("@/lib/supabase");
+    const _sbForBiz = _getSbForBiz();
+    const businessContext = _sbForBiz ? await getBusinessContext(_sbForBiz) : "";
+
     // Fix 4: Fallback — if memory section empty, directly read last 5 agent_memories
     // This ensures session context survives even if semantic search returns nothing.
     let recentMemoryFallback = "";
@@ -3206,7 +3244,7 @@ GitHub source discipline: use searchRepositoryCode for code evidence, stop after
 ${workspaceContextSection}
 ${memoryRoutingSection}
 ${ownerMemorySection ? ownerMemorySection : ""}
-${resolvedSupabaseMemory || recentMemoryFallback}
+${businessContext ? businessContext + "\n\n" : ""}${resolvedSupabaseMemory || recentMemoryFallback}
 ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 
 
