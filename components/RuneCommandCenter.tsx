@@ -565,7 +565,7 @@ function RuneMobileLayout({
     <div style={{ display:"flex", flexDirection:"column", minHeight:"100dvh", height:"100dvh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden", paddingBottom:"calc(env(safe-area-inset-bottom, 20px) + 60px)" }}>
       {/* Header */}
       <div style={{ background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0, paddingTop:"env(safe-area-inset-top, 44px)" }}>
-        <div style={{ display:"flex", alignItems:"center", padding:"0 14px", gap:10, height:38 }}>
+        <div style={{ display:"flex", alignItems:"center", padding:"6px 14px", gap:10, minHeight:36 }}>
           <div style={{ width:22, height:22, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#c0392b", fontWeight:700 }}>R</div>
           <span style={{ fontSize:11, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
           <span style={{ fontSize:9, color:"#333" }}>command center</span>
