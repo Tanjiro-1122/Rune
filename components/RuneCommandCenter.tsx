@@ -134,22 +134,26 @@ function RepoPanel({ activeProject }: { activeProject: string }) {
 }
 
 // ── Activity panel ──────────────────────────────────────────────────────────
-function ActivityPanel() {
+function ActivityPanel({ activeProject }: { activeProject: string }) {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/actions?limit=8")
+    setLoading(true);
+    const proj = PROJECTS.find(p => p.key === activeProject);
+    const qs = proj?.key && proj.key !== "rune" ? `&project_key=${proj.key}` : "";
+    fetch(`/api/actions?limit=20${qs}`)
       .then(r => r.json())
       .then(d => {
         // Filter: exclude noisy file upload events — show only meaningful signal
         const EXCLUDED = ["workspace_file.uploaded", "workspace_file.created"];
-        const events: any[] = Array.isArray(d?.events) ? d.events : [];
-        setEvents(events.filter((e: any) => !EXCLUDED.includes(e?.event_type ?? "")));
+        const all: any[] = Array.isArray(d?.events) ? d.events : [];
+        const events = all.filter((e: any) => !EXCLUDED.includes(e?.event_type ?? ""));
+        setEvents(events);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProject]);
 
   if (loading) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Loading activity…</div>;
   if (!events.length) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>No events yet.</div>;
@@ -262,16 +266,18 @@ function TasksPanel({ project }: { project: string }) {
 }
 
 // ── Memory panel ────────────────────────────────────────────────────────────
-function MemoryPanel() {
+function MemoryPanel({ activeProject }: { activeProject: string }) {
   const [memories, setMemories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/memory?limit=10")
+    const proj = PROJECTS.find(p => p.key === activeProject);
+    const qs = proj?.key && proj.key !== "rune" ? `?project_key=${proj.key}&limit=10` : "?limit=10";
+    fetch(`/api/memory${qs}`)
       .then(r => r.json())
       .then(d => { setMemories(d.memories ?? d ?? []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProject]);
 
   if (loading) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Loading memory…</div>;
   if (!memories.length) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>No memory entries yet.</div>;
@@ -290,7 +296,7 @@ function MemoryPanel() {
 }
 
 // ── Deploy panel ────────────────────────────────────────────────────────────
-function DeployPanel() {
+function DeployPanel({ activeProject }: { activeProject: string }) {
   const [deploy, setDeploy] = useState<any>(null);
   const [err, setErr] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -387,12 +393,24 @@ function useStats() {
       })
       .catch(() => {});
 
-    // Fetch last deploy from /api/deploy-health
+    // Fix C: read real deploy-health shape { overall, generatedAt, checks[] }
     fetch("/api/deploy-health")
       .then(r => { if (!r.ok) throw new Error(`deploy-health ${r.status}`); return r.json(); })
       .then(d => {
-        const state = d?.deployment?.readyState ?? d?.state ?? null;
-        setStats(prev => ({ ...prev, lastDeploy: state === "READY" ? "✓ live" : state ?? "—" }));
+        const overall: string = d?.overall ?? "";
+        const generatedAt: string = d?.generatedAt ?? "";
+        let label = "—";
+        if (overall === "ok") {
+          label = "✓ live";
+        } else if (overall === "warning") {
+          label = "⚠ warn";
+        } else if (overall === "error") {
+          label = "✗ error";
+        } else if (generatedAt) {
+          // fallback: show how long ago the snapshot was taken
+          label = timeAgo(generatedAt);
+        }
+        setStats(prev => ({ ...prev, lastDeploy: label }));
       })
       .catch(() => setStats(prev => ({ ...prev, lastDeploy: "—" })));
 
@@ -428,16 +446,16 @@ function RuneMobileLayout({
     switch (activeNav) {
       case "repo":     return <RepoPanel activeProject={activeProject} />;
       case "tasks":    return <TasksPanel project={activeProject} />;
-      case "memory":   return <MemoryPanel />;
-      case "deploy":   return <DeployPanel />;
-      case "activity": return <ActivityPanel />;
+      case "memory":   return <MemoryPanel activeProject={activeProject} />;
+      case "deploy":   return <DeployPanel activeProject={activeProject} />;
+      case "activity": return <ActivityPanel activeProject={activeProject} />;
       default:         return (
         <>
           {/* Stat cards */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, padding:"12px 14px", borderBottom:"1px solid #141414" }}>
             {[
               { label:"Open PRs",         value: stats.openPRs,        color:"#e8e8e8" },
-              { label:"Last deploy",      value: stats.lastDeploy,     color:"#27ae60" },
+              { label:"Last deploy",      value: stats.lastDeploy,     color: stats.lastDeploy.startsWith("✓") ? "#4ade80" : stats.lastDeploy.startsWith("⚠") ? "#f59e0b" : stats.lastDeploy.startsWith("✗") ? "#c0392b" : "#27ae60" },
               { label:"Pending",          value: stats.pendingApproval, color:"#f59e0b" },
               { label:"Token expiry",     value: stats.tokenExpiry,    color: stats.tokenExpiry.startsWith("✓") ? "#27ae60" : "#c0392b" },
             ].map(s => (
@@ -696,9 +714,9 @@ export default function RuneCommandCenter() {
     switch (activeNav) {
       case "repo":     return <RepoPanel activeProject={activeProject} />;
       case "tasks":    return <TasksPanel project={activeProject} />;
-      case "memory":   return <MemoryPanel />;
-      case "deploy":   return <DeployPanel />;
-      case "activity": return <ActivityPanel />;
+      case "memory":   return <MemoryPanel activeProject={activeProject} />;
+      case "deploy":   return <DeployPanel activeProject={activeProject} />;
+      case "activity": return <ActivityPanel activeProject={activeProject} />;
       default:         return renderHome();
     }
   }
