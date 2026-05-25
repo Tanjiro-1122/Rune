@@ -705,6 +705,8 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("run_repo_control_flow");
     add("run_repo_action_stage");
     add("run_approved_repo_action");
+    add("run_safe_file_create_flow");
+    add("run_safe_text_edit_flow");
     add("readRepositoryFile");
     add("listRepositoryTree");
     add("searchRepositoryCode");
