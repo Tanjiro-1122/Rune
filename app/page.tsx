@@ -1,9 +1,5 @@
-import { Chat } from "@/components/chat";
+import RuneCommandCenter from "@/components/RuneCommandCenter";
 
-export default function HomePage() {
-  return (
-    <main className="workspace-home">
-      <Chat />
-    </main>
-  );
+export default function Page() {
+  return <RuneCommandCenter />;
 }
