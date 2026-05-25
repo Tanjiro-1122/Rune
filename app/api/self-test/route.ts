@@ -7,7 +7,7 @@
  * GET  /api/self-test          — run all tests
  * GET  /api/self-test?suite=memory  — run one suite
  *
- * Auth: owner session cookie OR RUNE_INTERNAL_TOKEN bearer header.
+ * Auth: owner session cookie OR RUNE_INTERNAL_TOKEN/CRON_SECRET bearer header.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,9 +19,14 @@ import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 async function isOwner(req: NextRequest): Promise<boolean> {
-  const internalToken = process.env.RUNE_INTERNAL_TOKEN?.trim();
+  const internalTokens = [process.env.RUNE_INTERNAL_TOKEN, process.env.CRON_SECRET]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
   const auth = req.headers.get("authorization");
-  if (internalToken && auth === `Bearer ${internalToken}`) return true;
+  const bearer = auth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const headerToken = req.headers.get("x-cron-secret")?.trim() || req.headers.get("x-rune-internal-token")?.trim();
+  const provided = bearer || headerToken;
+  if (provided && internalTokens.includes(provided)) return true;
   const secret = getSessionSecret();
   if (!secret) return false;
   const cookieValue =
