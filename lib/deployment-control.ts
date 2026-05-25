@@ -1,7 +1,6 @@
 import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logActionEvent } from "@/lib/action-events";
 import { logError } from "@/lib/errors";
-import { queueCliRunnerJob } from "@/lib/cli-runner-jobs";
 import { auditPrivilegedOperationGate, evaluatePrivilegedOperationGate } from "@/lib/privileged-operations";
 
 export type DeploymentControlAction = "inspect" | "prepare_redeploy" | "prepare_rollback" | "execute_redeploy" | "execute_rollback";
@@ -28,9 +27,9 @@ function isoFromVercelTimestamp(value: unknown) {
 }
 
 function getVercelConfig() {
-  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN;
+  const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN || process.env.RUNE_DEPLOY_TOKEN;
   const project = getRuneRuntimeIdentity().vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME;
-  const teamId = process.env.VERCEL_TEAM_ID || ((process.env.RUNE_VERCEL_TEAM_ID ?? process.env.JARVIS_VERCEL_TEAM_ID));
+  const teamId = process.env.VERCEL_TEAM_ID || process.env.RUNE_VERCEL_TEAM_ID || process.env.JARVIS_VERCEL_TEAM_ID;
   return { token, project, teamId };
 }
 
@@ -184,11 +183,6 @@ export async function prepareDeploymentControlAction(options: {
   };
 }
 
-
-function getDeploymentMutationMode() {
-  return ((process.env.RUNE_DEPLOYMENT_MUTATION_MODE ?? process.env.JARVIS_DEPLOYMENT_MUTATION_MODE) || "disabled").trim().toLowerCase();
-}
-
 function privilegedKindForDeploymentAction(action: "execute_redeploy" | "execute_rollback") {
   return action === "execute_redeploy" ? "deploy" : "rollback";
 }
@@ -197,6 +191,72 @@ function expectedDeploymentApprovalText(action: "execute_redeploy" | "execute_ro
   return action === "execute_redeploy"
     ? "APPROVE RUNE DEPLOY"
     : "APPROVE RUNE ROLLBACK";
+}
+
+/**
+ * Execute a redeploy via Vercel REST API.
+ * POST /v13/deployments/{deploymentId}/redeploy
+ * No CLI runner needed — fully serverless-compatible.
+ */
+async function vercelApiRedeploy(deploymentId: string, teamId?: string | null): Promise<{ ok: boolean; deploymentUrl?: string; error?: string }> {
+  const { token } = getVercelConfig();
+  if (!token) return { ok: false, error: "Vercel token not configured." };
+
+  try {
+    const params = new URLSearchParams();
+    if (teamId) params.set("teamId", teamId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}/redeploy${qs}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ target: "production" }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: `Vercel redeploy API ${res.status}: ${text.slice(0, 240)}` };
+    }
+
+    const data = (await res.json()) as { url?: string; id?: string };
+    return { ok: true, deploymentUrl: data.url ? `https://${data.url}` : data.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Vercel redeploy failed" };
+  }
+}
+
+/**
+ * Execute a rollback via Vercel REST API.
+ * POST /v1/deployments/{deploymentId}/rollback
+ * No CLI runner needed — fully serverless-compatible.
+ */
+async function vercelApiRollback(deploymentId: string, teamId?: string | null): Promise<{ ok: boolean; deploymentUrl?: string; error?: string }> {
+  const { token } = getVercelConfig();
+  if (!token) return { ok: false, error: "Vercel token not configured." };
+
+  try {
+    const params = new URLSearchParams();
+    if (teamId) params.set("teamId", teamId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`https://api.vercel.com/v1/deployments/${deploymentId}/rollback${qs}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: `Vercel rollback API ${res.status}: ${text.slice(0, 240)}` };
+    }
+
+    const data = (await res.json()) as { url?: string; id?: string };
+    return { ok: true, deploymentUrl: data.url ? `https://${data.url}` : data.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Vercel rollback failed" };
+  }
 }
 
 export async function executeDeploymentControlAction(options: {
@@ -209,7 +269,6 @@ export async function executeDeploymentControlAction(options: {
 }) {
   const expectedApproval = expectedDeploymentApprovalText(options.action);
   const approvalText = (options.approvalText || "").trim();
-  const mutationMode = getDeploymentMutationMode();
   const { token, project, teamId } = getVercelConfig();
 
   const inspection = await listVercelDeployments({ limit: 8, target: "production" });
@@ -233,11 +292,12 @@ export async function executeDeploymentControlAction(options: {
         environment: "production",
         rollback_target: selectedDeployment?.uid || selectedDeployment?.url || "selected-vercel-deployment",
       };
+
   const evidence = options.action === "execute_redeploy"
     ? {
         build_passed: selectedDeployment?.state || "inspection_required",
         target_environment: "production",
-        release_summary: `Redeploy selected Vercel deployment ${selectedDeployment?.url || selectedDeployment?.uid || "unknown"}`,
+        release_summary: `Redeploy Vercel deployment ${selectedDeployment?.url || selectedDeployment?.uid || "unknown"}`,
         rollback_plan: "Use the paired privileged rollback gate to restore the previous READY production deployment.",
       }
     : {
@@ -246,10 +306,11 @@ export async function executeDeploymentControlAction(options: {
         target_rollback_deployment: selectedDeployment?.url || selectedDeployment?.uid || "unknown",
         blast_radius: "Production Vercel deployment alias for Rune.",
       };
+
   const gate = evaluatePrivilegedOperationGate({
     kind: privilegedKind,
     approvalText,
-    dryRun: true,
+    dryRun: false,
     scope,
     evidence,
     requestedBy: "deployment-control",
@@ -265,17 +326,17 @@ export async function executeDeploymentControlAction(options: {
     selectedDeployment,
     expectedApproval,
     receivedApproval: approvalText ? "provided" : "missing",
-    mutationMode,
     configured: Boolean(token),
     project: project || null,
     teamId: teamId || null,
     privilegedGate: gate,
+    executionMode: "vercel_rest_api_direct",
   };
 
   await auditPrivilegedOperationGate({
     kind: privilegedKind,
     approvalText,
-    dryRun: true,
+    dryRun: false,
     scope,
     evidence,
     requestedBy: "deployment-control",
@@ -317,7 +378,7 @@ export async function executeDeploymentControlAction(options: {
     return { ok: false, blocked: true, error: inspection.error, configured: inspection.configured, safety: "blocked_no_deployment_mutation" };
   }
 
-  if (!selectedDeployment?.uid && !selectedDeployment?.url) {
+  if (!selectedDeployment?.uid) {
     await logActionEvent({
       eventType: `deployment.${options.action}.blocked`,
       summary: `Deployment ${options.action.replace("execute_", "")} blocked: no deployment target`,
@@ -330,77 +391,53 @@ export async function executeDeploymentControlAction(options: {
     return { ok: false, blocked: true, error: "No deployment target was found for this action.", deployments: inspection.deployments, safety: "blocked_no_deployment_mutation" };
   }
 
-  // Vercel documents redeploy/rollback through the CLI. We intentionally do not call
-  // undocumented production mutation endpoints from the web app runtime. A future
-  // runner can execute the documented CLI command after this same approval gate.
-  const command = options.action === "execute_redeploy"
-    ? `vercel redeploy ${selectedDeployment.url || selectedDeployment.uid} --token=$VERCEL_TOKEN`
-    : `vercel rollback ${selectedDeployment.url || selectedDeployment.uid} --token=$VERCEL_TOKEN`;
+  // Execute via Vercel REST API — no CLI runner or external process needed.
+  const apiResult = options.action === "execute_redeploy"
+    ? await vercelApiRedeploy(selectedDeployment.uid, teamId)
+    : await vercelApiRollback(selectedDeployment.uid, teamId);
 
-  if (mutationMode !== "cli_runner") {
+  if (!apiResult.ok) {
     await logActionEvent({
-      eventType: `deployment.${options.action}.blocked`,
-      summary: `Deployment ${options.action.replace("execute_", "")} approved but blocked: CLI runner not enabled`,
-      status: "blocked",
+      eventType: `deployment.${options.action}.failed`,
+      summary: `Deployment ${options.action.replace("execute_", "")} failed via Vercel REST API`,
+      status: "failed",
       approvalStage: "action",
       riskLevel: "high",
       projectKey: "rune",
-      metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_not_enabled", documentedCommand: command },
+      metadata: { ...baseMetadata, error: apiResult.error },
     });
     return {
       ok: false,
-      blocked: true,
-      error: "Approval was valid, but deployment mutation is disabled because RUNE_DEPLOYMENT_MUTATION_MODE is not set to cli_runner.",
+      blocked: false,
+      error: apiResult.error,
       action: options.action,
       deployment: selectedDeployment,
-      documentedCommand: command,
-      safety: "approved_but_blocked_no_deployment_mutation",
-      message: "Rune prepared the exact documented Vercel CLI command but did not redeploy or rollback production.",
+      safety: "api_call_failed",
     };
   }
 
-  const queued = await queueCliRunnerJob({
-    workspaceId: options.workspaceId || ((process.env.RUNE_DEFAULT_WORKSPACE_ID ?? process.env.JARVIS_DEFAULT_WORKSPACE_ID)) || null,
-    conversationId: options.conversationId ?? null,
-    title: options.action === "execute_redeploy" ? "Approved Vercel redeploy" : "Approved Vercel rollback",
-    command,
-    kind: options.action === "execute_redeploy" ? "vercel_redeploy" : "vercel_rollback",
+  await logActionEvent({
+    eventType: `deployment.${options.action}.executed`,
+    summary: `Deployment ${options.action.replace("execute_", "")} executed via Vercel REST API`,
+    status: "approved",
+    approvalStage: "action",
     riskLevel: "high",
-    approvalText,
-    reason: options.reason || null,
-    metadata: { deployment: selectedDeployment, action: options.action },
+    projectKey: "rune",
+    metadata: {
+      ...baseMetadata,
+      workspaceId: options.workspaceId ?? null,
+      conversationId: options.conversationId ?? null,
+      newDeploymentUrl: apiResult.deploymentUrl,
+    },
   });
-
-  if (!queued.ok) {
-    await logActionEvent({
-      eventType: `deployment.${options.action}.blocked`,
-      summary: `Deployment ${options.action.replace("execute_", "")} approved but queueing failed`,
-      status: "blocked",
-      approvalStage: "action",
-      riskLevel: "high",
-      projectKey: "rune",
-      metadata: { ...baseMetadata, workspaceId: options.workspaceId ?? null, conversationId: options.conversationId ?? null, reason_blocked: "cli_runner_queue_failed", documentedCommand: command, error: queued.error },
-    });
-    return {
-      ok: false,
-      blocked: true,
-      error: queued.error,
-      action: options.action,
-      deployment: selectedDeployment,
-      documentedCommand: command,
-      safety: "approved_but_not_queued_no_deployment_mutation",
-    };
-  }
 
   return {
     ok: true,
     blocked: false,
     action: options.action,
     deployment: selectedDeployment,
-    documentedCommand: command,
-    taskId: queued.taskId,
-    task: queued.task,
-    safety: queued.safety,
-    message: queued.message,
+    newDeploymentUrl: apiResult.deploymentUrl,
+    safety: "executed_via_vercel_rest_api",
+    message: `Deployment ${options.action.replace("execute_", "")} triggered successfully via Vercel REST API.`,
   };
 }

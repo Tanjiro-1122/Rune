@@ -152,7 +152,7 @@ export const RUNE_CANONICAL_PROJECTS: RuneProject[] = [
     healthChecks: ["web_availability", "github_actions", "base44_dependency"],
     integrations: {
       base44: {
-        severanceStatus: "legacy_dependency",
+        severanceStatus: "removed",
       },
     },
     aliases: ["family", "unfiltr family", "elderly care", "elderly-care companion", "family app"],
@@ -185,7 +185,7 @@ export const RUNE_REAL_CAPABILITIES = [
 
 export const RUNE_NOT_CONNECTED_YET = [
   "Banking actions or Bank of America integration",
-  "Email sending/customer support inbox automation",
+  // Email sending now wired via Resend (RESEND_API_KEY)
   "RevenueCat direct admin/granting controls",
   "App Store Connect direct release control",
   "Google Play Console direct release control",
