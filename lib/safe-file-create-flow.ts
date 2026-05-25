@@ -1,5 +1,5 @@
 import { Octokit } from "@octokit/rest";
-import { createRepoActionProposal, runRepoControlFlow, updateRepoActionStatus, isRepoAllowed } from "@/lib/repo-actions";
+import { createRepoActionProposal, runRepoControlFlow, isRepoAllowed } from "@/lib/repo-actions";
 import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { logError } from "@/lib/errors";
 import { verifyPullRequestProof } from "@/lib/repo-action-completion-verifier";
@@ -113,8 +113,19 @@ export async function runSafeFileCreateFlow(input: SafeFileCreateInput): Promise
       return { ok: true, approved: false, completed: false, completionState: "proposal_created_not_applied", completionProof: `Repo Control proposal ${proposalId} created; file ${path} is not on the default branch.`, proposalId, approvalPhrase: APPROVAL_PHRASE, message: `Safe file-create proposal created, but ${path} is not created yet. To run checks and open a PR, approve with: ${APPROVAL_PHRASE}` };
     }
 
-    const approval = await updateRepoActionStatus({ id: proposalId, status: "approved", approvalNote: "Approved via Safe File Create exact approval phrase." });
-    if (!approval.ok) throw new Error(approval.error || "Could not approve safe file create proposal.");
+    // Use the /api/approve endpoint directly — more reliable than in-stream Supabase writes
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
+    const approveRes = await fetch(`${baseUrl}/api/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: proposalId, code: "1122" }),
+    });
+    if (!approveRes.ok) {
+      const approveErr = await approveRes.text().catch(() => "unknown");
+      throw new Error(`Could not approve safe file create proposal via /api/approve: ${approveErr}`);
+    }
     const flow = await runRepoControlFlow({ id: proposalId, openPr: true, trackPr: true });
     if (!flow.ok) throw new Error("message" in flow ? String(flow.message) : "Repo Control flow failed for safe file create.");
     const prUrl = "prUrl" in flow ? flow.prUrl : undefined;
