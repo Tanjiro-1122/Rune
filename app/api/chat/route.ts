@@ -471,7 +471,10 @@ function hasMathExpression(input: string) {
 function isCalculationIntent(input: string) {
   if (!input.trim()) return false;
   if (isRepoControlCommand(input)) return false;
-  const explicitMath = /\b(calculate|compute|solve|math|arithmetic|percentage|percent|tip|sum|total|convert)\b/i.test(input);
+  const repoFileCountIntent = /\b(how many times|count|occurrences?|used)\b/i.test(input)
+    && /\b(readme|file|repo|repository|github|source)\b/i.test(input);
+  const explicitMath = !repoFileCountIntent
+    && /\b(calculate|compute|solve|math|arithmetic|percentage|percent|tip|sum|total|convert)\b/i.test(input);
   const conversationalMath = /\bwhat is\b/i.test(input) && hasMathExpression(input);
   return (explicitMath || conversationalMath) && hasMathExpression(input);
 }
@@ -648,7 +651,10 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("get_tool_lifecycle_diagnostic");
   }
 
-  if (isCalculationIntent(input)) {
+  // Never expose the calculator for repo/source counting questions.
+  // Counts must come from the actual file content plus commit/path evidence, not partial snippets.
+  if (isCalculationIntent(input) && !(/\b(how many times|count|occurrences?|used)\b/i.test(input)
+    && /\b(readme|file|repo|repository|github|source)\b/i.test(input))) {
     add("calculate");
   }
 
@@ -3146,6 +3152,7 @@ When tools return data: translate it immediately. What's wrong, why, what the fi
 Responses: no headers, no "Key Findings", no "Summary". Just talk. Lists only when genuinely enumerable, 3 items max. Never open with filler. End with a specific next move or a concrete question.
 
 For code questions: read the real file first with readRepositoryFile or searchRepositoryCode. Never invent paths or contents. If a file doesn't exist, say so directly.
+For repo/file counting questions, especially README word counts: do not use calculate or partial pasted snippets. Read the real file from the target repo/branch, state repo + branch/commit SHA + file path + counting rule, then give exact-case and case-insensitive counts when relevant. If the file was not read, say you could not verify instead of guessing.
 
 Memory: when Javier tells you something important (a decision, a preference, a fact about the project), save it with save_memory so you remember next time.
 
@@ -3172,7 +3179,7 @@ If Javier uploads an image or file — read it, reference it directly, no hedgin
 
 For code fixes: find the file with listRepositoryTree, read it with readRepositoryFile, then fix it. Never guess at contents.
 
-GitHub source discipline: use searchRepositoryCode for code evidence, stop after one good search result, never call readRepositoryFile with placeholder paths, never claim file contents without reading them.
+GitHub source discipline: use searchRepositoryCode for code evidence, stop after one good search result, never call readRepositoryFile with placeholder paths, never claim file contents without reading them. For source-count answers, the final answer must include source proof (repo, branch/commit SHA, real path, and counting rule) and must not be derived from the calculate tool.
 ${workspaceContextSection}
 ${memoryRoutingSection}
 ${ownerMemorySection ? ownerMemorySection : ""}
