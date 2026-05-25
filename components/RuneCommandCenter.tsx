@@ -260,7 +260,7 @@ function RuneMobileLayout({
   chatMessages: Array<{role:"user"|"assistant";content:string}>;
   chatSending: boolean; chatError: string|null;
   sendChat: () => void;
-  chatEndRef: React.RefObject<HTMLDivElement>;
+  chatEndRef: React.RefObject<HTMLDivElement | null>;
   pulseOn: boolean;
   stats: { openPRs:string; lastDeploy:string; pendingApproval:string; tokenExpiry:string };
   activityFeed: any[];
