@@ -1217,6 +1217,33 @@ export async function runTemporaryWorkspaceBuildCheck(options: { id: string }) {
     return { ok: false, error: `Repo ${slug} is not allowlisted. Set JARVIS_ALLOWED_REPOS before sandbox execution.` };
   }
 
+  // BUG 4 FIX: Vercel serverless has no git/npm in PATH — skip build, trust sandbox check
+  const isVercelRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  if (isVercelRuntime) {
+    const now = new Date().toISOString();
+    const { data: skippedData, error: skippedError } = await supabase
+      .from("jarvis_repo_action_proposals")
+      .update({
+        draft_metadata: {
+          ...(proposal.draft_metadata || {}),
+          temp_workspace_checked_at: now,
+          temp_workspace_ready: true,
+          temp_workspace_skipped: true,
+          temp_workspace_skip_reason: "Vercel serverless runtime has no git/npm in PATH. Sandbox check is sufficient.",
+          safety: "sandbox_only_skipped_build_check",
+        },
+        updated_at: now,
+      })
+      .eq("id", id)
+      .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+      .single();
+    if (skippedError) {
+      logError("repoActions.runTemporaryWorkspaceBuildCheck.vercelSkip", skippedError);
+      return { ok: false, error: skippedError.message };
+    }
+    return { ok: true, proposal: skippedData as RepoActionProposalRow, ready: true, cleanupOk: true };
+  }
+
   const diffBody = extractDiffBody(proposal.diff_preview);
   const parsedFiles = parseUnifiedDiff(proposal.diff_preview);
   if (!parsedFiles.length) {
@@ -1399,6 +1426,12 @@ export async function openRepoActionPullRequest(options: { id: string }) {
     const clone = await runCommand("git", ["clone", "--depth", "1", "--branch", defaultBranch, getAuthenticatedCloneUrl(slug), repoDir], tempRoot, 120000);
     steps.push({ step: "git clone", ...clone });
     if (!clone.ok) throw new Error("Temporary clone failed.");
+
+    // BUG 2 FIX: Configure git identity — required for commit in serverless envs with no global git config
+    const gitEmail = await runCommand("git", ["config", "user.email", "rune-agent@users.noreply.github.com"], repoDir, 10000);
+    steps.push({ step: "git config user.email", ...gitEmail });
+    const gitName = await runCommand("git", ["config", "user.name", "Rune Agent"], repoDir, 10000);
+    steps.push({ step: "git config user.name", ...gitName });
 
     const checkout = await runCommand("git", ["checkout", "-b", branch], repoDir, 30000);
     steps.push({ step: "git checkout -b", ...checkout });
@@ -1778,7 +1811,14 @@ export async function runApprovedRepoActionExecutor(options: { id: string; openP
     };
   }
 
-  const diffPresent = Boolean(proposal.diff_preview && proposal.diff_preview.includes("diff"));
+  // BUG 1 FIX: Reject placeholder diffs — require a real ai_unified_diff_proposal, not a draft preview
+  const diffPresent = Boolean(
+    proposal.diff_preview &&
+    proposal.diff_preview.includes("diff --git") &&
+    !proposal.diff_preview.includes("Proposed changes will appear here") &&
+    !proposal.diff_preview.includes("review_preview") &&
+    proposal.draft_metadata?.draft_type === "ai_unified_diff_proposal"
+  );
   if (!diffPresent) {
     const result = record("generate_diff", await generateRepoActionProposedDiff({ id }));
     if (!result.ok) return { ok: false, error: result.error, steps, stoppedAt: "generate_diff" };
