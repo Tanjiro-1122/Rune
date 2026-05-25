@@ -243,6 +243,158 @@ function useStats() {
   return stats;
 }
 
+
+// ── Mobile layout — full-screen, bottom-nav shell ──────────────────────────
+function RuneMobileLayout({
+  activeNav, setActiveNav,
+  activeProject, setActiveProject,
+  input, setInput,
+  chatMessages, chatSending, chatError,
+  sendChat, chatEndRef,
+  pulseOn, stats,
+  activityFeed,
+}: {
+  activeNav: string; setActiveNav: (n: string) => void;
+  activeProject: string; setActiveProject: (p: string) => void;
+  input: string; setInput: (v: string) => void;
+  chatMessages: Array<{role:"user"|"assistant";content:string}>;
+  chatSending: boolean; chatError: string|null;
+  sendChat: () => void;
+  chatEndRef: React.RefObject<HTMLDivElement>;
+  pulseOn: boolean;
+  stats: { openPRs:string; lastDeploy:string; pendingApproval:string; tokenExpiry:string };
+  activityFeed: any[];
+}) {
+  function renderPanel() {
+    switch (activeNav) {
+      case "repo":     return <RepoPanel />;
+      case "tasks":    return <TasksPanel />;
+      case "memory":   return <MemoryPanel />;
+      case "deploy":   return <DeployPanel />;
+      case "activity": return <ActivityPanel />;
+      default:         return (
+        <>
+          {/* Stat cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, padding:"12px 14px", borderBottom:"1px solid #141414" }}>
+            {[
+              { label:"Open PRs",         value: stats.openPRs,        color:"#e8e8e8" },
+              { label:"Last deploy",      value: stats.lastDeploy,     color:"#27ae60" },
+              { label:"Pending",          value: stats.pendingApproval, color:"#f59e0b" },
+              { label:"Token expiry",     value: stats.tokenExpiry,    color:"#c0392b" },
+            ].map(s => (
+              <div key={s.label} style={{ background:"#111", border:"1px solid #1e1e1e", borderRadius:7, padding:"8px 10px" }}>
+                <div style={{ fontSize:9, color:"#444", marginBottom:4, letterSpacing:"0.06em", textTransform:"uppercase" }}>{s.label}</div>
+                <div style={{ fontSize:17, fontWeight:600, color:s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+          {/* Live activity feed */}
+          <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
+            <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>Recent activity</div>
+            {activityFeed.length === 0 && <div style={{ color:"#333", fontSize:11 }}>No activity yet.</div>}
+            {activityFeed.map((ev: any, i: number) => {
+              const icon = EVENT_ICONS[ev.event_type] ?? "·";
+              const isErr = ev.status==="failed" || ev.event_type==="error";
+              return (
+                <div key={ev.id ?? i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 0", borderBottom:"1px solid #141414" }}>
+                  <div style={{ width:26, height:26, borderRadius:5, flexShrink:0, background:isErr?"#200d0d":"#0d1520", color:isErr?"#c0392b":"#60a5fa", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>{icon}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:11, color:"#ccc", fontWeight:500 }}>{ev.summary}</div>
+                    <div style={{ fontSize:10, color:"#444", marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ev.event_type}{ev.project_key ? ` · ${ev.project_key}` : ""}</div>
+                  </div>
+                  <div style={{ fontSize:9, color:"#333", flexShrink:0, paddingTop:2 }}>{timeAgo(ev.created_at)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      );
+    }
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", minHeight:"100dvh", height:"100dvh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+      {/* Header */}
+      <div style={{ background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", padding:"0 14px", gap:10, height:44 }}>
+          <div style={{ width:24, height:24, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:"#c0392b", fontWeight:700 }}>R</div>
+          <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
+          <span style={{ fontSize:10, color:"#333" }}>command center</span>
+          <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:"auto" }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background: pulseOn ? "#27ae60" : "#1a6b35", transition:"background 0.4s" }} />
+          </div>
+        </div>
+        {/* Project pills scroll row */}
+        <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"4px 14px 8px", scrollbarWidth:"none" } as React.CSSProperties}>
+          {PROJECTS.map(p => (
+            <button key={p.key} onClick={() => setActiveProject(p.key)}
+              style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit", flexShrink:0, whiteSpace:"nowrap" }}
+            >{p.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Panel header */}
+      <div style={{ padding:"10px 14px", borderBottom:"1px solid #141414", display:"flex", alignItems:"center", gap:8, background:"#0e0e0e", flexShrink:0 }}>
+        <span style={{ color:"#c0392b", fontSize:14 }}>{NAV.find(n => n.id===activeNav)?.icon ?? "⌘"}</span>
+        <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8" }}>{PANEL_LABELS[activeNav]}</span>
+      </div>
+
+      {/* Scrollable main panel */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"#0e0e0e" }}>
+        {renderPanel()}
+      </div>
+
+      {/* Chat thread */}
+      {chatMessages.length > 0 && (
+        <div style={{ maxHeight:200, overflowY:"auto", padding:"8px 14px", background:"#090909", borderTop:"1px solid #141414", flexShrink:0 }}>
+          {chatMessages.map((m, i) => (
+            <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", marginBottom:5 }}>
+              <div style={{ maxWidth:"85%", padding:"5px 9px", borderRadius:7, fontSize:11, lineHeight:1.55,
+                background: m.role==="user" ? "#1e0a0a" : "#111",
+                color: m.role==="user" ? "#e8e8e8" : "#bbb",
+                border: m.role==="user" ? "1px solid #c0392b44" : "1px solid #1e1e1e",
+                whiteSpace:"pre-wrap", wordBreak:"break-word"
+              }}>{m.content}</div>
+            </div>
+          ))}
+          {chatSending && <div style={{ padding:"5px 9px", borderRadius:7, fontSize:11, background:"#111", color:"#555", border:"1px solid #1e1e1e", display:"inline-block" }}>…</div>}
+          {chatError && <div style={{ fontSize:10, color:"#c0392b", padding:"2px 4px" }}>{chatError}</div>}
+          <div ref={chatEndRef} />
+        </div>
+      )}
+
+      {/* Chat bar */}
+      <div style={{ borderTop:"1px solid #141414", padding:"10px 14px", paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))", display:"flex", alignItems:"center", gap:8, background:"#090909", flexShrink:0 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey && !chatSending) { e.preventDefault(); sendChat(); } }}
+          placeholder="Ask Rune anything…"
+          style={{ flex:1, background:"#111", border:"1px solid #1e1e1e", borderRadius:6, padding:"7px 11px", fontSize:11, color:"#d4d4d4", outline:"none", fontFamily:"inherit" }}
+        />
+        <button
+          onClick={sendChat}
+          disabled={chatSending || !input.trim()}
+          style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
+        >↑</button>
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{ borderTop:"1px solid #141414", display:"flex", background:"#080808", paddingBottom:"env(safe-area-inset-bottom, 0px)", flexShrink:0 }}>
+        {NAV.map(n => (
+          <button key={n.id} onClick={() => setActiveNav(n.id)}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 0", border:"none", background:"transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", cursor:"pointer", fontFamily:"inherit" }}
+          >
+            <span style={{ fontSize:16 }}>{n.icon}</span>
+            <span style={{ fontSize:8, letterSpacing:"0.05em" }}>{n.label.split(" ")[0].toUpperCase()}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Root component ──────────────────────────────────────────────────────────
 export default function RuneCommandCenter() {
   const router = useRouter();
@@ -402,40 +554,40 @@ export default function RuneCommandCenter() {
     );
   }
 
+  if (isMobile) return <RuneMobileLayout
+    activeNav={activeNav} setActiveNav={setActiveNav}
+    activeProject={activeProject} setActiveProject={setActiveProject}
+    input={input} setInput={setInput}
+    chatMessages={chatMessages} chatSending={chatSending} chatError={chatError}
+    sendChat={sendChat} chatEndRef={chatEndRef}
+    pulseOn={pulseOn} stats={stats}
+    activityFeed={activityFeed}
+  />;
+
   return (
-    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "48px 200px 1fr", gridTemplateRows:"44px 1fr", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+    <div style={{ display:"grid", gridTemplateColumns:"48px 200px 1fr", gridTemplateRows:"44px 1fr", minHeight:"100dvh", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
 
       {/* Topbar */}
       <div style={{ gridColumn:"1 / -1", background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", padding:"0 16px", gap:12 }}>
         <div style={{ width:26, height:26, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#c0392b", fontWeight:700 }}>R</div>
         <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
         <span style={{ fontSize:10, color:"#333", marginLeft:2 }}>command center</span>
-        {!isMobile && (
-          <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
-            {PROJECTS.map(p => (
-              <button key={p.key} onClick={() => setActiveProject(p.key)}
-                style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit" }}
-              >{p.label}</button>
-            ))}
-          </div>
-        )}
+        <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+          {PROJECTS.map(p => (
+            <button key={p.key} onClick={() => setActiveProject(p.key)}
+              style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit" }}
+            >{p.label}</button>
+          ))}
+        </div>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:16 }}>
           <div style={{ width:6, height:6, borderRadius:"50%", background: pulseOn ? "#27ae60" : "#1a6b35", transition:"background 0.4s" }} />
-          {!isMobile && <span style={{ fontSize:10, color:"#444" }}>all systems healthy</span>}
+          <span style={{ fontSize:10, color:"#444" }}>all systems healthy</span>
         </div>
-        {isMobile && (
-          <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"6px 16px 8px", scrollbarWidth:"none" } as React.CSSProperties}>
-            {PROJECTS.map(p => (
-              <button key={p.key} onClick={() => setActiveProject(p.key)}
-                style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit", flexShrink:0, whiteSpace:"nowrap" }}
-              >{p.label}</button>
-            ))}
-          </div>
-        )}
+
       </div>
 
-      {/* Nav rail — hidden on mobile */}
-      {!isMobile && <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
+      {/* Nav rail */}
+      <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
         {NAV.map((n, i) => (
           <div key={n.id}>
             {i === 4 && <div style={{ width:28, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
@@ -447,10 +599,10 @@ export default function RuneCommandCenter() {
         <button onClick={() => router.push("/vault")} title="Settings / Vault"
           style={{ marginTop:"auto", width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
         >⚙</button>
-      </div>}
+      </div>
 
-      {/* Sidebar — hidden on mobile */}
-      {!isMobile && <div style={{ gridRow:2, background:"#0b0b0b", borderRight:"1px solid #141414", overflowY:"auto", padding:"14px 0" }}>
+      {/* Sidebar */}
+      <div style={{ gridRow:2, background:"#0b0b0b", borderRight:"1px solid #141414", overflowY:"auto", padding:"14px 0" }}>
         {[
           { label:"Repo control", items:[
             { icon:"⎇", text:"Open PRs",        badge: stats.openPRs !== "—" ? stats.openPRs : "—", bc:"#c0392b", onClick: () => setActiveNav("repo")     },
@@ -477,7 +629,7 @@ export default function RuneCommandCenter() {
             ))}
           </div>
         ))}
-      </div>}
+      </div>
 
       {/* Main panel */}
       <div style={{ gridRow:2, display:"flex", flexDirection:"column", background:"#0e0e0e", overflow:"hidden" }}>
@@ -511,7 +663,7 @@ export default function RuneCommandCenter() {
             <div ref={chatEndRef} />
           </div>
         )}
-        <div style={{ borderTop:"1px solid #141414", padding:"10px 16px", display:"flex", alignItems:"center", gap:10, background:"#090909" }}>
+        <div style={{ borderTop:"1px solid #141414", padding:"10px 16px", paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))", display:"flex", alignItems:"center", gap:10, background:"#090909" }}>
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -525,19 +677,7 @@ export default function RuneCommandCenter() {
             style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
           >↑</button>
         </div>
-        {/* Mobile bottom nav bar */}
-        {isMobile && (
-          <div style={{ borderTop:"1px solid #141414", display:"flex", background:"#080808", padding:"4px 0", flexShrink:0 }}>
-            {NAV.map(n => (
-              <button key={n.id} onClick={() => setActiveNav(n.id)}
-                style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 0", border:"none", background:"transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", cursor:"pointer", fontFamily:"inherit" }}
-              >
-                <span style={{ fontSize:16 }}>{n.icon}</span>
-                <span style={{ fontSize:8, letterSpacing:"0.05em" }}>{n.label.split(" ")[0].toUpperCase()}</span>
-              </button>
-            ))}
-          </div>
-        )}
+
       </div>
     </div>
   );
