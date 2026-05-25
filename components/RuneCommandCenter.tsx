@@ -56,7 +56,7 @@ function timeAgo(iso: string): string {
 
 // ── Inline approval button (Step 4) ────────────────────────────────────────
 function InlineApprovalButton({ proposalId, onApproved }: { proposalId: string; onApproved?: () => void }) {
-  const [state, setState] = React.useState<"idle"|"loading"|"done"|"error">("idle");
+  const [state, setState] = useState<"idle"|"loading"|"done"|"error">("idle");
 
   async function approve() {
     setState("loading");
@@ -340,7 +340,7 @@ function RuneMobileLayout({
   chatMessages: Array<{role:"user"|"assistant";content:string}>;
   chatSending: boolean; chatError: string|null;
   sendChat: () => void;
-  chatEndRef: React.RefObject<HTMLDivElement | null>;
+  chatEndRef: RefObject<HTMLDivElement | null>;
   pulseOn: boolean;
   stats: { openPRs:string; lastDeploy:string; pendingApproval:string; tokenExpiry:string };
   activityFeed: any[];
@@ -497,8 +497,8 @@ export default function RuneCommandCenter() {
   }, []);
 
   // Step 6: Poll /api/notify every 30s for PR merge toasts
-  const [toasts, setToasts] = React.useState<Array<{id:string;title:string;body:string;type:string}>>([]);
-  const lastNotifyCheck = React.useRef<string>(new Date().toISOString());
+  const [toasts, setToasts] = useState<Array<{id:string;title:string;body:string;type:string}>>([]);
+  const lastNotifyCheck = useRef<string>(new Date().toISOString());
   useEffect(() => {
     const poll = async () => {
       try {
