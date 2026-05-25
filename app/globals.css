@@ -851,3 +851,7 @@ button:disabled {
   0%, 100% { box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
   50% { box-shadow: 0 0 12px rgba(251, 191, 36, 0.9), 0 0 20px rgba(239, 68, 68, 0.4); }
 }
+
+/* Fix 2: Prevent white flash / white bar on iPhone safe area */
+body { background-color: #0a0a0a !important; }
+html { background-color: #0a0a0a !important; }
