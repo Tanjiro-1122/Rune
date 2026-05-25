@@ -54,6 +54,37 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// ── Inline approval button (Step 4) ────────────────────────────────────────
+function InlineApprovalButton({ proposalId, onApproved }: { proposalId: string; onApproved?: () => void }) {
+  const [state, setState] = React.useState<"idle"|"loading"|"done"|"error">("idle");
+
+  async function approve() {
+    setState("loading");
+    try {
+      const res = await fetch("/api/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: proposalId, code: "1122" }),
+      });
+      if (res.ok) { setState("done"); onApproved?.(); }
+      else setState("error");
+    } catch { setState("error"); }
+  }
+
+  if (state === "done") return (
+    <div style={{ fontSize:10, color:"#4ade80", marginTop:4 }}>✓ Approved — PR opening...</div>
+  );
+  return (
+    <button onClick={approve} disabled={state === "loading"} style={{
+      marginTop:5, background: state === "loading" ? "#333" : "#c0392b",
+      color:"#fff", border:"none", borderRadius:5, padding:"4px 12px",
+      fontSize:10, cursor: state === "loading" ? "default" : "pointer", fontFamily:"inherit",
+    }}>
+      {state === "loading" ? "Approving…" : state === "error" ? "Try again" : "✓ Approve"}
+    </button>
+  );
+}
+
 // ── Repo panel ──────────────────────────────────────────────────────────────
 function RepoPanel() {
   const [proposals, setProposals] = useState<any[]>([]);
@@ -81,6 +112,9 @@ function RepoPanel() {
               <div style={{ fontSize:11, color:"#ccc", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.title}</div>
               {p.draft_metadata?.pr_url && (
                 <a href={p.draft_metadata.pr_url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:"#4ade80", marginTop:2, display:"block", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.draft_metadata.pr_url}</a>
+              )}
+              {(p.status === "proposed" || (p.status === "approved" && !p.draft_metadata?.pr_url)) && (
+                <InlineApprovalButton proposalId={p.id} onApproved={() => setProposals(prev => prev.filter(x => x.id !== p.id))} />
               )}
             </div>
             <div style={{ fontSize:9, color:"#333", flexShrink:0, paddingTop:2 }}>{timeAgo(p.updated_at)}</div>
@@ -135,73 +169,77 @@ function ActivityPanel() {
 }
 
 // ── Tasks panel ─────────────────────────────────────────────────────────────
-function TasksPanel() {
+function TasksPanel({ project }: { project: string }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/tasks?limit=30")
-      .then(r => r.json())
-      .then(d => {
-        // Guard: /api/tasks returns {tasks:[...]} or {error:"..."} — never trust raw response
-        const raw = Array.isArray(d?.tasks) ? d.tasks
-                  : Array.isArray(d)        ? d
-                  : [];
-        setTasks(raw);
-        if (d?.error) setFetchError(String(d.error));
-        setLoading(false);
-      })
-      .catch(e => { setFetchError(String(e)); setLoading(false); });
-  }, []);
+    setLoading(true);
+    fetch(`/api/tasks?limit=20`)
+      .then(r => r.ok ? r.json() : { tasks: [] })
+      .then(d => setTasks(Array.isArray(d?.tasks) ? d.tasks : Array.isArray(d) ? d : []))
+      .catch(() => setTasks([]))
+      .finally(() => setLoading(false));
+  }, [project]);
 
-  const GROUP_STYLES: Record<string, { label: string; color: string }> = {
-    running:   { label: "Running",   color: "#60a5fa" },
-    completed: { label: "Completed", color: "#4ade80" },
-    failed:    { label: "Failed",    color: "#c0392b" },
-    pending:   { label: "Pending",   color: "#f59e0b" },
+  const groups = {
+    running:   tasks.filter(t => t?.status === "running"),
+    completed: tasks.filter(t => t?.status === "completed"),
+    failed:    tasks.filter(t => t?.status === "failed"),
   };
 
-  const grouped: Record<string, any[]> = { running: [], completed: [], failed: [], pending: [] };
-  tasks.forEach(t => {
-    const s = typeof t?.status === "string" ? t.status : "pending";
-    if (grouped[s]) grouped[s].push(t);
-    else grouped.failed.push(t);
-  });
+  const statusColor: Record<string, string> = {
+    running: "#f59e0b", completed: "#4ade80", failed: "#c0392b",
+  };
 
-  if (loading) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Loading tasks…</div>;
+  if (loading) return (
+    <div style={{ padding:"20px", color:"#444", fontSize:12 }}>Loading tasks...</div>
+  );
 
-  if (fetchError && !tasks.length) return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, padding:20 }}>
-      <div style={{ color:"#c0392b", fontSize:11 }}>Could not load tasks</div>
-      <div style={{ color:"#444", fontSize:10, textAlign:"center" }}>{fetchError.slice(0, 120)}</div>
-    </div>
+  if (!tasks.length) return (
+    <div style={{ padding:"20px", color:"#444", fontSize:12 }}>No tasks yet.</div>
   );
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
-      {Object.entries(GROUP_STYLES).map(([status, { label, color }]) => {
-        const group = grouped[status] ?? [];
-        if (!group.length) return null;
-        return (
-          <div key={status} style={{ marginBottom:18 }}>
-            <div style={{ fontSize:9, color, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>{label} · {group.length}</div>
-            {group.map((t: any, i: number) => (
-              <div key={t?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #141414" }}>
+    <div style={{ padding:"14px 16px" }}>
+      {(["running", "completed", "failed"] as const).map(group => (
+        groups[group].length > 0 && (
+          <div key={group} style={{ marginBottom:20 }}>
+            <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>
+              {group} ({groups[group].length})
+            </div>
+            {groups[group].map((task: any, i: number) => (
+              <div key={task?.id || i} style={{
+                padding:"10px 0", borderBottom:"1px solid #1a1a1a",
+                display:"flex", alignItems:"flex-start", gap:10
+              }}>
+                <div style={{
+                  width:8, height:8, borderRadius:"50%", flexShrink:0, marginTop:4,
+                  background: statusColor[group] || "#555"
+                }} />
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:11, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {t?.title ?? t?.summary ?? t?.id ?? "Untitled task"}
+                  <div style={{ fontSize:12, color:"#ccc", fontWeight:500 }}>
+                    {task?.title || "Untitled task"}
                   </div>
-                  <div style={{ fontSize:10, color:"#444", marginTop:1 }}>
-                    {t?.created_at ? timeAgo(t.created_at) : "—"}
-                  </div>
+                  {task?.result_summary && (
+                    <div style={{ fontSize:10, color:"#555", marginTop:2 }}>
+                      {task.result_summary}
+                    </div>
+                  )}
+                  {task?.progress != null && task.status === "running" && (
+                    <div style={{ marginTop:6, height:2, background:"#222", borderRadius:2 }}>
+                      <div style={{ width:`${task.progress}%`, height:"100%", background:"#f59e0b", borderRadius:2 }} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize:9, color:"#444", flexShrink:0 }}>
+                  {task?.created_at ? new Date(task.created_at).toLocaleDateString() : ""}
                 </div>
               </div>
             ))}
           </div>
-        );
-      })}
-      {!tasks.length && !fetchError && <div style={{ color:"#333", fontSize:11 }}>No tasks yet.</div>}
+        )
+      ))}
     </div>
   );
 }
@@ -310,7 +348,7 @@ function RuneMobileLayout({
   function renderPanel() {
     switch (activeNav) {
       case "repo":     return <RepoPanel />;
-      case "tasks":    return <TasksPanel />;
+      case "tasks":    return <TasksPanel project={activeProject} />;
       case "memory":   return <MemoryPanel />;
       case "deploy":   return <DeployPanel />;
       case "activity": return <ActivityPanel />;
@@ -458,6 +496,29 @@ export default function RuneCommandCenter() {
     return () => clearInterval(t);
   }, []);
 
+  // Step 6: Poll /api/notify every 30s for PR merge toasts
+  const [toasts, setToasts] = React.useState<Array<{id:string;title:string;body:string;type:string}>>([]);
+  const lastNotifyCheck = React.useRef<string>(new Date().toISOString());
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/notify?since=${lastNotifyCheck.current}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const items: any[] = Array.isArray(d?.items) ? d.items : [];
+        if (items.length) {
+          lastNotifyCheck.current = new Date().toISOString();
+          setToasts(prev => [...prev, ...items.map((n: any) => ({
+            id: n.id ?? String(Date.now()), title: n.title ?? "Rune", body: n.body ?? "", type: n.type ?? "info"
+          }))]);
+        }
+      } catch { /* silent */ }
+    };
+    poll();
+    const t = setInterval(poll, 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -548,7 +609,7 @@ export default function RuneCommandCenter() {
   function renderMainContent() {
     switch (activeNav) {
       case "repo":     return <RepoPanel />;
-      case "tasks":    return <TasksPanel />;
+      case "tasks":    return <TasksPanel project={activeProject} />;
       case "memory":   return <MemoryPanel />;
       case "deploy":   return <DeployPanel />;
       case "activity": return <ActivityPanel />;
@@ -612,6 +673,21 @@ export default function RuneCommandCenter() {
 
   return (
     <div style={{ display:"grid", gridTemplateColumns:"48px 200px 1fr", gridTemplateRows:"44px 1fr", minHeight:"100dvh", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+
+      {/* Toast banner — PR merge / system notifications */}
+      {toasts.length > 0 && (
+        <div style={{ gridColumn:"1 / -1", gridRow:"1 / -1", position:"fixed", top:10, right:16, zIndex:999, display:"flex", flexDirection:"column", gap:6, pointerEvents:"none" }}>
+          {toasts.slice(-3).map(t => (
+            <div key={t.id} style={{ background: t.type==="success"?"#0d200d":"#1a0d0d", border:`1px solid ${t.type==="success"?"#4ade8044":"#c0392b44"}`, borderRadius:8, padding:"10px 14px", minWidth:240, maxWidth:320, pointerEvents:"all" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <span style={{ fontSize:11, fontWeight:600, color: t.type==="success"?"#4ade80":"#c0392b" }}>{t.title}</span>
+                <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:0, marginLeft:8 }}>×</button>
+              </div>
+              {t.body && <div style={{ fontSize:10, color:"#888", marginTop:3 }}>{t.body}</div>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Topbar */}
       <div style={{ gridColumn:"1 / -1", background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", padding:"0 16px", gap:12 }}>
