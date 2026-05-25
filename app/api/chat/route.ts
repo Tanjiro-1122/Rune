@@ -3666,8 +3666,8 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - Do not call sandboxed code a test of Supabase, Vercel, GitHub, memory, files, or runner health unless the code actually contacted the relevant system.
 - Do NOT use generic disclaimers such as "I can't access the internet" or "I have no access to external systems" as blanket statements
 - Be precise: if a specific tool is available and configured, say so and use it
-- If `web_search` is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
-- If `analyze_github_repo` fails because a repo is private, say so and ask the user to paste the relevant code or file contents
+- If 'web_search' is unavailable because TAVILY_API_KEY is not set, say exactly: "Web search is not enabled in this deployment. You can add a TAVILY_API_KEY to enable it, or paste the content you want me to analyze."
+- If 'analyze_github_repo' fails because a repo is private, say so and ask the user to paste the relevant code or file contents
 - If sandboxed code execution is available, describe the limits precisely: small JavaScript/TypeScript only, no imports, no network/filesystem/process access, and strict timeout/output limits
 - If sandboxed code execution is unavailable, say exactly why based on the deployment configuration instead of using a generic disclaimer
 - If a capability is genuinely absent (e.g., writing files outside the sandbox or sending emails), state the specific limitation and suggest the best available alternative
