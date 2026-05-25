@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 const PROJECTS = [
@@ -252,6 +252,11 @@ export default function RuneCommandCenter() {
   const [pulseOn, setPulseOn]             = useState(true);
   const [activityFeed, setActivityFeed]   = useState<any[]>([]);
   const stats = useStats();
+  // Chat bar state
+  const [chatMessages, setChatMessages]   = useState<Array<{role:"user"|"assistant"; content:string}>>([]);
+  const [chatSending, setChatSending]     = useState(false);
+  const [chatError, setChatError]         = useState<string|null>(null);
+  const chatEndRef                        = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setInterval(() => setPulseOn(p => !p), 1200);
@@ -268,6 +273,71 @@ export default function RuneCommandCenter() {
   }, [activeNav]);
 
   const proj = PROJECTS.find(p => p.key === activeProject)!;
+
+  // ── Chat send ──────────────────────────────────────────────────────────────
+  async function sendChat() {
+    const text = input.trim();
+    if (!text || chatSending) return;
+    setInput("");
+    setChatError(null);
+    const userMsg = { role: "user" as const, content: text };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatSending(true);
+    try {
+      const allMessages = [...chatMessages, userMsg];
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: allMessages }),
+      });
+      if (!res.ok || !res.body) {
+        const err = await res.text().catch(() => "Request failed");
+        throw new Error(err.slice(0, 200));
+      }
+      // Stream the response
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+      setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        // AI SDK data stream format: lines like `0:"text chunk"\n`
+        for (const line of chunk.split("\n")) {
+          if (line.startsWith('0:"')) {
+            try {
+              const parsed = JSON.parse(line.slice(2));
+              assistantContent += parsed;
+              setChatMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: "assistant", content: assistantContent };
+                return msgs;
+              });
+            } catch { /* partial line, skip */ }
+          } else if (line.startsWith("0:")) {
+            try {
+              const parsed = JSON.parse(line.slice(2));
+              if (typeof parsed === "string") {
+                assistantContent += parsed;
+                setChatMessages(prev => {
+                  const msgs = [...prev];
+                  msgs[msgs.length - 1] = { role: "assistant", content: assistantContent };
+                  return msgs;
+                });
+              }
+            } catch { /* skip */ }
+          }
+        }
+      }
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Chat failed");
+      setChatMessages(prev => prev.slice(0, -1)); // remove empty assistant bubble
+    } finally {
+      setChatSending(false);
+    }
+  }
 
   function renderMainContent() {
     switch (activeNav) {
@@ -398,10 +468,43 @@ export default function RuneCommandCenter() {
           <span style={{ fontSize:10, color:"#333", marginLeft:"auto" }}>{proj.repo} · main</span>
         </div>
         {renderMainContent()}
+        {/* ── Chat thread (only shown when messages exist) */}
+        {chatMessages.length > 0 && (
+          <div style={{ maxHeight:260, overflowY:"auto", padding:"10px 16px", background:"#090909", borderTop:"1px solid #141414" }}>
+            {chatMessages.map((m, i) => (
+              <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", marginBottom:6 }}>
+                <div style={{ maxWidth:"78%", padding:"6px 10px", borderRadius:8, fontSize:11, lineHeight:1.55,
+                  background: m.role==="user" ? "#1e0a0a" : "#111",
+                  color: m.role==="user" ? "#e8e8e8" : "#bbb",
+                  border: m.role==="user" ? "1px solid #c0392b44" : "1px solid #1e1e1e",
+                  whiteSpace:"pre-wrap", wordBreak:"break-word"
+                }}>{m.content}</div>
+              </div>
+            ))}
+            {chatSending && (
+              <div style={{ display:"flex", alignItems:"flex-start", marginBottom:6 }}>
+                <div style={{ padding:"6px 10px", borderRadius:8, fontSize:11, background:"#111", color:"#555", border:"1px solid #1e1e1e" }}>…</div>
+              </div>
+            )}
+            {chatError && (
+              <div style={{ fontSize:10, color:"#c0392b", padding:"2px 4px" }}>{chatError}</div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
         <div style={{ borderTop:"1px solid #141414", padding:"10px 16px", display:"flex", alignItems:"center", gap:10, background:"#090909" }}>
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder="Ask Rune anything…"
-            style={{ flex:1, background:"#111", border:"1px solid #1e1e1e", borderRadius:6, padding:"7px 12px", fontSize:11, color:"#d4d4d4", outline:"none", fontFamily:"inherit" }} />
-          <button style={{ width:30, height:30, borderRadius:6, background:"#c0392b", border:"none", color:"#fff", cursor:"pointer", fontSize:14 }}>↑</button>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !chatSending) { e.preventDefault(); sendChat(); } }}
+            placeholder="Ask Rune anything…"
+            style={{ flex:1, background:"#111", border:"1px solid #1e1e1e", borderRadius:6, padding:"7px 12px", fontSize:11, color:"#d4d4d4", outline:"none", fontFamily:"inherit" }}
+          />
+          <button
+            onClick={sendChat}
+            disabled={chatSending || !input.trim()}
+            style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
+          >↑</button>
         </div>
       </div>
     </div>
