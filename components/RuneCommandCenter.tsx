@@ -99,7 +99,13 @@ function ActivityPanel() {
   useEffect(() => {
     fetch("/api/actions?limit=8")
       .then(r => r.json())
-      .then(d => { setEvents(d.events ?? []); setLoading(false); })
+      .then(d => {
+        const // Filter: exclude noisy file upload events — show only meaningful signal
+        const EXCLUDED = ["workspace_file.uploaded", "workspace_file.created"];
+        const events: any[] = Array.isArray(d?.events) ? d.events : [];
+        setEvents(events.filter((e: any) => !EXCLUDED.includes(e?.event_type ?? "")));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
@@ -132,45 +138,70 @@ function ActivityPanel() {
 function TasksPanel() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/tasks?limit=30")
       .then(r => r.json())
-      .then(d => { setTasks(d.tasks ?? d ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(d => {
+        // Guard: /api/tasks returns {tasks:[...]} or {error:"..."} — never trust raw response
+        const raw = Array.isArray(d?.tasks) ? d.tasks
+                  : Array.isArray(d)        ? d
+                  : [];
+        setTasks(raw);
+        if (d?.error) setFetchError(String(d.error));
+        setLoading(false);
+      })
+      .catch(e => { setFetchError(String(e)); setLoading(false); });
   }, []);
-
-  const grouped: Record<string, any[]> = { running: [], completed: [], failed: [] };
-  tasks.forEach(t => { (grouped[t.status] ?? grouped.failed).push(t); });
 
   const GROUP_STYLES: Record<string, { label: string; color: string }> = {
     running:   { label: "Running",   color: "#60a5fa" },
     completed: { label: "Completed", color: "#4ade80" },
     failed:    { label: "Failed",    color: "#c0392b" },
+    pending:   { label: "Pending",   color: "#f59e0b" },
   };
 
+  const grouped: Record<string, any[]> = { running: [], completed: [], failed: [], pending: [] };
+  tasks.forEach(t => {
+    const s = typeof t?.status === "string" ? t.status : "pending";
+    if (grouped[s]) grouped[s].push(t);
+    else grouped.failed.push(t);
+  });
+
   if (loading) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Loading tasks…</div>;
+
+  if (fetchError && !tasks.length) return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, padding:20 }}>
+      <div style={{ color:"#c0392b", fontSize:11 }}>Could not load tasks</div>
+      <div style={{ color:"#444", fontSize:10, textAlign:"center" }}>{fetchError.slice(0, 120)}</div>
+    </div>
+  );
 
   return (
     <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
       {Object.entries(GROUP_STYLES).map(([status, { label, color }]) => {
-        const group = grouped[status];
+        const group = grouped[status] ?? [];
         if (!group.length) return null;
         return (
           <div key={status} style={{ marginBottom:18 }}>
             <div style={{ fontSize:9, color, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>{label} · {group.length}</div>
-            {group.map((t: any) => (
-              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #141414" }}>
+            {group.map((t: any, i: number) => (
+              <div key={t?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #141414" }}>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:11, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title ?? t.summary ?? t.id}</div>
-                  <div style={{ fontSize:10, color:"#444", marginTop:1 }}>{timeAgo(t.created_at)}</div>
+                  <div style={{ fontSize:11, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {t?.title ?? t?.summary ?? t?.id ?? "Untitled task"}
+                  </div>
+                  <div style={{ fontSize:10, color:"#444", marginTop:1 }}>
+                    {t?.created_at ? timeAgo(t.created_at) : "—"}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         );
       })}
-      {!tasks.length && <div style={{ color:"#333", fontSize:11 }}>No tasks yet.</div>}
+      {!tasks.length && !fetchError && <div style={{ color:"#333", fontSize:11 }}>No tasks yet.</div>}
     </div>
   );
 }
@@ -216,16 +247,16 @@ function DeployPanel() {
 
 // ── Stat cards with live data ───────────────────────────────────────────────
 function useStats() {
-  const [stats, setStats] = useState({ openPRs: "—", lastDeploy: "—", pendingApproval: "—", tokenExpiry: "2d" });
+  const [stats, setStats] = useState({ openPRs: "—", lastDeploy: "—", pendingApproval: "—", tokenExpiry: "—" });
 
   useEffect(() => {
     // Fetch proposals for PR counts
     fetch("/api/repo-actions?limit=50")
       .then(r => { if (!r.ok) throw new Error(`repo-actions ${r.status}`); return r.json(); })
       .then(d => {
-        const proposals: any[] = d.proposals ?? [];
-        const openPRs = proposals.filter((p: any) => p.status === "proposed" || p.status === "approved").length;
-        const pendingApproval = proposals.filter((p: any) => p.status === "approved" && !p.draft_metadata?.pr_url).length;
+        const proposals: any[] = Array.isArray(d?.proposals) ? d.proposals : [];
+        const openPRs = proposals.filter((p: any) => p?.status === "proposed" || p?.status === "approved").length;
+        const pendingApproval = proposals.filter((p: any) => p?.status === "approved" && !p?.draft_metadata?.pr_url).length;
         setStats(prev => ({ ...prev, openPRs: String(openPRs), pendingApproval: String(pendingApproval) }));
       })
       .catch(() => {});
@@ -238,6 +269,17 @@ function useStats() {
         setStats(prev => ({ ...prev, lastDeploy: state === "READY" ? "✓ live" : state ?? "—" }));
       })
       .catch(() => setStats(prev => ({ ...prev, lastDeploy: "—" })));
+
+    // Check GitHub token expiry — fine-grained PATs return expiration header,
+    // classic OAuth tokens do not → treat absence as "no expiry"
+    fetch("/api/github-token-status")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        const expiry: string = d?.expiry ?? "✓ no expiry";
+        setStats(prev => ({ ...prev, tokenExpiry: expiry }));
+      })
+      .catch(() => setStats(prev => ({ ...prev, tokenExpiry: "✓ no expiry" })));
   }, []);
 
   return stats;
@@ -280,7 +322,7 @@ function RuneMobileLayout({
               { label:"Open PRs",         value: stats.openPRs,        color:"#e8e8e8" },
               { label:"Last deploy",      value: stats.lastDeploy,     color:"#27ae60" },
               { label:"Pending",          value: stats.pendingApproval, color:"#f59e0b" },
-              { label:"Token expiry",     value: stats.tokenExpiry,    color:"#c0392b" },
+              { label:"Token expiry",     value: stats.tokenExpiry,    color: stats.tokenExpiry.startsWith("✓") ? "#27ae60" : "#c0392b" },
             ].map(s => (
               <div key={s.label} style={{ background:"#111", border:"1px solid #1e1e1e", borderRadius:7, padding:"8px 10px" }}>
                 <div style={{ fontSize:9, color:"#444", marginBottom:4, letterSpacing:"0.06em", textTransform:"uppercase" }}>{s.label}</div>
@@ -428,7 +470,11 @@ export default function RuneCommandCenter() {
     if (activeNav !== "home") return;
     fetch("/api/actions?limit=8")
       .then(r => { if (!r.ok) throw new Error(`actions ${r.status}`); return r.json(); })
-      .then(d => setActivityFeed(d.events ?? []))
+      .then(d => {
+        const EXCLUDED = ["workspace_file.uploaded", "workspace_file.created"];
+        const events: any[] = Array.isArray(d?.events) ? d.events : [];
+        setActivityFeed(events.filter((e: any) => !EXCLUDED.includes(e?.event_type ?? "")));
+      })
       .catch(() => setActivityFeed([]));
   }, [activeNav]);
 
@@ -519,7 +565,7 @@ export default function RuneCommandCenter() {
             { label:"Open PRs",         value: stats.openPRs,        color:"#e8e8e8" },
             { label:"Last deploy",      value: stats.lastDeploy,     color:"#27ae60" },
             { label:"Pending approval", value: stats.pendingApproval, color:"#f59e0b" },
-            { label:"Token expiry",     value: stats.tokenExpiry,    color:"#c0392b" },
+            { label:"Token expiry",     value: stats.tokenExpiry,    color: stats.tokenExpiry.startsWith("✓") ? "#27ae60" : "#c0392b" },
           ].map(s => (
             <div key={s.label} style={{ background:"#111", border:"1px solid #1e1e1e", borderRadius:7, padding:"10px 12px" }}>
               <div style={{ fontSize:9, color:"#444", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase" }}>{s.label}</div>
