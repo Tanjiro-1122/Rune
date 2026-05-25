@@ -134,7 +134,7 @@ function ActivityPanel() {
     fetch("/api/actions?limit=8")
       .then(r => r.json())
       .then(d => {
-        const // Filter: exclude noisy file upload events — show only meaningful signal
+        // Filter: exclude noisy file upload events — show only meaningful signal
         const EXCLUDED = ["workspace_file.uploaded", "workspace_file.created"];
         const events: any[] = Array.isArray(d?.events) ? d.events : [];
         setEvents(events.filter((e: any) => !EXCLUDED.includes(e?.event_type ?? "")));
