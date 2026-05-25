@@ -729,6 +729,12 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
     add("lookup_google_play_status");
   }
 
+  if (hasAny(["supabase", "database", "table", "query db", "query the db", "entitlement", "user tier", "unfiltr user", "swh user", "rune_tasks", "agent_memories", "rune_memory", "unfiltr_user", "swh_user"])) {
+    add("query_database");
+    add("save_memory");
+    add("list_memories");
+  }
+
   // Skill-store/dynamic tools are opt-in by name/intent only. Do not dump them globally.
   for (const name of Object.keys(tools)) {
     if (selected.has(name)) continue;
@@ -3050,6 +3056,28 @@ export async function POST(req: Request) {
         : ([] as Awaited<ReturnType<typeof getWorkspaceRetrievalContext>>)).slice(0, 3);
     const resolvedSupabaseMemory =
       supabaseMemorySection.status === "fulfilled" ? supabaseMemorySection.value : "";
+
+    // Fix 4: Fallback — if memory section empty, directly read last 5 agent_memories
+    // This ensures session context survives even if semantic search returns nothing.
+    let recentMemoryFallback = "";
+    if (!resolvedSupabaseMemory) {
+      try {
+        const { getSupabaseClient } = await import("@/lib/supabase");
+        const sb = getSupabaseClient();
+        if (sb) {
+          const { data: recentMems } = await sb
+            .from("agent_memories")
+            .select("title, content, project_key, updated_at")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(5);
+          if (recentMems?.length) {
+            recentMemoryFallback = "## Recent memory (fallback)\n" +
+              recentMems.map((m: any) => `- ${m.title}: ${m.content?.slice(0, 200) ?? ""}`).join("\n");
+          }
+        }
+      } catch { /* silent — memory is best-effort */ }
+    }
     const resolvedSkillTools: Record<string, any> =
       skillTools.status === "fulfilled" ? skillTools.value : {};
     const resolvedMemoryContext =
@@ -3178,7 +3206,7 @@ GitHub source discipline: use searchRepositoryCode for code evidence, stop after
 ${workspaceContextSection}
 ${memoryRoutingSection}
 ${ownerMemorySection ? ownerMemorySection : ""}
-${resolvedSupabaseMemory ? resolvedSupabaseMemory : ""}
+${resolvedSupabaseMemory || recentMemoryFallback}
 ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 
 
