@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/operator-executor",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/morning-briefing",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/self-heal",
+      "schedule": "0 * * * *"
     }
   ],
   "headers": [
