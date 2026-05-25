@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, RefObject } from "react";
 import { useRouter } from "next/navigation";
 
 const PROJECTS = [
