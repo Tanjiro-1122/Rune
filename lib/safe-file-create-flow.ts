@@ -64,15 +64,18 @@ function assertSafeContent(content: string) {
 function unifiedCreateDiff(path: string, content: string) {
   const lines = content.replace(/\n?$/, "\n").split("\n");
   if (lines.at(-1) === "") lines.pop();
-  return [
+    const rawDiff = [
     `diff --git a/${path} b/${path}`,
     "new file mode 100644",
+    "index 0000000..0000000",
     "--- /dev/null",
     `+++ b/${path}`,
     `@@ -0,0 +1,${Math.max(lines.length, 1)} @@`,
     ...(lines.length ? lines.map((line) => `+${line}`) : ["+"]),
     "",
   ].join("\n");
+  // Wrap in fenced block — extractDiffBody finds ```diff first, making parsing reliable
+  return `\`\`\`diff\n${rawDiff}\n\`\`\``;
 }
 
 export async function runSafeFileCreateFlow(input: SafeFileCreateInput): Promise<SafeFileCreateResult> {
