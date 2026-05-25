@@ -149,7 +149,7 @@ function cleanupRateWindow(now: number) {
 const MAX_TASK_SUMMARY_LENGTH = 240;
 
 function getGithubToken() {
-  return process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  return process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
 }
 
 function getOctokitClient() {
@@ -1186,7 +1186,7 @@ const baseAgentTools = {
           if (repoRes.status === 403 || repoRes.status === 429) {
             return {
               error:
-                "GitHub API rate limit reached. Set GITHUB_TOKEN or RUNE_GITHUB_TOKEN for a higher rate limit and private repo access.",
+                "GitHub API rate limit reached. Set GITHUB_TOKEN, RUNE_GITHUB_TOKEN, or JARVIS_GITHUB_TOKEN for a higher rate limit and private repo access.",
               repo: ownerRepo,
             };
           }
@@ -1435,7 +1435,7 @@ const baseAgentTools = {
             query,
             error: `GitHub code search returned ${searchRes.status}: ${searchRes.statusText}`,
             hint: searchRes.status === 401 || searchRes.status === 403
-              ? "Code search for private repos requires RUNE_GITHUB_TOKEN/GITHUB_TOKEN with repo read access in the deployment environment."
+              ? "Code search for private repos requires GITHUB_TOKEN/RUNE_GITHUB_TOKEN/JARVIS_GITHUB_TOKEN with repo read access in the deployment environment."
               : undefined,
           };
         }
