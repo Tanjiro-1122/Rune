@@ -183,28 +183,16 @@ function TasksPanel({ project }: { project: string }) {
 
   useEffect(() => {
     setLoading(true);
-    // Fix 5: try /api/tasks first, fall back to /api/jobs, show last 10 by created_at DESC
-    fetch(`/api/tasks?limit=10&order=created_at.desc`)
-      .then(r => r.ok ? r.json() : Promise.reject(`tasks ${r.status}`))
+    // Fix 4: bypass /api/tasks — use /api/tasks-direct which queries Supabase directly
+    fetch("/api/tasks-direct")
+      .then(r => r.ok ? r.json() : Promise.reject(`tasks-direct ${r.status}`))
       .then(d => {
-        console.log("[TasksPanel] /api/tasks response:", d);
-        const rows: any[] = Array.isArray(d?.tasks) ? d.tasks
-                          : Array.isArray(d?.data)  ? d.data
-                          : Array.isArray(d)         ? d
+        console.log("[TasksPanel] /api/tasks-direct response:", d);
+        const rows: any[] = Array.isArray(d) ? d
+                          : Array.isArray(d?.tasks) ? d.tasks
                           : [];
-        if (rows.length) return rows;
-        // Fallback: try /api/jobs
-        return fetch("/api/jobs?limit=10")
-          .then(r => r.ok ? r.json() : { jobs: [] })
-          .then(j => {
-            console.log("[TasksPanel] /api/jobs fallback response:", j);
-            return Array.isArray(j?.jobs)  ? j.jobs
-                 : Array.isArray(j?.tasks) ? j.tasks
-                 : Array.isArray(j)        ? j
-                 : [];
-          });
+        setTasks(rows);
       })
-      .then(rows => setTasks(rows))
       .catch(e => { console.warn("[TasksPanel] fetch failed:", e); setTasks([]); })
       .finally(() => setLoading(false));
   }, [project]);
@@ -321,34 +309,63 @@ function DeployPanel() {
     <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Deploy health unavailable</div>
   );
 
-  const dep = deploy?.deployment ?? deploy ?? {};
-  const state = dep.readyState ?? dep.state ?? dep.status ?? "—";
-  const stateColor = state === "READY" || state === "ready" ? "#4ade80" : state === "ERROR" ? "#c0392b" : "#f59e0b";
-  const url = dep.url ?? dep.inspectorUrl ?? dep.deploymentUrl ?? null;
-  const branch = dep.meta?.githubCommitRef ?? dep.branch ?? dep.gitBranch ?? "main";
-  const ts = dep.createdAt ?? dep.created_at ?? dep.readyAt ?? null;
+  // Fix 3: /api/deploy-health returns { overall, generatedAt, checks:[{key,label,status,detail}] }
+  const overall = deploy?.overall ?? "—";
+  const overallColor = overall === "ok" ? "#4ade80" : overall === "warning" ? "#f59e0b" : overall === "error" ? "#c0392b" : "#555";
+  const checks: any[] = Array.isArray(deploy?.checks) ? deploy.checks : [];
+  const generatedAt = deploy?.generatedAt ?? null;
 
-  const rows: Array<[string, string | null, string?]> = [
-    ["Status",  state,                           stateColor],
-    ["Branch",  branch,                          undefined],
-    ["URL",     url ? url.replace(/^https?:\/\//,"") : "—", undefined],
-    ["When",    ts ? timeAgo(ts) : "—",          undefined],
-  ];
+  // Key signals to surface at top
+  const keyChecks = [
+    checks.find((ch: any) => ch.key === "vercel.intelligence"),
+    checks.find((ch: any) => ch.key === "github.intelligence"),
+    checks.find((ch: any) => ch.key === "supabase.connection"),
+  ].filter(Boolean);
+
+  const missingChecks = checks.filter((ch: any) => ch.status === "missing" || ch.status === "error");
+  const okCount = checks.filter((ch: any) => ch.status === "ok").length;
 
   return (
     <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
-      <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>Last deployment</div>
-      {rows.map(([label, value, color]) => (
-        <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid #141414" }}>
-          <span style={{ fontSize:11, color:"#555" }}>{label}</span>
-          <span style={{ fontSize:11, color: color ?? "#ccc", fontFamily:"monospace", maxWidth:"60%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value ?? "—"}</span>
-        </div>
-      ))}
-      {url && (
-        <a href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noreferrer"
-          style={{ display:"block", marginTop:16, fontSize:10, color:"#4ade80", textDecoration:"none" }}>
-          → Open deployment ↗
-        </a>
+      {/* Overall status */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid #1e1e1e", marginBottom:4 }}>
+        <span style={{ fontSize:11, color:"#555" }}>Overall</span>
+        <span style={{ fontSize:13, fontWeight:700, color:overallColor, textTransform:"uppercase" }}>{overall}</span>
+      </div>
+      {generatedAt && (
+        <div style={{ fontSize:9, color:"#333", marginBottom:14 }}>Checked {timeAgo(generatedAt)}</div>
+      )}
+
+      {/* Key signals */}
+      {keyChecks.length > 0 && (
+        <>
+          <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>Signals</div>
+          {keyChecks.map((ch: any) => (
+            <div key={ch.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"7px 0", borderBottom:"1px solid #141414", gap:8 }}>
+              <span style={{ fontSize:10, color:"#888", flexShrink:0 }}>{ch.label}</span>
+              <span style={{ fontSize:10, color: ch.status==="ok" ? "#4ade80" : "#c0392b", textAlign:"right", maxWidth:"60%" }}>{ch.detail}</span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Health summary */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid #141414", marginTop:8 }}>
+        <span style={{ fontSize:11, color:"#555" }}>Checks passing</span>
+        <span style={{ fontSize:11, color:"#4ade80" }}>{okCount} / {checks.length}</span>
+      </div>
+
+      {/* Issues */}
+      {missingChecks.length > 0 && (
+        <>
+          <div style={{ fontSize:9, color:"#c0392b", letterSpacing:"0.1em", textTransform:"uppercase", marginTop:14, marginBottom:8 }}>Issues</div>
+          {missingChecks.map((ch: any) => (
+            <div key={ch.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"7px 0", borderBottom:"1px solid #141414", gap:8 }}>
+              <span style={{ fontSize:10, color:"#c0392b", flexShrink:0 }}>{ch.label}</span>
+              <span style={{ fontSize:10, color:"#555", textAlign:"right", maxWidth:"60%" }}>{ch.detail}</span>
+            </div>
+          ))}
+        </>
       )}
     </div>
   );
@@ -455,13 +472,13 @@ function RuneMobileLayout({
   }
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", minHeight:"100dvh", height:"100dvh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", minHeight:"100dvh", height:"100dvh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden", paddingBottom:"calc(env(safe-area-inset-bottom, 20px) + 60px)" }}>
       {/* Header */}
-      <div style={{ background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", padding:"0 14px", gap:10, height:44 }}>
-          <div style={{ width:24, height:24, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:"#c0392b", fontWeight:700 }}>R</div>
-          <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
-          <span style={{ fontSize:10, color:"#333" }}>command center</span>
+      <div style={{ background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0, paddingTop:"env(safe-area-inset-top, 44px)" }}>
+        <div style={{ display:"flex", alignItems:"center", padding:"0 14px", gap:10, height:38 }}>
+          <div style={{ width:22, height:22, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#c0392b", fontWeight:700 }}>R</div>
+          <span style={{ fontSize:11, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
+          <span style={{ fontSize:9, color:"#333" }}>command center</span>
           <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:"auto" }}>
             <div style={{ width:6, height:6, borderRadius:"50%", background: pulseOn ? "#27ae60" : "#1a6b35", transition:"background 0.4s" }} />
           </div>
@@ -526,7 +543,7 @@ function RuneMobileLayout({
       </div>
 
       {/* Bottom nav */}
-      <div style={{ borderTop:"1px solid #141414", display:"flex", background:"#080808", paddingBottom:"env(safe-area-inset-bottom, 0px)", flexShrink:0 }}>
+      <div style={{ borderTop:"1px solid #141414", display:"flex", background:"#080808", paddingBottom:"env(safe-area-inset-bottom, 20px)", flexShrink:0, position:"sticky" as const, bottom:0 }}>
         {NAV.map(n => (
           <button key={n.id} onClick={() => setActiveNav(n.id)}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 0", border:"none", background:"transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", cursor:"pointer", fontFamily:"inherit" }}
