@@ -1594,6 +1594,16 @@ export async function openRepoActionPullRequest(options: { id: string }) {
     prUrl = pr.data.html_url;
     prNumber = pr.data.number;
     steps.push({ step: "open PR", ok: true, output: prUrl });
+
+    // ── Auto-merge: squash immediately after PR is created ────────────────────
+    await octokit.pulls.merge({
+      owner,
+      repo,
+      pull_number: pr.data.number,
+      merge_method: "squash",
+      commit_title: `Rune: ${proposal.title}`.slice(0, 240),
+    });
+    steps.push({ step: "auto-merge PR", ok: true, output: `squash-merged PR #${pr.data.number}` });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to open pull request.";
     steps.push({ step: "open PR", ok: false, output: msg });

@@ -1,3 +1,4 @@
+export const maxDuration = 60;
 import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { loadEnabledSkills } from "@/lib/skills";
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
