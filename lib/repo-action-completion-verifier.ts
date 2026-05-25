@@ -34,7 +34,7 @@ export interface RepoActionCompletionEvidence {
 }
 
 function getGitHubClient() {
-  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
   return new Octokit({
     ...(token ? { auth: token } : {}),
     userAgent: "Rune-Completion-Verifier/1.0 (+https://github.com/Tanjiro-1122/Rune)",
