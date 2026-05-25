@@ -98,7 +98,7 @@ function getRepoParts(repoSlug: string) {
 }
 
 function getGitHubClient() {
-  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
   return new Octokit({
     ...(token ? { auth: token } : {}),
     userAgent: "Rune-Repo-Inspector/1.0 (+https://github.com/Tanjiro-1122/Rune)",
@@ -250,7 +250,7 @@ export function isRepoAllowed(repoSlug: string) {
 }
 
 function getAuthenticatedCloneUrl(slug: string) {
-  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
   if (token) return `https://x-access-token:${encodeURIComponent(token)}@github.com/${slug}.git`;
   return `https://github.com/${slug}.git`;
 }
