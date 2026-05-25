@@ -1667,6 +1667,84 @@ const baseAgentTools = {
     },
   }),
 
+
+  // ── GAP 2C: Resume interrupted task ─────────────────────────────────────────
+  resumeTask: tool({
+    description:
+      "Resume a task that was interrupted. Reads completed and failed steps from workspace_task_steps " +
+      "so Rune knows exactly where to continue without repeating finished work.",
+    parameters: z.object({
+      taskId: z.string().describe("The workspace_tasks UUID to resume"),
+    }),
+    execute: async ({ taskId }) => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return { error: "Supabase not configured" };
+      try {
+        const { data: steps, error } = await supabase
+          .from("workspace_task_steps")
+          .select("step_key, label, status, detail, order_index, started_at, completed_at")
+          .eq("task_id", taskId)
+          .order("order_index", { ascending: true });
+        if (error) return { error: error.message };
+        const completed = (steps || []).filter(s => s.status === "completed");
+        const failed    = (steps || []).filter(s => s.status === "failed");
+        const pending   = (steps || []).filter(s => s.status === "pending");
+        const running   = (steps || []).filter(s => s.status === "running");
+        return {
+          taskId,
+          totalSteps: (steps || []).length,
+          completedSteps: completed.map(s => ({ key: s.step_key, label: s.label, detail: s.detail })),
+          failedSteps:    failed.map(s => ({ key: s.step_key, label: s.label, detail: s.detail })),
+          pendingSteps:   pending.map(s => ({ key: s.step_key, label: s.label })),
+          runningSteps:   running.map(s => ({ key: s.step_key, label: s.label })),
+          resumeFromIndex: completed.length + 1,
+          summary: \`\${completed.length} completed, \${failed.length} failed, \${pending.length} pending\`,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 2A: Retry last failed step ──────────────────────────────────────────
+  retryLastFailedStep: tool({
+    description:
+      "Find the last failed tool step for a task and surface its inputs so Rune can retry with a modified approach. " +
+      "Never repeat the exact same approach that already failed.",
+    parameters: z.object({
+      taskId: z.string().describe("The workspace_tasks UUID"),
+      modifiedApproach: z.string().describe("Brief description of what you will do differently this retry"),
+    }),
+    execute: async ({ taskId, modifiedApproach }) => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return { error: "Supabase not configured" };
+      try {
+        const { data, error } = await supabase
+          .from("workspace_task_steps")
+          .select("*")
+          .eq("task_id", taskId)
+          .eq("status", "failed")
+          .order("order_index", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) return { error: error.message };
+        if (!data) return { message: "No failed steps found for this task — task may already be complete." };
+        return {
+          lastFailedStep: {
+            key: data.step_key,
+            label: data.label,
+            detail: data.detail,
+            failedAt: data.completed_at,
+          },
+          modifiedApproach,
+          instruction: \`Retrying step '\${data.label}' with new approach: \${modifiedApproach}\`,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
   listRepositoryTree: tool({
     description:
       "List the complete file structure and folder layout of the GitHub repository. For Rune itself, use owner 'Tanjiro-1122' and repo 'Rune'. Never guess javierhuertas/rune.",
@@ -3682,7 +3760,14 @@ That's a consultant's pitch, not an operator's answer. Instead:
           const taskSummary = summarizeTaskResult(text ?? "");
 
           // Fire step-status updates immediately — don't block on them
+          // Also log any repo/write tool calls as task steps for audit trail
           if (taskId) {
+            // Parse tool calls out of the assistant text to log them as steps
+            try {
+              const toolCallMatches = (text ?? "").matchAll(/called (\w+) tool|✓ ([a-zA-Z]+)\s*\(/g);
+              // Note: actual tool step logging happens via onStepFinish below
+            } catch { /* non-critical */ }
+
             void updateWorkspaceTaskStep({ taskId, stepKey: "execute_plan", status: "completed", detail: "Primary generation step completed.", progress: 78 })
               .catch((e) => logError("onFinish.step.execute_plan", e));
             void updateWorkspaceTaskStep({ taskId, stepKey: "persist_results", status: "running", detail: "Persisting final exchange and workspace updates.", progress: 86 })
