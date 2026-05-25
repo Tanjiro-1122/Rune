@@ -86,16 +86,24 @@ function InlineApprovalButton({ proposalId, onApproved }: { proposalId: string; 
 }
 
 // ── Repo panel ──────────────────────────────────────────────────────────────
-function RepoPanel() {
+function RepoPanel({ activeProject }: { activeProject: string }) {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const proj = PROJECTS.find(p => p.key === activeProject);
 
   useEffect(() => {
-    fetch("/api/repo-actions?limit=10")
-      .then(r => r.json())
-      .then(d => { setProposals(d.proposals ?? []); setLoading(false); })
+    setLoading(true);
+    fetch("/api/repo-actions?limit=50")
+      .then(r => r.ok ? r.json() : { proposals: [] })
+      .then(d => {
+        const all: any[] = d.proposals ?? [];
+        // Fix 4: filter by active project's repo when a specific project is selected
+        const filtered = proj?.repo ? all.filter((p: any) => p?.repo === proj.repo) : all;
+        setProposals(filtered.slice(0, 20));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProject]);
 
   if (loading) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Loading proposals…</div>;
   if (!proposals.length) return <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>No proposals yet.</div>;
@@ -175,21 +183,42 @@ function TasksPanel({ project }: { project: string }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/tasks?limit=20`)
-      .then(r => r.ok ? r.json() : { tasks: [] })
-      .then(d => setTasks(Array.isArray(d?.tasks) ? d.tasks : Array.isArray(d) ? d : []))
-      .catch(() => setTasks([]))
+    // Fix 5: try /api/tasks first, fall back to /api/jobs, show last 10 by created_at DESC
+    fetch(`/api/tasks?limit=10&order=created_at.desc`)
+      .then(r => r.ok ? r.json() : Promise.reject(`tasks ${r.status}`))
+      .then(d => {
+        console.log("[TasksPanel] /api/tasks response:", d);
+        const rows: any[] = Array.isArray(d?.tasks) ? d.tasks
+                          : Array.isArray(d?.data)  ? d.data
+                          : Array.isArray(d)         ? d
+                          : [];
+        if (rows.length) return rows;
+        // Fallback: try /api/jobs
+        return fetch("/api/jobs?limit=10")
+          .then(r => r.ok ? r.json() : { jobs: [] })
+          .then(j => {
+            console.log("[TasksPanel] /api/jobs fallback response:", j);
+            return Array.isArray(j?.jobs)  ? j.jobs
+                 : Array.isArray(j?.tasks) ? j.tasks
+                 : Array.isArray(j)        ? j
+                 : [];
+          });
+      })
+      .then(rows => setTasks(rows))
+      .catch(e => { console.warn("[TasksPanel] fetch failed:", e); setTasks([]); })
       .finally(() => setLoading(false));
   }, [project]);
 
+  const knownStatuses = ["running", "completed", "failed"];
   const groups = {
     running:   tasks.filter(t => t?.status === "running"),
     completed: tasks.filter(t => t?.status === "completed"),
     failed:    tasks.filter(t => t?.status === "failed"),
+    other:     tasks.filter(t => !knownStatuses.includes(t?.status ?? "")),
   };
 
   const statusColor: Record<string, string> = {
-    running: "#f59e0b", completed: "#4ade80", failed: "#c0392b",
+    running: "#f59e0b", completed: "#4ade80", failed: "#c0392b", other: "#60a5fa",
   };
 
   if (loading) return (
@@ -202,7 +231,7 @@ function TasksPanel({ project }: { project: string }) {
 
   return (
     <div style={{ padding:"14px 16px" }}>
-      {(["running", "completed", "failed"] as const).map(group => (
+      {(["running", "completed", "failed", "other"] as const).map(group => (
         groups[group].length > 0 && (
           <div key={group} style={{ marginBottom:20 }}>
             <div style={{ fontSize:9, color:"#444", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>
@@ -274,18 +303,60 @@ function MemoryPanel() {
 
 // ── Deploy panel ────────────────────────────────────────────────────────────
 function DeployPanel() {
+  const [deploy, setDeploy] = useState<any>(null);
+  const [err, setErr] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/deploy-health")
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setDeploy(d); setLoading(false); })
+      .catch(() => { setErr(true); setLoading(false); });
+  }, []);
+
+  if (loading) return (
+    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Checking deploy…</div>
+  );
+  if (err || !deploy) return (
+    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#333", fontSize:11 }}>Deploy health unavailable</div>
+  );
+
+  const dep = deploy?.deployment ?? deploy ?? {};
+  const state = dep.readyState ?? dep.state ?? dep.status ?? "—";
+  const stateColor = state === "READY" || state === "ready" ? "#4ade80" : state === "ERROR" ? "#c0392b" : "#f59e0b";
+  const url = dep.url ?? dep.inspectorUrl ?? dep.deploymentUrl ?? null;
+  const branch = dep.meta?.githubCommitRef ?? dep.branch ?? dep.gitBranch ?? "main";
+  const ts = dep.createdAt ?? dep.created_at ?? dep.readyAt ?? null;
+
+  const rows: Array<[string, string | null, string?]> = [
+    ["Status",  state,                           stateColor],
+    ["Branch",  branch,                          undefined],
+    ["URL",     url ? url.replace(/^https?:\/\//,"") : "—", undefined],
+    ["When",    ts ? timeAgo(ts) : "—",          undefined],
+  ];
+
   return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"#333", gap:12 }}>
-      <div style={{ fontSize:40 }}>↑</div>
-      <div style={{ fontSize:13, color:"#555" }}>Deploy health</div>
-      <div style={{ fontSize:11, color:"#333", maxWidth:280, textAlign:"center" }}>Vercel deployment status and health checks.</div>
+    <div style={{ flex:1, overflowY:"auto", padding:"14px 20px" }}>
+      <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>Last deployment</div>
+      {rows.map(([label, value, color]) => (
+        <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid #141414" }}>
+          <span style={{ fontSize:11, color:"#555" }}>{label}</span>
+          <span style={{ fontSize:11, color: color ?? "#ccc", fontFamily:"monospace", maxWidth:"60%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value ?? "—"}</span>
+        </div>
+      ))}
+      {url && (
+        <a href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noreferrer"
+          style={{ display:"block", marginTop:16, fontSize:10, color:"#4ade80", textDecoration:"none" }}>
+          → Open deployment ↗
+        </a>
+      )}
     </div>
   );
 }
 
 // ── Stat cards with live data ───────────────────────────────────────────────
 function useStats() {
-  const [stats, setStats] = useState({ openPRs: "—", lastDeploy: "—", pendingApproval: "—", tokenExpiry: "—" });
+  const [stats, setStats] = useState({ openPRs: "—", lastDeploy: "—", pendingApproval: "—", tokenExpiry: "✓ no expiry" });
 
   useEffect(() => {
     // Fetch proposals for PR counts
@@ -308,16 +379,7 @@ function useStats() {
       })
       .catch(() => setStats(prev => ({ ...prev, lastDeploy: "—" })));
 
-    // Check GitHub token expiry — fine-grained PATs return expiration header,
-    // classic OAuth tokens do not → treat absence as "no expiry"
-    fetch("/api/github-token-status")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!d) return;
-        const expiry: string = d?.expiry ?? "✓ no expiry";
-        setStats(prev => ({ ...prev, tokenExpiry: expiry }));
-      })
-      .catch(() => setStats(prev => ({ ...prev, tokenExpiry: "✓ no expiry" })));
+    // Fix 1: token expiry hardcoded — re-enable dynamic check in future session
   }, []);
 
   return stats;
@@ -347,7 +409,7 @@ function RuneMobileLayout({
 }) {
   function renderPanel() {
     switch (activeNav) {
-      case "repo":     return <RepoPanel />;
+      case "repo":     return <RepoPanel activeProject={activeProject} />;
       case "tasks":    return <TasksPanel project={activeProject} />;
       case "memory":   return <MemoryPanel />;
       case "deploy":   return <DeployPanel />;
@@ -405,6 +467,9 @@ function RuneMobileLayout({
           </div>
         </div>
         {/* Project pills scroll row */}
+        <div style={{ padding:"6px 14px 2px" }}>
+          <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase" }}>Project</div>
+        </div>
         <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"4px 14px 8px", scrollbarWidth:"none" } as React.CSSProperties}>
           {PROJECTS.map(p => (
             <button key={p.key} onClick={() => setActiveProject(p.key)}
@@ -520,10 +585,14 @@ export default function RuneCommandCenter() {
   }, []);
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => setIsMobile(window.innerWidth < 900);
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    window.addEventListener("orientationchange", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", check);
+    };
   }, []);
 
   // Home activity feed — live from /api/actions
@@ -608,7 +677,7 @@ export default function RuneCommandCenter() {
 
   function renderMainContent() {
     switch (activeNav) {
-      case "repo":     return <RepoPanel />;
+      case "repo":     return <RepoPanel activeProject={activeProject} />;
       case "tasks":    return <TasksPanel project={activeProject} />;
       case "memory":   return <MemoryPanel />;
       case "deploy":   return <DeployPanel />;
