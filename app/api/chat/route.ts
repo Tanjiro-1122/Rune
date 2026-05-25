@@ -1370,6 +1370,303 @@ const baseAgentTools = {
     },
   }),
 
+
+  // ── GAP 1A: Chunked file reader ─────────────────────────────────────────────
+  readRepositoryFileChunked: tool({
+    description:
+      "Read a large file from GitHub in chunks. Use this for files over 300 lines. " +
+      "Reads startLine to endLine inclusive. Always call getFileLineCount first to know total size. " +
+      "Assemble all chunks before making edits.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format e.g. Tanjiro-1122/Rune"),
+      path: z.string().describe("file path in repo"),
+      branch: z.string().default("main"),
+      startLine: z.number().default(1),
+      endLine: z.number().default(200),
+    }),
+    execute: async ({ repo, path, branch, startLine, endLine }) => {
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        const response = await octokit.repos.getContent({ owner, repo: repoName, path, ref: branch });
+        const data = response.data as any;
+        if (!data.content) return { error: "File content unavailable" };
+        const content = Buffer.from(data.content, "base64").toString("utf8");
+        const lines = content.split("\n");
+        const totalLines = lines.length;
+        const clampedEnd = Math.min(endLine, totalLines);
+        const chunk = lines.slice(startLine - 1, clampedEnd).join("\n");
+        return {
+          content: chunk,
+          startLine,
+          endLine: clampedEnd,
+          totalLines,
+          hasMore: clampedEnd < totalLines,
+          nextChunkStart: clampedEnd + 1,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 1A: Get file line count ──────────────────────────────────────────────
+  getFileLineCount: tool({
+    description: "Get the total number of lines in a file without reading its full content. Call this before readRepositoryFileChunked.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format"),
+      path: z.string(),
+      branch: z.string().default("main"),
+    }),
+    execute: async ({ repo, path, branch }) => {
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        const response = await octokit.repos.getContent({ owner, repo: repoName, path, ref: branch });
+        const data = response.data as any;
+        if (!data.content) return { error: "File content unavailable" };
+        const content = Buffer.from(data.content, "base64").toString("utf8");
+        return { totalLines: content.split("\n").length, size: data.size, path };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 1B: Direct file write ────────────────────────────────────────────────
+  writeRepositoryFile: tool({
+    description:
+      "Write or update a file directly in a GitHub repo in a single commit. " +
+      "Requires approvalPhrase === 'APPROVE RUNE WRITE'. " +
+      "Use for targeted edits under ~500 lines. For multi-file changes use batchWriteFiles.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format"),
+      path: z.string(),
+      content: z.string().describe("full new file content"),
+      message: z.string().describe("commit message"),
+      branch: z.string().default("main"),
+      approvalPhrase: z.string().describe("must be exactly: APPROVE RUNE WRITE"),
+    }),
+    execute: async ({ repo, path, content, message, branch, approvalPhrase }) => {
+      if (approvalPhrase !== "APPROVE RUNE WRITE") {
+        return { error: "Invalid approval phrase. User must say APPROVE RUNE WRITE to confirm." };
+      }
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        let sha: string | undefined;
+        try {
+          const existing = await octokit.repos.getContent({ owner, repo: repoName, path, ref: branch });
+          sha = (existing.data as any).sha;
+        } catch { /* new file — no sha needed */ }
+        const response = await octokit.repos.createOrUpdateFileContents({
+          owner, repo: repoName, path, message,
+          content: Buffer.from(content).toString("base64"),
+          branch,
+          ...(sha ? { sha } : {}),
+        });
+        return {
+          ok: true,
+          commitSha: response.data.commit.sha,
+          commitUrl: `https://github.com/${repo}/commit/${response.data.commit.sha}`,
+          fileUrl: response.data.content?.html_url,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 3A: Batch multi-file write ───────────────────────────────────────────
+  batchWriteFiles: tool({
+    description:
+      "Write multiple files in one single commit. Use when a task requires editing more than one file at once. " +
+      "Requires approvalPhrase === 'APPROVE RUNE WRITE'.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format"),
+      branch: z.string().default("main"),
+      files: z.array(z.object({
+        path: z.string(),
+        content: z.string(),
+      })).describe("array of files to write"),
+      commitMessage: z.string(),
+      approvalPhrase: z.string().describe("must be exactly: APPROVE RUNE WRITE"),
+    }),
+    execute: async ({ repo, branch, files, commitMessage, approvalPhrase }) => {
+      if (approvalPhrase !== "APPROVE RUNE WRITE") {
+        return { error: "Requires APPROVE RUNE WRITE" };
+      }
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        const ref = await octokit.git.getRef({ owner, repo: repoName, ref: \`heads/\${branch}\` });
+        const baseSha = ref.data.object.sha;
+        const baseCommit = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: baseSha });
+        const baseTreeSha = baseCommit.data.tree.sha;
+
+        const treeEntries = await Promise.all(files.map(async (file) => {
+          const blob = await octokit.git.createBlob({
+            owner, repo: repoName,
+            content: Buffer.from(file.content).toString("base64"),
+            encoding: "base64",
+          });
+          return { path: file.path, mode: "100644" as const, type: "blob" as const, sha: blob.data.sha };
+        }));
+
+        const tree = await octokit.git.createTree({ owner, repo: repoName, base_tree: baseTreeSha, tree: treeEntries });
+        const commit = await octokit.git.createCommit({
+          owner, repo: repoName, message: commitMessage,
+          tree: tree.data.sha, parents: [baseSha],
+          author: { name: "Rune Agent", email: "rune-agent@users.noreply.github.com", date: new Date().toISOString() },
+        });
+        await octokit.git.updateRef({ owner, repo: repoName, ref: \`heads/\${branch}\`, sha: commit.data.sha });
+
+        return {
+          ok: true,
+          commitSha: commit.data.sha,
+          commitUrl: \`https://github.com/\${repo}/commit/\${commit.data.sha}\`,
+          filesChanged: files.length,
+          paths: files.map(f => f.path),
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 3B: Surgical line replacement ────────────────────────────────────────
+  replaceFileLines: tool({
+    description:
+      "Replace specific lines in a file without rewriting the whole thing. " +
+      "Read the file first with readRepositoryFileChunked to confirm exact line numbers. " +
+      "Requires approvalPhrase === 'APPROVE RUNE WRITE'.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format"),
+      path: z.string(),
+      branch: z.string().default("main"),
+      startLine: z.number().describe("first line to replace (1-indexed)"),
+      endLine: z.number().describe("last line to replace (inclusive)"),
+      newContent: z.string().describe("replacement content for those lines"),
+      commitMessage: z.string(),
+      approvalPhrase: z.string().describe("must be exactly: APPROVE RUNE WRITE"),
+    }),
+    execute: async ({ repo, path, branch, startLine, endLine, newContent, commitMessage, approvalPhrase }) => {
+      if (approvalPhrase !== "APPROVE RUNE WRITE") return { error: "Requires APPROVE RUNE WRITE" };
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        const response = await octokit.repos.getContent({ owner, repo: repoName, path, ref: branch });
+        const data = response.data as any;
+        const existing = Buffer.from(data.content, "base64").toString("utf8");
+        const lines = existing.split("\n");
+        const replacementLines = newContent.split("\n");
+        lines.splice(startLine - 1, endLine - startLine + 1, ...replacementLines);
+        const updatedContent = lines.join("\n");
+        const result = await octokit.repos.createOrUpdateFileContents({
+          owner, repo: repoName, path, message: commitMessage,
+          content: Buffer.from(updatedContent).toString("base64"),
+          branch, sha: data.sha,
+        });
+        return {
+          ok: true,
+          commitSha: result.data.commit.sha,
+          commitUrl: \`https://github.com/\${repo}/commit/\${result.data.commit.sha}\`,
+          linesReplaced: endLine - startLine + 1,
+          newLineCount: lines.length,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+
+  // ── GAP 4A: Self-verification after writes ───────────────────────────────────
+  verifyFileChange: tool({
+    description:
+      "Verify a file was actually changed by checking its current content. " +
+      "Call this after every writeRepositoryFile, batchWriteFiles, or replaceFileLines. " +
+      "Never report a write as successful without this check.",
+    parameters: z.object({
+      repo: z.string().describe("owner/repo format"),
+      path: z.string(),
+      branch: z.string().default("main"),
+      expectedText: z.string().describe("text that should now be in the file"),
+      unexpectedText: z.string().optional().describe("text that should no longer be in the file"),
+    }),
+    execute: async ({ repo, path, branch, expectedText, unexpectedText }) => {
+      const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+      if (!token) return { error: "No GitHub token configured" };
+      const [owner, repoName] = repo.split("/");
+      const octokit = getOctokitClient();
+      try {
+        const response = await octokit.repos.getContent({ owner, repo: repoName, path, ref: branch });
+        const content = Buffer.from((response.data as any).content, "base64").toString("utf8");
+        const hasExpected = content.includes(expectedText);
+        const hasUnexpected = unexpectedText ? content.includes(unexpectedText) : false;
+        const verified = hasExpected && !hasUnexpected;
+        return {
+          verified,
+          hasExpectedText: hasExpected,
+          stillHasRemovedText: hasUnexpected,
+          message: verified
+            ? "✓ Change verified successfully"
+            : \`✗ Verification failed — \${!hasExpected ? "expected text not found" : "removed text still present"}\`,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
+  // ── GAP 4B: Build verification ───────────────────────────────────────────────
+  checkVercelBuildStatus: tool({
+    description:
+      "Check if the latest Vercel deployment succeeded. " +
+      "Call after any commit that affects running code. waitSeconds lets Vercel start the build before checking.",
+    parameters: z.object({
+      waitSeconds: z.number().default(45).describe("seconds to wait before polling Vercel"),
+    }),
+    execute: async ({ waitSeconds }) => {
+      await new Promise(r => setTimeout(r, waitSeconds * 1000));
+      const token = process.env.VERCEL_TOKEN || process.env.RUNE_VERCEL_TOKEN || process.env.JARVIS_VERCEL_TOKEN;
+      const projectId = process.env.VERCEL_PROJECT_ID || process.env.RUNE_VERCEL_PROJECT_ID || process.env.JARVIS_VERCEL_PROJECT_ID;
+      if (!token || !projectId) {
+        return { error: "VERCEL_TOKEN or VERCEL_PROJECT_ID not configured. Add them to Vercel environment variables." };
+      }
+      try {
+        const response = await fetch(\`https://api.vercel.com/v6/deployments?projectId=\${projectId}&limit=3\`, {
+          headers: { Authorization: \`Bearer \${token}\` },
+        });
+        const data = await response.json() as any;
+        const deployment = data.deployments?.[0];
+        if (!deployment) return { error: "No deployments found" };
+        return {
+          state: deployment.state,
+          ready: deployment.state === "READY",
+          error: deployment.state === "ERROR",
+          building: deployment.state === "BUILDING",
+          url: deployment.url ? \`https://\${deployment.url}\` : null,
+          commitMessage: deployment.meta?.githubCommitMessage,
+          commitSha: deployment.meta?.githubCommitSha?.slice(0, 8),
+          createdAt: deployment.createdAt,
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
+    },
+  }),
+
   listRepositoryTree: tool({
     description:
       "List the complete file structure and folder layout of the GitHub repository. For Rune itself, use owner 'Tanjiro-1122' and repo 'Rune'. Never guess javierhuertas/rune.",
@@ -3307,7 +3604,12 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - Never say "I reviewed system load," "I reviewed performance metrics," "I confirmed high traffic," or "I analyzed current request handling" unless an actual runtime/log/code-inspection tool result appears in the current answer context. If no such tool ran, say the claim is unverified and propose the safe inspection path.
 - REPO ACTION HARD RULE — NON-NEGOTIABLE: A repo/file action is ONLY complete when the tool result contains ALL of: (1) ok: true, AND (2) a real commit SHA or real PR URL from GitHub. If either is missing, say "The action did not complete — [exact reason from tool result]." STOP THERE. Do not say "done", "deleted", "created", "changed", "fixed", "updated", "merged", "pushed", or "live" for ANY repo/file operation unless both conditions are met in THIS response context.
 - REPO HALLUCINATION BAN: Never infer success from user approval or from a proposal being created. Approval is NOT execution. A proposal is NOT a commit. A task marked "approved" is NOT a task marked "executed". If the execution step was never called or returned ok: false, say so plainly.
-- REPO VERIFICATION MANDATE: After any repo write operation (create file, delete file, update file, push, merge, deploy), you MUST call the completion verifier or readRepositoryFile to confirm the change exists on the default branch before claiming it succeeded. If verification fails or returns completionTruth=not_completed_yet_do_not_claim_done, say: "I could not confirm the change. GitHub does not show it on main yet."
+- REPO VERIFICATION MANDATE: After any repo write operation (create file, delete file, update file, push, merge, deploy)
+- CHUNKED FILE READING: For files over 300 lines, ALWAYS use readRepositoryFileChunked instead of readRepositoryFile. First call getFileLineCount to know total size. Read in 200-line chunks until hasMore is false. Never attempt to read a large file in one shot.
+- WRITE TOOL PROTOCOL: After any writeRepositoryFile, batchWriteFiles, or replaceFileLines call, immediately call verifyFileChange to confirm the change landed. Never say the file changed without a verifyFileChange result.
+- BUILD VERIFICATION: After any commit that affects running code, call checkVercelBuildStatus to confirm the deployment succeeded. Never say a deployment is live without this check.
+- LOOP DETECTION: If you are about to say the same thing you said in your last message, STOP. Instead say exactly: "I notice I am stuck. Here is what I tried: [list]. New approach: [different approach]." Never ask for the same confirmation twice. If the user said 'code 1122' once, it applies to ALL steps in this task.
+- APPROVAL PHRASE: 'code 1122' or 'Code 1122' approves ALL steps in the current task. Do not ask for it again after the user has provided it once in a conversation., you MUST call the completion verifier or readRepositoryFile to confirm the change exists on the default branch before claiming it succeeded. If verification fails or returns completionTruth=not_completed_yet_do_not_claim_done, say: "I could not confirm the change. GitHub does not show it on main yet."
 - Repo action proof rule: if a tool result lacks a real PR URL, commit SHA, merge result, deployment URL, or verified GitHub file-content proof, do not say a PR/merge/file creation happened. If the wrong tool, especially calculate, was called for a repo task, admit the routing failure and stop; do not invent success.
 - Repo completion truth rule: for repo/file tasks, never say "done", "changed", "fixed", "updated", or "completed" unless the current tool result contains concrete completion proof such as a PR URL, commit SHA, merge result, deployment URL, or verified file content on the default branch. Creating a proposal is not completion. Opening a PR is not the same as changing main. If the tool result says completed=false or completionTruth=not_completed_yet_do_not_claim_done, say exactly what happened and what remains.
 - Lead with the answer, not a label. Skip phrases like "Short answer:" or "Here's what matters:" — just say the thing directly.
