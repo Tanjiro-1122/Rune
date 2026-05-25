@@ -281,24 +281,45 @@ async function testDeployHealth(): Promise<TestResult[]> {
 
 /** 7. REVENUECAT — API key validity check */
 async function testRevenueCat(): Promise<TestResult[]> {
+  // Resolve key using same fallback chain as revenuecat-readonly.ts
+  const rcApiKey = (
+    process.env.REVENUECAT_API_KEY?.trim() ||
+    process.env.REVENUECAT_SECRET_KEY?.trim() ||
+    process.env.RUNE_REVENUECAT_API_KEY?.trim() ||
+    process.env.JARVIS_REVENUECAT_API_KEY?.trim() ||
+    ""
+  );
+  const probeUserId = process.env.REVENUECAT_TEST_USER_ID?.trim() || "$RCAnonymousID:self_test_probe";
+
   return [
-    await timed("revenuecat:api_key", "revenuecat", async () => {
-      const key = process.env.REVENUECAT_API_KEY ?? "";
-      if (!key) return { status: "warn" as const, message: "REVENUECAT_API_KEY not set" };
-      // Hit the offerings endpoint as a lightweight check
-      const res = await fetch("https://api.revenuecat.com/v1/subscribers/$RCAnonymousID:self_test_probe", {
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-          "X-Platform": "ios",
-        },
-        cache: "no-store",
-      });
-      // 404 = subscriber not found = key is valid
-      if (res.status === 404) return { status: "pass", message: "RevenueCat API key valid (404 = subscriber not found, expected)" };
-      if (res.status === 401 || res.status === 403) throw new Error(`RC API key invalid → ${res.status}`);
-      if (res.status === 200) return { status: "pass", message: "RevenueCat API key valid" };
-      return { status: "warn" as const, message: `RC returned ${res.status}` };
+    await timed("revenuecat:api_key_resolved", "revenuecat", async () => {
+      if (!rcApiKey) {
+        // Check which env var names were tried so the error is actionable
+        const tried = ["REVENUECAT_API_KEY", "REVENUECAT_SECRET_KEY", "RUNE_REVENUECAT_API_KEY", "JARVIS_REVENUECAT_API_KEY"];
+        return { status: "warn" as const, message: `No RC key found. Tried: ${tried.join(", ")}` };
+      }
+      return { status: "pass", message: "RC API key env var resolved" };
+    }),
+    await timed("revenuecat:subscriber_lookup", "revenuecat", async () => {
+      if (!rcApiKey) return { status: "skip" as const, message: "Skipped — no API key" };
+      const res = await fetch(
+        `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(probeUserId)}`,
+        {
+          headers: { Authorization: `Bearer ${rcApiKey}`, Accept: "application/json" },
+          cache: "no-store",
+        }
+      );
+      // 404 = subscriber not found → key is valid, endpoint reachable
+      if (res.status === 404) return { status: "pass", message: `RC key valid — subscriber not found (404 expected for probe ID)` };
+      if (res.status === 401 || res.status === 403) throw new Error(`RC API key rejected (${res.status}) — check REVENUECAT_API_KEY is a secret key (sk_...)`);
+      if (res.status === 200) {
+        const body = await res.json().catch(() => ({}));
+        const entCount = Object.keys((body?.subscriber?.entitlements) ?? {}).length;
+        const subCount = Object.keys((body?.subscriber?.subscriptions) ?? {}).length;
+        return { status: "pass", message: `RC subscriber found — ${entCount} entitlements, ${subCount} subscriptions` };
+      }
+      const text = await res.text().catch(() => "");
+      return { status: "warn" as const, message: `RC returned ${res.status}: ${text.slice(0, 100)}` };
     }),
   ];
 }
