@@ -802,16 +802,64 @@ export default function RuneCommandCenter() {
   />;
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"48px 200px 1fr", gridTemplateRows:"44px 1fr", minHeight:"100dvh", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+    <HamburgerDesktopLayout
+      activeNav={activeNav} setActiveNav={setActiveNav}
+      activeProject={activeProject} setActiveProject={setActiveProject}
+      input={input} setInput={setInput}
+      chatMessages={chatMessages} chatSending={chatSending} chatError={chatError}
+      sendChat={sendChat} chatEndRef={chatEndRef}
+      pulseOn={pulseOn} stats={stats} toasts={toasts} setToasts={setToasts}
+      proj={proj} router={router}
+      renderMainContent={renderMainContent}
+    />
+  );
+}
 
-      {/* Toast banner — PR merge / system notifications */}
+// ── Hamburger Desktop Shell ─────────────────────────────────────────────────
+function HamburgerDesktopLayout({
+  activeNav, setActiveNav, activeProject, setActiveProject,
+  input, setInput, chatMessages, chatSending, chatError,
+  sendChat, chatEndRef, pulseOn, stats, toasts, setToasts, proj, router,
+  renderMainContent,
+}: {
+  activeNav: string; setActiveNav: (n: string) => void;
+  activeProject: string; setActiveProject: (p: string) => void;
+  input: string; setInput: (v: string) => void;
+  chatMessages: Array<{role:"user"|"assistant"; content:string}>;
+  chatSending: boolean; chatError: string|null;
+  sendChat: () => void; chatEndRef: RefObject<HTMLDivElement | null>;
+  pulseOn: boolean; stats: any;
+  toasts: Array<{id:string;title:string;body:string;type:string}>;
+  setToasts: (fn: (prev: any[]) => any[]) => void;
+  proj: typeof PROJECTS[0]; router: ReturnType<typeof useRouter>;
+  renderMainContent: () => React.ReactNode;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"56px 1fr", gridTemplateRows:"44px 1fr", minHeight:"100dvh", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+
+      {/* Toast banner */}
       {toasts.length > 0 && (
-        <div style={{ gridColumn:"1 / -1", gridRow:"1 / -1", position:"fixed", top:10, right:16, zIndex:999, display:"flex", flexDirection:"column", gap:6, pointerEvents:"none" }}>
-          {toasts.slice(-3).map(t => (
+        <div style={{ gridColumn:"1 / -1", gridRow:"1 / -1", position:"fixed", top:10, right:16, zIndex:1000, display:"flex", flexDirection:"column", gap:6, pointerEvents:"none" }}>
+          {toasts.slice(-3).map((t: any) => (
             <div key={t.id} style={{ background: t.type==="success"?"#0d200d":"#1a0d0d", border:`1px solid ${t.type==="success"?"#4ade8044":"#c0392b44"}`, borderRadius:8, padding:"10px 14px", minWidth:240, maxWidth:320, pointerEvents:"all" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <span style={{ fontSize:11, fontWeight:600, color: t.type==="success"?"#4ade80":"#c0392b" }}>{t.title}</span>
-                <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:0, marginLeft:8 }}>×</button>
+                <button onClick={() => setToasts((prev: any[]) => prev.filter((x: any) => x.id !== t.id))} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:14, lineHeight:1, padding:0, marginLeft:8 }}>×</button>
               </div>
               {t.body && <div style={{ fontSize:10, color:"#888", marginTop:3 }}>{t.body}</div>}
             </div>
@@ -824,63 +872,92 @@ export default function RuneCommandCenter() {
         <div style={{ width:26, height:26, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#c0392b", fontWeight:700 }}>R</div>
         <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
         <span style={{ fontSize:10, color:"#333", marginLeft:2 }}>command center</span>
-        <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
-          {PROJECTS.map(p => (
-            <button key={p.key} onClick={() => setActiveProject(p.key)}
-              style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit" }}
-            >{p.label}</button>
-          ))}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" }}>
           <div style={{ width:6, height:6, borderRadius:"50%", background: pulseOn ? "#27ae60" : "#1a6b35", transition:"background 0.4s" }} />
           <span style={{ fontSize:10, color:"#444" }}>all systems healthy</span>
         </div>
-
+        {/* Hamburger button */}
+        <div ref={menuRef} style={{ position:"relative", marginLeft:12 }}>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            style={{ width:32, height:32, borderRadius:6, background: menuOpen ? "#1e0a0a" : "transparent", border:`1px solid ${menuOpen ? "#c0392b44" : "#222"}`, color: menuOpen ? "#c0392b" : "#555", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:"7px 6px" }}
+            title="Menu"
+          >
+            <span style={{ display:"block", width:14, height:1.5, background:"currentColor", borderRadius:1 }} />
+            <span style={{ display:"block", width:14, height:1.5, background:"currentColor", borderRadius:1 }} />
+            <span style={{ display:"block", width:14, height:1.5, background:"currentColor", borderRadius:1 }} />
+          </button>
+          {menuOpen && (
+            <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, width:220, background:"#0d0d0d", border:"1px solid #1e1e1e", borderRadius:8, boxShadow:"0 8px 32px #000a", zIndex:500, overflow:"hidden" }}>
+              {/* Projects */}
+              <div style={{ padding:"8px 12px 4px", fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase" }}>Projects</div>
+              {PROJECTS.map(p => (
+                <div key={p.key} onClick={() => { setActiveProject(p.key); setMenuOpen(false); }}
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", cursor:"pointer", fontSize:11, color: activeProject===p.key ? p.color : "#666", background: activeProject===p.key ? p.color+"11" : "transparent" }}
+                  onMouseEnter={e => { if (activeProject!==p.key) (e.currentTarget as HTMLElement).style.background="#141414"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = activeProject===p.key ? p.color+"11" : "transparent"; }}
+                >
+                  <span style={{ fontSize:10 }}>◉</span>
+                  <span style={{ flex:1 }}>{p.label}</span>
+                  <span style={{ fontSize:9, padding:"1px 6px", borderRadius:10, background:"#1e6b3a33", color:"#27ae60", border:"1px solid #1e6b3a44" }}>ok</span>
+                </div>
+              ))}
+              <div style={{ height:1, background:"#161616", margin:"4px 0" }} />
+              {/* Quick actions */}
+              <div style={{ padding:"8px 12px 4px", fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase" }}>Quick actions</div>
+              {[
+                { icon:"+", text:"Create file", action: () => { setActiveNav("repo"); setMenuOpen(false); } },
+                { icon:"✎", text:"Edit file",   action: () => { setActiveNav("repo"); setMenuOpen(false); } },
+                { icon:"↑", text:"Deploy",      action: () => { setActiveNav("deploy"); setMenuOpen(false); } },
+              ].map(item => (
+                <div key={item.text} onClick={item.action}
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", cursor:"pointer", fontSize:11, color:"#666" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background="#141414"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background="transparent"; }}
+                >
+                  <span style={{ fontSize:12, width:14, textAlign:"center" }}>{item.icon}</span>
+                  <span>{item.text}</span>
+                </div>
+              ))}
+              <div style={{ height:1, background:"#161616", margin:"4px 0" }} />
+              {/* Account */}
+              <div style={{ padding:"8px 12px 4px", fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase" }}>Account</div>
+              {[
+                { icon:"⚙", text:"Settings", action: () => { router.push("/vault"); setMenuOpen(false); } },
+                { icon:"→", text:"Sign out",  action: () => { router.push("/logout"); setMenuOpen(false); } },
+              ].map(item => (
+                <div key={item.text} onClick={item.action}
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", cursor:"pointer", fontSize:11, color:"#666" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background="#141414"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background="transparent"; }}
+                >
+                  <span style={{ fontSize:12, width:14, textAlign:"center" }}>{item.icon}</span>
+                  <span>{item.text}</span>
+                </div>
+              ))}
+              <div style={{ height:6 }} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Nav rail */}
+      {/* Icon rail — 56px, hover tooltips only, no sidebar */}
       <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
         {NAV.map((n, i) => (
           <div key={n.id}>
-            {i === 4 && <div style={{ width:28, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
+            {i === 4 && <div style={{ width:32, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
             <button onClick={() => setActiveNav(n.id)} title={n.label}
-              style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background: activeNav===n.id ? "#1e0a0a" : "transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", fontSize:16, fontFamily:"inherit" }}
+              style={{ width:38, height:38, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background: activeNav===n.id ? "#1e0a0a" : "transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", fontSize:16, fontFamily:"inherit", transition:"color 0.15s, background 0.15s" }}
+              onMouseEnter={e => { if (activeNav!==n.id) { (e.currentTarget as HTMLElement).style.color="#888"; (e.currentTarget as HTMLElement).style.background="#111"; } }}
+              onMouseLeave={e => { if (activeNav!==n.id) { (e.currentTarget as HTMLElement).style.color="#3a3a3a"; (e.currentTarget as HTMLElement).style.background="transparent"; } }}
             >{n.icon}</button>
           </div>
         ))}
         <button onClick={() => router.push("/vault")} title="Settings / Vault"
-          style={{ marginTop:"auto", width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
+          style={{ marginTop:"auto", width:38, height:38, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color="#666"; (e.currentTarget as HTMLElement).style.background="#111"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color="#2a2a2a"; (e.currentTarget as HTMLElement).style.background="transparent"; }}
         >⚙</button>
-      </div>
-
-      {/* Sidebar */}
-      <div style={{ gridRow:2, background:"#0b0b0b", borderRight:"1px solid #141414", overflowY:"auto", padding:"14px 0" }}>
-        {[
-          { label:"Repo control", items:[
-            { icon:"⎇", text:"Open PRs",        badge: stats.openPRs !== "—" ? stats.openPRs : "—", bc:"#c0392b", onClick: () => setActiveNav("repo")     },
-            { icon:"○", text:"Pending approval", badge: stats.pendingApproval !== "—" ? stats.pendingApproval : "—", bc:"#e67e22", onClick: () => setActiveNav("repo") },
-            { icon:"✓", text:"Executed",          badge:null, bc:"#333",    onClick: () => setActiveNav("activity") },
-          ]},
-          { label:"Projects", items: PROJECTS.map(p => ({ icon:"◉", text:p.label, badge:"ok", bc:"#1e6b3a", onClick: () => setActiveProject(p.key) })) },
-          { label:"Quick actions", items:[
-            { icon:"+", text:"Create file", badge:null, bc:"", onClick: () => setActiveNav("repo")   },
-            { icon:"✎", text:"Edit file",   badge:null, bc:"", onClick: () => setActiveNav("repo")   },
-            { icon:"↑", text:"Deploy",      badge:null, bc:"", onClick: () => setActiveNav("deploy") },
-          ]},
-        ].map(section => (
-          <div key={section.label} style={{ padding:"0 10px", marginBottom:20 }}>
-            <div style={{ fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase", padding:"0 6px", marginBottom:6 }}>{section.label}</div>
-            {section.items.map(item => (
-              <div key={item.text} onClick={item.onClick}
-                style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 8px", borderRadius:5, cursor:"pointer", fontSize:11, color:"#555" }}
-              >
-                <span style={{ fontSize:13, width:16, textAlign:"center" }}>{item.icon}</span>
-                <span style={{ flex:1 }}>{item.text}</span>
-                {item.badge && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:10, background:item.bc+"33", color:item.bc==="#333"?"#555":item.bc, border:`1px solid ${item.bc}44` }}>{item.badge}</span>}
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
 
       {/* Main panel */}
