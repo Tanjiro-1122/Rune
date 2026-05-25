@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logActionEvent } from "@/lib/action-events";
+import { pickOwnedCommandProvider, verifyOwnedCommand } from "@/lib/owned-command-verification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,24 +89,73 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const rawBody = (await req.text()).slice(0, MAX_BODY_CHARS);
   const providers = configuredProviders();
+  const provider = pickOwnedCommandProvider(req.headers, req.nextUrl.searchParams);
 
-  // This scaffold intentionally does not trust or execute inbound commands yet.
-  // Next PR should add provider-specific signature verification, owner allowlist,
-  // command event persistence, queue handoff, and proof-backed response handling.
-  await recordBlockedProbe(req, rawBody);
+  if (!provider) {
+    await recordBlockedProbe(req, rawBody);
+    return NextResponse.json({
+      ok: false,
+      blocked: true,
+      route: "/api/commands/inbound",
+      message: "Inbound command execution is locked until provider signature verification and owner allowlist are implemented.",
+      configuredProviders: providers,
+      nextRequiredProof: [
+        "provider signature verification",
+        "owner sender allowlist",
+        "Supabase command event persistence",
+        "queue/runner handoff",
+        "outbound proof response through owned provider",
+      ],
+    }, { status: 403 });
+  }
+
+  const verification = verifyOwnedCommand({
+    provider,
+    rawBody,
+    url: req.url,
+    headers: req.headers,
+    searchParams: req.nextUrl.searchParams,
+  });
+
+  await logActionEvent({
+    eventType: verification.ok ? "owned_command_inbound.verified" : "owned_command_inbound.rejected",
+    summary: verification.ok
+      ? "Inbound owned command verified and persisted, but execution remains disabled pending queue handoff."
+      : `Inbound owned command rejected: ${verification.reason ?? "verification failed"}.`,
+    status: verification.ok ? "approved" : "blocked",
+    approvalStage: verification.ok ? "approval" : "none",
+    riskLevel: verification.ok ? "medium" : "medium",
+    projectKey: "rune",
+    metadata: {
+      ...verification.metadata,
+      proof: verification.proof,
+      reason: verification.reason ?? null,
+    },
+  });
+
+  if (!verification.ok) {
+    return NextResponse.json({
+      ok: false,
+      blocked: true,
+      route: "/api/commands/inbound",
+      provider,
+      reason: verification.reason,
+      proof: verification.proof,
+    }, { status: 403 });
+  }
 
   return NextResponse.json({
-    ok: false,
+    ok: true,
+    accepted: true,
     blocked: true,
     route: "/api/commands/inbound",
-    message: "Inbound command execution is locked until provider signature verification and owner allowlist are implemented.",
-    configuredProviders: providers,
+    provider,
+    message: "Command verified and persisted, but execution remains locked until queue/runner handoff and outbound proof response are implemented.",
+    proof: verification.proof,
     nextRequiredProof: [
-      "provider signature verification",
-      "owner sender allowlist",
-      "Supabase command event persistence",
+      "Supabase command event persistence verified in production",
       "queue/runner handoff",
       "outbound proof response through owned provider",
     ],
-  }, { status: 403 });
+  }, { status: 202 });
 }
