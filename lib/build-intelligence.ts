@@ -70,7 +70,7 @@ function getRepoSlug(repoOverride?: string | null) {
 }
 
 function getOctokitClient() {
-  const githubToken = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN;
+  const githubToken = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
   return new Octokit({
     ...(githubToken ? { auth: githubToken } : {}),
     userAgent: "Rune-Build-Intelligence/1.0 (+https://github.com/Tanjiro-1122/Rune)",
@@ -101,7 +101,7 @@ async function withIntelligenceTimeout<T>(label: string, promise: Promise<T>, fa
 
 export async function getGitHubIntelligence(repoOverride?: string | null): Promise<GitHubIntelligence> {
   const { owner, repo, slug } = getRepoSlug(repoOverride);
-  const tokenConfigured = Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN);
+  const tokenConfigured = Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN);
   const octokit = getOctokitClient();
 
   try {
@@ -233,7 +233,7 @@ export async function getBuildIntelligenceSnapshot(options: { projectKey?: strin
   const project = RUNE_RUNTIME.vercelProjectId || process.env.VERCEL_PROJECT_NAME || process.env.JARVIS_VERCEL_PROJECT_NAME || "Rune";
   const [github, vercel] = await Promise.all([
     withIntelligenceTimeout("github", getGitHubIntelligence(projectRepo), () => ({
-      configured: Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN),
+      configured: Boolean(process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN),
       repo: repoSlug,
       error: `GitHub intelligence timed out after ${EXTERNAL_INTELLIGENCE_TIMEOUT_MS}ms; returning partial snapshot.`,
     })),
