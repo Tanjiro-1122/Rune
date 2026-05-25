@@ -3724,6 +3724,32 @@ That's a consultant's pitch, not an operator's answer. Instead:
       toolChoice: forcedToolChoice ?? "auto",
       maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
       // experimental_continueSteps removed — maxSteps handles multi-step continuation in AI SDK 4.xs
+      onStepFinish: async ({ stepType, toolCalls, toolResults }) => {
+        // Log each tool call as a workspace_task_step for audit + resumeTask/retryLastFailedStep
+        if (!taskId || stepType !== 'tool-result' || !toolCalls?.length) return;
+        try {
+          const { getSupabaseClient } = await import("@/lib/supabase");
+          const supabase = getSupabaseClient();
+          if (!supabase) return;
+          const inserts = (toolCalls || []).map((tc: any, idx: number) => {
+            const result = toolResults?.[idx];
+            const hasError = result && (typeof result === 'object') && ('error' in (result as object));
+            return {
+              task_id: taskId,
+              step_key: `tool_${tc.toolName}_${Date.now()}_${idx}`,
+              label: tc.toolName,
+              status: hasError ? 'failed' : 'completed',
+              detail: hasError
+                ? String((result as any).error ?? 'Tool returned error')
+                : `Tool call completed`,
+              order_index: Date.now() + idx,
+            };
+          });
+          if (inserts.length) {
+            await supabase.from('workspace_task_steps').insert(inserts);
+          }
+        } catch { /* non-critical — never let step logging crash the stream */ }
+      },
       onFinish: ({ text }) => {
         if (!lastUserMessage) return;
 
