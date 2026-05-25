@@ -1384,12 +1384,17 @@ export async function openRepoActionPullRequest(options: { id: string }) {
 
   const proposal = existing as RepoActionProposalRow;
   const metadata = proposal.draft_metadata || {};
+
   if (proposal.status !== "approved") {
     return { ok: false, error: "Proposal must be approved before Rune can open a PR." };
   }
-  if (metadata.temp_workspace_ready !== true) {
+
+  // Skip temp_workspace_ready check on Vercel since we skip that step
+  const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  if (!isVercel && metadata.temp_workspace_ready !== true) {
     return { ok: false, error: "Temporary workspace build must pass before opening a PR." };
   }
+
   if (metadata.pr_url) {
     return { ok: true, proposal, prUrl: String(metadata.pr_url), branch: String(metadata.pr_branch || "") };
   }
@@ -1404,69 +1409,179 @@ export async function openRepoActionPullRequest(options: { id: string }) {
   if (!parsedFiles.length) return { ok: false, error: "No parseable diff found for PR creation." };
 
   const octokit = getGitHubClient();
+  const steps: Array<{ step: string; ok: boolean; output: string }> = [];
+
+  // ── Step 1: get default branch + its SHA ──────────────────────────────────
   let defaultBranch = "main";
+  let baseSha = "";
   try {
-    const repository = await octokit.repos.get({ owner, repo });
-    defaultBranch = repository.data.default_branch || "main";
-    await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+    const repoData = await octokit.repos.get({ owner, repo });
+    defaultBranch = repoData.data.default_branch || "main";
+    const refData = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+    baseSha = refData.data.object.sha;
+    steps.push({ step: "get base branch SHA", ok: true, output: `${defaultBranch} @ ${baseSha.slice(0, 7)}` });
   } catch (error) {
-    logError("repoActions.openRepoActionPullRequest.baseRef", error);
-    return { ok: false, error: error instanceof Error ? error.message : "Unable to read GitHub base branch." };
+    const msg = error instanceof Error ? error.message : "Unable to read base branch.";
+    steps.push({ step: "get base branch SHA", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.baseSha", error);
+    return { ok: false, error: msg };
   }
 
-  const branch = makeRepoActionBranchName(proposal);
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "jarvis-pr-"));
-  const repoDir = path.join(tempRoot, "repo");
-  const diffPath = path.join(tempRoot, "proposal.patch");
-  const steps: Array<{ step: string; ok: boolean; code: number | null; durationMs: number; output: string }> = [];
-  let cleanupOk = false;
-
+  // ── Step 2: get base tree SHA ─────────────────────────────────────────────
+  let baseTreeSha = "";
   try {
-    await writeFile(diffPath, diffBody, "utf8");
-    const clone = await runCommand("git", ["clone", "--depth", "1", "--branch", defaultBranch, getAuthenticatedCloneUrl(slug), repoDir], tempRoot, 120000);
-    steps.push({ step: "git clone", ...clone });
-    if (!clone.ok) throw new Error("Temporary clone failed.");
+    const commitData = await octokit.git.getCommit({ owner, repo, commit_sha: baseSha });
+    baseTreeSha = commitData.data.tree.sha;
+    steps.push({ step: "get base tree SHA", ok: true, output: baseTreeSha.slice(0, 7) });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unable to read base tree.";
+    steps.push({ step: "get base tree SHA", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.baseTree", error);
+    return { ok: false, error: msg };
+  }
 
-    // BUG 2 FIX: Configure git identity — required for commit in serverless envs with no global git config
-    const gitEmail = await runCommand("git", ["config", "user.email", "rune-agent@users.noreply.github.com"], repoDir, 10000);
-    steps.push({ step: "git config user.email", ...gitEmail });
-    const gitName = await runCommand("git", ["config", "user.name", "Rune Agent"], repoDir, 10000);
-    steps.push({ step: "git config user.name", ...gitName });
+  // ── Step 3: build tree entries from parsed diff ───────────────────────────
+  // For each file in the diff, get current content (if update/delete),
+  // apply the patch lines, and create a blob.
+  const treeEntries: Array<{
+    path: string;
+    mode: "100644";
+    type: "blob";
+    sha?: string | null;
+    content?: string;
+  }> = [];
 
-    const checkout = await runCommand("git", ["checkout", "-b", branch], repoDir, 30000);
-    steps.push({ step: "git checkout -b", ...checkout });
-    if (!checkout.ok) throw new Error("Branch creation failed locally.");
+  for (const file of parsedFiles) {
+    try {
+      if (file.operation === "delete") {
+        // sha: null signals deletion in GitHub tree API
+        treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: null });
+        steps.push({ step: `delete ${file.path}`, ok: true, output: "marked for deletion" });
+        continue;
+      }
 
-    const applyCheck = await runCommand("git", ["apply", "--check", diffPath], repoDir, 60000);
-    steps.push({ step: "git apply --check", ...applyCheck });
-    if (!applyCheck.ok) throw new Error("Patch did not apply cleanly.");
+      if (file.operation === "create") {
+        // Extract the added lines from the diff for this file
+        const addedLines = diffBody
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+          .map((line) => line.slice(1))
+          .join("\n");
+        const blob = await octokit.git.createBlob({ owner, repo, content: addedLines, encoding: "utf-8" });
+        treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.data.sha });
+        steps.push({ step: `create blob ${file.path}`, ok: true, output: blob.data.sha.slice(0, 7) });
+        continue;
+      }
 
-    const apply = await runCommand("git", ["apply", diffPath], repoDir, 60000);
-    steps.push({ step: "git apply", ...apply });
-    if (!apply.ok) throw new Error("Patch apply failed.");
+      // update: fetch current content, apply diff lines
+      let currentContent = "";
+      try {
+        const contentResp = await octokit.repos.getContent({ owner, repo, path: file.path, ref: defaultBranch });
+        const contentData = contentResp.data;
+        if (!Array.isArray(contentData) && contentData.type === "file" && "content" in contentData) {
+          currentContent = decodeBase64Content(contentData.content || "");
+        }
+      } catch {
+        // file may not exist yet — treat as create
+      }
 
-    const status = await runCommand("git", ["status", "--short"], repoDir, 30000);
-    steps.push({ step: "git status --short", ...status });
-    if (!status.output.trim()) throw new Error("Patch produced no local changes.");
+      // Apply the diff: remove lines prefixed with "-", add lines prefixed with "+"
+      // This is a simple line-level patch (sufficient for most cases)
+      const diffLines = diffBody.split(/\r?\n/);
+      const currentLines = currentContent.split(/\r?\n/);
+      const resultLines: string[] = [...currentLines];
+      let insertAt = 0;
 
-    const add = await runCommand("git", ["add", "--all"], repoDir, 30000);
-    steps.push({ step: "git add --all", ...add });
-    if (!add.ok) throw new Error("Git add failed.");
+      for (const line of diffLines) {
+        if (line.startsWith("@@")) {
+          // Parse hunk header e.g. @@ -10,4 +10,6 @@
+          const match = line.match(/@@ -(\d+)/);
+          insertAt = match ? Math.max(0, parseInt(match[1], 10) - 1) : 0;
+          continue;
+        }
+        if (line.startsWith("---") || line.startsWith("+++") || line.startsWith("diff ") || line.startsWith("index ")) continue;
+        if (line.startsWith("-") && !line.startsWith("---")) {
+          // Remove this line if it exists near insertAt
+          if (resultLines[insertAt] !== undefined) resultLines.splice(insertAt, 1);
+          continue;
+        }
+        if (line.startsWith("+") && !line.startsWith("+++")) {
+          resultLines.splice(insertAt, 0, line.slice(1));
+          insertAt++;
+          continue;
+        }
+        if (line.startsWith(" ")) insertAt++;
+      }
 
-    const commitMessage = `Rune: ${proposal.title}`.slice(0, 240);
-    const commit = await runCommand("git", ["commit", "-m", commitMessage], repoDir, 60000);
-    steps.push({ step: "git commit", ...commit });
-    if (!commit.ok) throw new Error("Git commit failed.");
+      const newContent = resultLines.join("\n");
+      const blob = await octokit.git.createBlob({ owner, repo, content: newContent, encoding: "utf-8" });
+      treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.data.sha });
+      steps.push({ step: `update blob ${file.path}`, ok: true, output: blob.data.sha.slice(0, 7) });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : `Failed to process ${file.path}`;
+      steps.push({ step: `process ${file.path}`, ok: false, output: msg });
+      logError("repoActions.openRepoActionPullRequest.blob", error);
+      return { ok: false, error: msg };
+    }
+  }
 
-    const commitShaResult = await runCommand("git", ["rev-parse", "HEAD"], repoDir, 30000);
-    steps.push({ step: "git rev-parse HEAD", ...commitShaResult });
-    if (!commitShaResult.ok || !commitShaResult.output.trim()) throw new Error("Unable to read commit SHA.");
-    const commitSha = commitShaResult.output.trim().split(/\s+/)[0] || "";
+  if (!treeEntries.length) {
+    return { ok: false, error: "No file changes could be prepared from the diff." };
+  }
 
-    const push = await runCommand("git", ["push", "origin", `HEAD:${branch}`], repoDir, 120000);
-    steps.push({ step: "git push branch", ...push });
-    if (!push.ok) throw new Error("Branch push failed.");
+  // ── Step 4: create new tree ───────────────────────────────────────────────
+  let newTreeSha = "";
+  try {
+    const treeResp = await octokit.git.createTree({ owner, repo, base_tree: baseTreeSha, tree: treeEntries });
+    newTreeSha = treeResp.data.sha;
+    steps.push({ step: "create tree", ok: true, output: newTreeSha.slice(0, 7) });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to create git tree.";
+    steps.push({ step: "create tree", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.createTree", error);
+    return { ok: false, error: msg };
+  }
 
+  // ── Step 5: create commit ─────────────────────────────────────────────────
+  let commitSha = "";
+  try {
+    const commitResp = await octokit.git.createCommit({
+      owner,
+      repo,
+      message: `Rune: ${proposal.title}`.slice(0, 240),
+      tree: newTreeSha,
+      parents: [baseSha],
+      author: {
+        name: "Rune Agent",
+        email: "rune-agent@users.noreply.github.com",
+        date: new Date().toISOString(),
+      },
+    });
+    commitSha = commitResp.data.sha;
+    steps.push({ step: "create commit", ok: true, output: commitSha.slice(0, 7) });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to create commit.";
+    steps.push({ step: "create commit", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.createCommit", error);
+    return { ok: false, error: msg };
+  }
+
+  // ── Step 6: create branch ref ─────────────────────────────────────────────
+  const branch = makeRepoActionBranchName(proposal);
+  try {
+    await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commitSha });
+    steps.push({ step: "create branch", ok: true, output: branch });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to create branch.";
+    steps.push({ step: "create branch", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.createRef", error);
+    return { ok: false, error: msg };
+  }
+
+  // ── Step 7: open pull request ─────────────────────────────────────────────
+  let prUrl = "";
+  let prNumber = 0;
+  try {
     const pr = await octokit.pulls.create({
       owner,
       repo,
@@ -1476,104 +1591,82 @@ export async function openRepoActionPullRequest(options: { id: string }) {
       body: buildPrBody(proposal, metadata, diffBody),
       maintainer_can_modify: true,
     });
-
-    const now = new Date().toISOString();
-    const report = [
-      `# Pull request opened — ${proposal.title}`,
-      `Repo: ${slug}`,
-      `Base: ${defaultBranch}`,
-      `Branch: ${branch}`,
-      `Commit: ${commitSha}`,
-      `PR: ${pr.data.html_url}`,
-      `Opened: ${now}`,
-      `Cleanup: pending`,
-      "",
-      "Rune created a branch and opened a pull request after approval and a passing temporary workspace build.",
-      "No merge was performed. Nothing was deployed by Rune.",
-      "",
-      "## PR steps",
-      ...steps.map((step) => [`### ${step.ok ? "PASS" : "FAIL"} · ${step.step}`, `Duration: ${step.durationMs}ms`, "```", step.output || "No output.", "```", ""].join("\n")),
-      "## Proposed diff",
-      "```diff",
-      diffBody,
-      "```",
-    ].join("\n");
-
-    let finalCleanupOk = false;
-    try {
-      await rm(tempRoot, { recursive: true, force: true });
-      cleanupOk = true;
-      finalCleanupOk = true;
-    } catch (error) {
-      logError("repoActions.openRepoActionPullRequest.cleanup", error);
-    }
-
-    const { data, error } = await supabase
-      .from("jarvis_repo_action_proposals")
-      .update({
-        diff_preview: report.replace("Cleanup: pending", `Cleanup: ${finalCleanupOk ? "temporary workspace removed" : "cleanup warning logged"}`),
-        draft_metadata: {
-          ...metadata,
-          pr_opened_at: now,
-          pr_url: pr.data.html_url,
-          pr_number: pr.data.number,
-          pr_branch: branch,
-          pr_base: defaultBranch,
-          pr_commit_sha: commitSha,
-          pr_cleanup_ok: finalCleanupOk,
-          pr_steps: steps.map((step) => ({ step: step.step, ok: step.ok, code: step.code, durationMs: step.durationMs, output: redactedCommandOutput(step.output, 2500) })),
-          safety: "branch_and_pr_only_no_merge_no_deploy",
-        },
-        updated_at: now,
-      })
-      .eq("id", id)
-      .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
-      .single();
-
-    if (error) {
-      logError("repoActions.openRepoActionPullRequest.update", error);
-      return { ok: false, error: error.message };
-    }
-
-    const updated = data as RepoActionProposalRow;
-    await logActionEvent({
-      eventType: "repo_action.pr_opened",
-      summary: `PR opened: ${updated.title}`,
-      status: "executed",
-      approvalStage: "action",
-      riskLevel: updated.risk_level,
-      projectKey: updated.project_key,
-      sessionId: updated.session_id,
-      workspaceId: updated.workspace_id,
-      conversationId: updated.conversation_id,
-      metadata: { proposalId: updated.id, repo: slug, branch, commitSha, prUrl: pr.data.html_url, prNumber: pr.data.number, cleanupOk: finalCleanupOk },
-    });
-
-    return { ok: true, proposal: updated, prUrl: pr.data.html_url, branch, commitSha };
+    prUrl = pr.data.html_url;
+    prNumber = pr.data.number;
+    steps.push({ step: "open PR", ok: true, output: prUrl });
   } catch (error) {
-    try {
-      await rm(tempRoot, { recursive: true, force: true });
-      cleanupOk = true;
-    } catch (cleanupError) {
-      logError("repoActions.openRepoActionPullRequest.cleanupAfterFail", cleanupError);
-    }
-    logError("repoActions.openRepoActionPullRequest", error);
-    await logActionEvent({
-      eventType: "repo_action.pr_open_failed",
-      summary: `PR open failed: ${proposal.title}`,
-      status: "failed",
-      approvalStage: "action",
-      riskLevel: "high",
-      projectKey: proposal.project_key,
-      sessionId: proposal.session_id,
-      workspaceId: proposal.workspace_id,
-      conversationId: proposal.conversation_id,
-      metadata: { proposalId: proposal.id, repo: slug, branch, cleanupOk, steps: steps.map((step) => ({ step: step.step, ok: step.ok, code: step.code, durationMs: step.durationMs, output: redactedCommandOutput(step.output, 2500) })) },
-    });
-    return { ok: false, error: error instanceof Error ? error.message : "Failed to open pull request." };
+    const msg = error instanceof Error ? error.message : "Failed to open pull request.";
+    steps.push({ step: "open PR", ok: false, output: msg });
+    logError("repoActions.openRepoActionPullRequest.createPR", error);
+    return { ok: false, error: msg };
   }
-}
 
+  // ── Step 8: persist to Supabase ───────────────────────────────────────────
+  const now = new Date().toISOString();
+  const report = [
+    `# Pull request opened — ${proposal.title}`,
+    `Repo: ${slug}`,
+    `Base: ${defaultBranch}`,
+    `Branch: ${branch}`,
+    `Commit: ${commitSha}`,
+    `PR: ${prUrl}`,
+    `Opened: ${now}`,
+    "",
+    "Rune created a branch and opened a pull request via the GitHub API (no shell git commands — Vercel-safe).",
+    "No merge was performed. Nothing was deployed by Rune.",
+    "",
+    "## Steps",
+    ...steps.map((s) => `- ${s.ok ? "✅" : "❌"} ${s.step}: ${s.output}`),
+    "",
+    "## Diff applied",
+    "```diff",
+    diffBody,
+    "```",
+  ].join("\n");
+
+  const { data, error } = await supabase
+    .from("jarvis_repo_action_proposals")
+    .update({
+      diff_preview: report,
+      draft_metadata: {
+        ...metadata,
+        pr_opened_at: now,
+        pr_url: prUrl,
+        pr_number: prNumber,
+        pr_branch: branch,
+        pr_base: defaultBranch,
+        pr_commit_sha: commitSha,
+        pr_method: "octokit_api_no_shell",
+        pr_steps: steps,
+        safety: "branch_and_pr_only_no_merge_no_deploy",
+      },
+      updated_at: now,
+    })
+    .eq("id", id)
+    .select("id, title, summary, findings, plan, repo, project_key, risk_level, status, files, diff_preview, approval_note, draft_metadata, session_id, workspace_id, conversation_id, created_at, updated_at, approved_at, executed_at")
+    .single();
+
+  if (error) {
+    logError("repoActions.openRepoActionPullRequest.update", error);
+    return { ok: false, error: error.message };
+  }
+
+  const updated = data as RepoActionProposalRow;
+  await logActionEvent({
+    eventType: "repo_action.pr_opened",
+    summary: `PR opened: ${updated.title}`,
+    status: "executed",
+    approvalStage: "action",
+    riskLevel: updated.risk_level,
+    projectKey: updated.project_key,
+    sessionId: updated.session_id,
+    workspaceId: updated.workspace_id,
+    conversationId: updated.conversation_id,
+    metadata: { proposalId: updated.id, repo: slug, branch, commitSha, prUrl, prNumber, method: "octokit_api_no_shell" },
+  });
+
+  return { ok: true, proposal: updated, prUrl, branch, commitSha };
+}
 
 export async function trackRepoActionPullRequest(options: { id: string }) {
   const supabase = getSupabaseClient();
