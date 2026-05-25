@@ -10,6 +10,21 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
+
+function getInternalProofToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const bearer = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  return bearer || request.headers.get("x-cron-secret")?.trim() || request.headers.get("x-rune-internal-token")?.trim() || null;
+}
+
+function isInternalProofRequest(request: NextRequest): boolean {
+  const expectedTokens = [process.env.RUNE_INTERNAL_TOKEN, process.env.CRON_SECRET]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  const provided = getInternalProofToken(request);
+  return Boolean(provided && expectedTokens.includes(provided));
+}
+
 function redirectToLogin(request: NextRequest, reason?: string): NextResponse {
   const loginUrl = new URL("/login", request.url);
   if (reason) loginUrl.searchParams.set("reason", reason);
@@ -42,6 +57,15 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+
+
+  // Allow protected production proof endpoints when called by trusted internal automation.
+  // Route handlers still perform their own checks where applicable; this only lets
+  // CRON_SECRET/RUNE_INTERNAL_TOKEN requests pass middleware instead of being
+  // mistaken for unauthenticated browser traffic.
+  if ((pathname === "/api/deploy-health" || pathname === "/api/self-test") && isInternalProofRequest(request)) {
+    return withSecurityHeaders(NextResponse.next());
+  }
 
   // Allow Vercel cron jobs — routes use CRON_SECRET bearer token internally.
   if (pathname.startsWith("/api/cron")) {

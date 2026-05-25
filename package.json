@@ -131,7 +131,8 @@
     "test:owned-command-inbound-scaffold": "node scripts/owned-command-inbound-scaffold-smoke-test.mjs",
     "test:command-inbound-middleware-allow": "node scripts/command-inbound-middleware-allow-smoke-test.mjs",
     "proof:owned-command-inbound": "node scripts/owned-command-inbound-production-proof.mjs",
-    "test:owned-command-provider-readiness": "node scripts/owned-command-provider-readiness-smoke-test.mjs"
+    "test:owned-command-provider-readiness": "node scripts/owned-command-provider-readiness-smoke-test.mjs",
+    "test:internal-proof-auth": "node scripts/internal-proof-auth-smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
