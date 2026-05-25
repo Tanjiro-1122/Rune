@@ -12,4 +12,12 @@ const nextConfig: NextConfig = {
   },
 };
 
+export const config = {
+  api: {
+    "/api/chat": {
+      maxDuration: 60,
+    },
+  },
+};
+
 export default nextConfig;
