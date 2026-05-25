@@ -221,7 +221,7 @@ function useStats() {
   useEffect(() => {
     // Fetch proposals for PR counts
     fetch("/api/repo-actions?limit=50")
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`repo-actions ${r.status}`); return r.json(); })
       .then(d => {
         const proposals: any[] = d.proposals ?? [];
         const openPRs = proposals.filter((p: any) => p.status === "proposed" || p.status === "approved").length;
@@ -232,12 +232,12 @@ function useStats() {
 
     // Fetch last deploy from /api/deploy-health
     fetch("/api/deploy-health")
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`deploy-health ${r.status}`); return r.json(); })
       .then(d => {
         const state = d?.deployment?.readyState ?? d?.state ?? null;
         setStats(prev => ({ ...prev, lastDeploy: state === "READY" ? "✓ live" : state ?? "—" }));
       })
-      .catch(() => {});
+      .catch(() => setStats(prev => ({ ...prev, lastDeploy: "—" })));
   }, []);
 
   return stats;
@@ -251,6 +251,7 @@ export default function RuneCommandCenter() {
   const [input, setInput]                 = useState("");
   const [pulseOn, setPulseOn]             = useState(true);
   const [activityFeed, setActivityFeed]   = useState<any[]>([]);
+  const [isMobile, setIsMobile]           = useState(false);
   const stats = useStats();
   // Chat bar state
   const [chatMessages, setChatMessages]   = useState<Array<{role:"user"|"assistant"; content:string}>>([]);
@@ -263,13 +264,20 @@ export default function RuneCommandCenter() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   // Home activity feed — live from /api/actions
   useEffect(() => {
     if (activeNav !== "home") return;
     fetch("/api/actions?limit=8")
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`actions ${r.status}`); return r.json(); })
       .then(d => setActivityFeed(d.events ?? []))
-      .catch(() => {});
+      .catch(() => setActivityFeed([]));
   }, [activeNav]);
 
   const proj = PROJECTS.find(p => p.key === activeProject)!;
@@ -395,28 +403,39 @@ export default function RuneCommandCenter() {
   }
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"48px 200px 1fr", gridTemplateRows:"44px 1fr", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
+    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "48px 200px 1fr", gridTemplateRows:"44px 1fr", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
 
       {/* Topbar */}
       <div style={{ gridColumn:"1 / -1", background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", padding:"0 16px", gap:12 }}>
         <div style={{ width:26, height:26, borderRadius:5, background:"#111", border:"1px solid #2a2a2a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"#c0392b", fontWeight:700 }}>R</div>
         <span style={{ fontSize:12, fontWeight:600, color:"#e8e8e8", letterSpacing:"0.05em" }}>RUNE</span>
         <span style={{ fontSize:10, color:"#333", marginLeft:2 }}>command center</span>
-        <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
-          {PROJECTS.map(p => (
-            <button key={p.key} onClick={() => setActiveProject(p.key)}
-              style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit" }}
-            >{p.label}</button>
-          ))}
-        </div>
+        {!isMobile && (
+          <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+            {PROJECTS.map(p => (
+              <button key={p.key} onClick={() => setActiveProject(p.key)}
+                style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit" }}
+              >{p.label}</button>
+            ))}
+          </div>
+        )}
         <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:16 }}>
           <div style={{ width:6, height:6, borderRadius:"50%", background: pulseOn ? "#27ae60" : "#1a6b35", transition:"background 0.4s" }} />
-          <span style={{ fontSize:10, color:"#444" }}>all systems healthy</span>
+          {!isMobile && <span style={{ fontSize:10, color:"#444" }}>all systems healthy</span>}
         </div>
+        {isMobile && (
+          <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"6px 16px 8px", scrollbarWidth:"none" } as React.CSSProperties}>
+            {PROJECTS.map(p => (
+              <button key={p.key} onClick={() => setActiveProject(p.key)}
+                style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border: activeProject===p.key ? `1px solid ${p.color}` : "1px solid #222", background: activeProject===p.key ? p.color+"22" : "transparent", color: activeProject===p.key ? p.color : "#555", cursor:"pointer", fontFamily:"inherit", flexShrink:0, whiteSpace:"nowrap" }}
+              >{p.label}</button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Nav rail */}
-      <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
+      {/* Nav rail — hidden on mobile */}
+      {!isMobile && <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
         {NAV.map((n, i) => (
           <div key={n.id}>
             {i === 4 && <div style={{ width:28, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
@@ -428,10 +447,10 @@ export default function RuneCommandCenter() {
         <button onClick={() => router.push("/vault")} title="Settings / Vault"
           style={{ marginTop:"auto", width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
         >⚙</button>
-      </div>
+      </div>}
 
-      {/* Sidebar */}
-      <div style={{ gridRow:2, background:"#0b0b0b", borderRight:"1px solid #141414", overflowY:"auto", padding:"14px 0" }}>
+      {/* Sidebar — hidden on mobile */}
+      {!isMobile && <div style={{ gridRow:2, background:"#0b0b0b", borderRight:"1px solid #141414", overflowY:"auto", padding:"14px 0" }}>
         {[
           { label:"Repo control", items:[
             { icon:"⎇", text:"Open PRs",        badge: stats.openPRs !== "—" ? stats.openPRs : "—", bc:"#c0392b", onClick: () => setActiveNav("repo")     },
@@ -458,7 +477,7 @@ export default function RuneCommandCenter() {
             ))}
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Main panel */}
       <div style={{ gridRow:2, display:"flex", flexDirection:"column", background:"#0e0e0e", overflow:"hidden" }}>
@@ -506,6 +525,19 @@ export default function RuneCommandCenter() {
             style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
           >↑</button>
         </div>
+        {/* Mobile bottom nav bar */}
+        {isMobile && (
+          <div style={{ borderTop:"1px solid #141414", display:"flex", background:"#080808", padding:"4px 0", flexShrink:0 }}>
+            {NAV.map(n => (
+              <button key={n.id} onClick={() => setActiveNav(n.id)}
+                style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 0", border:"none", background:"transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", cursor:"pointer", fontFamily:"inherit" }}
+              >
+                <span style={{ fontSize:16 }}>{n.icon}</span>
+                <span style={{ fontSize:8, letterSpacing:"0.05em" }}>{n.label.split(" ")[0].toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
