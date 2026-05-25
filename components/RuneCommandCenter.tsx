@@ -589,7 +589,33 @@ export default function RuneCommandCenter() {
   const [chatMessages, setChatMessages]   = useState<Array<{role:"user"|"assistant"; content:string}>>([]);
   const [chatSending, setChatSending]     = useState(false);
   const [chatError, setChatError]         = useState<string|null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const chatEndRef                        = useRef<HTMLDivElement>(null);
+
+  // Load recent conversation history on mount so Rune remembers context
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/history?limit=20");
+        if (!res.ok) return;
+        const data = await res.json();
+        // history API returns { messages: [{role, content}] } or an array directly
+        const msgs: Array<{role:"user"|"assistant"; content:string}> = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.messages)
+            ? data.messages
+            : [];
+        if (msgs.length) {
+          // Keep only user/assistant roles, last 20
+          const filtered = msgs
+            .filter((m: any) => m.role === "user" || m.role === "assistant")
+            .slice(-20);
+          setChatMessages(filtered);
+        }
+      } catch { /* history load is best-effort — silent fail */ }
+      finally { setHistoryLoaded(true); }
+    })();
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setPulseOn(p => !p), 1200);
