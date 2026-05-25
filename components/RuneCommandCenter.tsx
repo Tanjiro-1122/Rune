@@ -906,7 +906,7 @@ function HamburgerDesktopLayout({
               {/* Quick actions */}
               <div style={{ padding:"8px 12px 4px", fontSize:9, color:"#333", letterSpacing:"0.1em", textTransform:"uppercase" }}>Quick actions</div>
               {[
-                { icon:"+", text:"Create file", action: () => { setActiveNav("repo"); setMenuOpen(false); } },
+                { icon:"+", text:"Create file", action: () => { setActiveNav("home"); setMenuOpen(false); } },
                 { icon:"✎", text:"Edit file",   action: () => { setActiveNav("repo"); setMenuOpen(false); } },
                 { icon:"↑", text:"Deploy",      action: () => { setActiveNav("deploy"); setMenuOpen(false); } },
               ].map(item => (
@@ -941,23 +941,47 @@ function HamburgerDesktopLayout({
         </div>
       </div>
 
-      {/* Icon rail — 56px, hover tooltips only, no sidebar */}
+      {/* Icon rail — 56px, styled hover tooltip spans */}
       <div style={{ gridRow:2, background:"#080808", borderRight:"1px solid #141414", display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0", gap:2 }}>
         {NAV.map((n, i) => (
-          <div key={n.id}>
+          <div key={n.id} style={{ position:"relative" }}
+            onMouseEnter={e => {
+              const tip = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".rail-tip");
+              if (tip) tip.style.opacity="1";
+            }}
+            onMouseLeave={e => {
+              const tip = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".rail-tip");
+              if (tip) tip.style.opacity="0";
+            }}
+          >
             {i === 4 && <div style={{ width:32, height:1, background:"#1e1e1e", margin:"4px 0" }} />}
-            <button onClick={() => setActiveNav(n.id)} title={n.label}
+            <button onClick={() => setActiveNav(n.id)}
               style={{ width:38, height:38, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background: activeNav===n.id ? "#1e0a0a" : "transparent", color: activeNav===n.id ? "#c0392b" : "#3a3a3a", fontSize:16, fontFamily:"inherit", transition:"color 0.15s, background 0.15s" }}
               onMouseEnter={e => { if (activeNav!==n.id) { (e.currentTarget as HTMLElement).style.color="#888"; (e.currentTarget as HTMLElement).style.background="#111"; } }}
               onMouseLeave={e => { if (activeNav!==n.id) { (e.currentTarget as HTMLElement).style.color="#3a3a3a"; (e.currentTarget as HTMLElement).style.background="transparent"; } }}
             >{n.icon}</button>
+            {/* Tooltip */}
+            <span className="rail-tip" style={{ position:"absolute", left:"calc(100% + 8px)", top:"50%", transform:"translateY(-50%)", background:"#161616", border:"1px solid #2a2a2a", borderRadius:5, padding:"3px 8px", fontSize:10, color:"#aaa", whiteSpace:"nowrap", pointerEvents:"none", opacity:0, transition:"opacity 0.12s", zIndex:200 }}>{n.label}</span>
           </div>
         ))}
-        <button onClick={() => router.push("/vault")} title="Settings / Vault"
-          style={{ marginTop:"auto", width:38, height:38, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color="#666"; (e.currentTarget as HTMLElement).style.background="#111"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color="#2a2a2a"; (e.currentTarget as HTMLElement).style.background="transparent"; }}
-        >⚙</button>
+        {/* Settings gear */}
+        <div style={{ position:"relative", marginTop:"auto" }}
+          onMouseEnter={e => {
+            const tip = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".rail-tip");
+            if (tip) tip.style.opacity="1";
+          }}
+          onMouseLeave={e => {
+            const tip = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".rail-tip");
+            if (tip) tip.style.opacity="0";
+          }}
+        >
+          <button onClick={() => router.push("/vault")}
+            style={{ width:38, height:38, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"none", background:"transparent", color:"#2a2a2a", fontSize:16, fontFamily:"inherit" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color="#666"; (e.currentTarget as HTMLElement).style.background="#111"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color="#2a2a2a"; (e.currentTarget as HTMLElement).style.background="transparent"; }}
+          >⚙</button>
+          <span className="rail-tip" style={{ position:"absolute", left:"calc(100% + 8px)", top:"50%", transform:"translateY(-50%)", background:"#161616", border:"1px solid #2a2a2a", borderRadius:5, padding:"3px 8px", fontSize:10, color:"#aaa", whiteSpace:"nowrap", pointerEvents:"none", opacity:0, transition:"opacity 0.12s", zIndex:200 }}>Settings / Vault</span>
+        </div>
       </div>
 
       {/* Main panel */}
