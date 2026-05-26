@@ -458,9 +458,14 @@ function isRepoControlCommand(input: string) {
   return explicitRepoControl || naturalCodeChange || directPrRequest;
 }
 
+function isImageIntent(input: string) {
+  return /\b(generate|create|make|draw|design)\b[\s\S]*\b(image|picture|photo|avatar|logo|mascot|icon|illustration|graphic)\b/i.test(input);
+}
+
 function isSimpleBuilderIntent(input: string) {
   return /\b(build|make|create|add|implement|fix|improve|wire|turn .* into|make .* viable)\b/i.test(input)
-    && /\b(app|feature|page|tool|builder|dashboard|ui|screen|flow|repo|rune|unfiltr|swh|sports wager|family|code|pr)\b/i.test(input);
+    && /\b(app|feature|page|tool|builder|dashboard|ui|screen|flow|repo|rune|unfiltr|swh|sports wager|family|code|pr)\b/i.test(input)
+    && !/\b(image|picture|photo|avatar|logo|mascot|icon|illustration)\b/i.test(input);
 }
 
 function hasMathExpression(input: string) {
@@ -546,7 +551,8 @@ function getForcedToolChoice(
         | "get_rune_self_audit_snapshot"
         | "get_tool_lifecycle_diagnostic"
         | "execute_rune_session_merge"
-        | "run_safe_file_create_flow";
+        | "run_safe_file_create_flow"
+        | "generate_image";
     }
   | null {
   if (isApprovedRuneSessionMergeIntent(input)) {
@@ -566,6 +572,9 @@ function getForcedToolChoice(
   }
   if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     return { type: "tool", toolName: "execute_code" };
+  }
+  if (isImageIntent(input)) {
+    return { type: "tool", toolName: "generate_image" };
   }
   // calculate, datetime, and github_analysis are NOT forced here.
   // Forcing a tool applies to EVERY step including the post-tool synthesis step,
@@ -591,6 +600,8 @@ function buildRoutingHint(input: string, codeExecutionAvailable: boolean) {
 
   if (isApprovedRuneSessionMergeIntent(input)) {
     hints.push("- Strong routing signal: exact Rune session merge approval phrase detected, so call `execute_rune_session_merge` with that exact approval phrase. Do not call capability snapshot first.");
+  } else if (isImageIntent(input)) {
+    hints.push("- Strong routing signal: this is an image generation request, so use `generate_image`. Do not route image/avatar/logo/mascot/icon/illustration requests into repo/app-builder flows unless Javier explicitly asks to edit repository code.");
   } else if (isCodeExecutionIntent(input, codeExecutionAvailable)) {
     hints.push(
       "- Strong routing signal: this request is execution-oriented, so use `execute_code` before giving analysis."
@@ -636,6 +647,10 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
 
   // Tiny always-on core. Keep this lean: every tool schema costs prompt tokens.
   add("calculate");
+
+  if (isImageIntent(input)) {
+    add("generate_image");
+  }
 
   if (hasAny(["what can you do", "capabilit", "what are you able", "what tools", "what setup"])) {
     add("get_rune_capability_snapshot");
@@ -695,7 +710,7 @@ function selectToolsForRequest(input: string, tools: Record<string, any>): Recor
   }
 
   // Simple Builder / Repo action tools — wire for natural language build/code requests.
-  if (isSimpleBuilderIntent(input)) {
+  if (isSimpleBuilderIntent(input) && !isImageIntent(input)) {
     add("simple_builder");
     add("run_repo_control_flow");
     add("readRepositoryFile");
@@ -3779,7 +3794,7 @@ That's a consultant's pitch, not an operator's answer. Instead:
       messages: convertToCoreMessages(formattedMessages as unknown as UIMessage[]),
       tools: selectedTools,
       toolChoice: forcedToolChoice ?? "auto",
-      maxSteps: 12, // Pro plan: allow deeper tool chains for complex tasks
+      maxSteps: isRepoControlCommand(latestUserText) ? 10 : 5,
       // experimental_continueSteps removed — maxSteps handles multi-step continuation in AI SDK 4.xs
       onStepFinish: async ({ stepType, toolCalls, toolResults }) => {
         // Log each tool call as a workspace_task_step for audit + resumeTask/retryLastFailedStep
