@@ -663,6 +663,7 @@ function RuneMobileLayout({
         ))}
       </div>
     </div>
+    </>
   );
 }
 
