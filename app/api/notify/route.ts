@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       type: type ?? "info",
       title: title ?? "Rune",
       body: body ?? "",
+      read: false,
       metadata: proposalId ? { proposalId } : {},
       created_at: new Date().toISOString(),
     });
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET — poll for new notifications since a timestamp */
+/** GET — poll for unread notifications, mark them read after fetching */
 export async function GET(req: NextRequest) {
   try {
     const since = req.nextUrl.searchParams.get("since") ?? new Date(0).toISOString();
@@ -33,14 +34,27 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseClient();
     if (!supabase) return NextResponse.json({ items: [] });
 
+    // Fetch unread rows newer than since
     const { data } = await supabase
       .from("rune_outbox")
       .select("id, type, title, body, metadata, created_at")
+      .eq("read", false)
       .gt("created_at", since)
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(20);
 
-    return NextResponse.json({ items: data ?? [] });
+    const items = data ?? [];
+
+    // Mark fetched rows as read
+    if (items.length > 0) {
+      const ids = items.map((n: any) => n.id);
+      await supabase
+        .from("rune_outbox")
+        .update({ read: true })
+        .in("id", ids);
+    }
+
+    return NextResponse.json({ items });
   } catch {
     return NextResponse.json({ items: [] });
   }
