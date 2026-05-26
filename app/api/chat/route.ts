@@ -3155,6 +3155,9 @@ Action: ${action.id}`,
           };
         } catch (e) {
           return { error: e instanceof Error ? e.message : "Stats failed" };
+        }
+      },
+    }),
 
     mergeBranch: tool({
       description: "Merge a branch into another branch in a GitHub repo. Use this for hotfixes and branch merges.",
