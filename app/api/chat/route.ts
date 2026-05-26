@@ -2,6 +2,7 @@ import { getRuneRuntimeIdentity } from "@/lib/project-runtime";
 import { loadEnabledSkills } from "@/lib/skills";
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { proposeAction, approveProposal, listHandsProposals } from "@/lib/hands";
 import { Octokit } from "@octokit/rest";
 import { z } from "zod";
@@ -3154,7 +3155,27 @@ Action: ${action.id}`,
           };
         } catch (e) {
           return { error: e instanceof Error ? e.message : "Stats failed" };
-        }
+
+    mergeBranch: tool({
+      description: "Merge a branch into another branch in a GitHub repo. Use this for hotfixes and branch merges.",
+      parameters: z.object({
+        repo: z.string().describe("owner/repo format"),
+        head: z.string().describe("branch to merge FROM"),
+        base: z.string().default("main").describe("branch to merge INTO"),
+        commitMessage: z.string().optional(),
+      }),
+      execute: async ({ repo, head, base, commitMessage }) => {
+        const token = process.env.GITHUB_TOKEN || process.env.RUNE_GITHUB_TOKEN || process.env.JARVIS_GITHUB_TOKEN;
+        if (!token) return { error: "No GitHub token" };
+        const [owner, repoName] = repo.split("/");
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repoName}/merges`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ base, head, commit_message: commitMessage || `Merge ${head} into ${base}` }),
+        });
+        const data = await res.json();
+        if (!res.ok) return { error: data.message || "Merge failed", status: res.status };
+        return { ok: true, sha: data.sha, message: data.commit?.message };
       },
     }),
   };
@@ -3512,6 +3533,32 @@ export async function POST(req: Request) {
         }
       } catch { /* silent — memory is best-effort */ }
     }
+    // Fix 5: Priority briefing — surface high-priority recent memories at top of system prompt
+    let priorityBriefing = "";
+    try {
+      const { getSupabaseClient: _sbPrio } = await import("@/lib/supabase");
+      const sbPrio = _sbPrio();
+      if (sbPrio) {
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+        const { data: prioMems } = await sbPrio
+          .from("agent_memories")
+          .select("title, content, priority")
+          .eq("is_active", true)
+          .gte("priority", 90)
+          .gte("created_at", twelveHoursAgo)
+          .order("priority", { ascending: false })
+          .limit(3);
+        if (prioMems?.length) {
+          priorityBriefing = "PRIORITY BRIEFING:
+" +
+            prioMems.map((m: any) => `${m.title}: ${m.content?.slice(0, 400) ?? ""}`).join("
+") + "
+
+";
+        }
+      }
+    } catch { /* silent */ }
+
     const resolvedSkillTools: Record<string, any> =
       skillTools.status === "fulfilled" ? skillTools.value : {};
     const resolvedMemoryContext =
@@ -3560,9 +3607,9 @@ ${resolvedRetrieval
     const shouldEscalateModel =
       isCodeExecutionIntent(latestUserText, codeExecution.available) ||
       /(deep coding|large refactor|multi-file|architecture|architectural|full audit|complex debugging)/i.test(latestUserText);
-    // Normal chat must stay on mini to avoid GPT-4.1 TPM crashes. Use RUNE_FORCE_CHAT_MODEL only for deliberate temporary overrides.
+    // Model: Claude Sonnet 4-5 — switched from GPT-4.1 for better tool-first adherence
     const forcedChatModel = process.env.RUNE_FORCE_CHAT_MODEL;
-    const CHAT_MODEL = forcedChatModel || (shouldEscalateModel ? "gpt-4.1" : "gpt-4.1-mini");
+    const CHAT_MODEL = forcedChatModel || "claude-sonnet-4-5";
     const projectRegistrySection = buildProjectRegistryPromptSection();
     const requestNow = new Date();
     const currentDateTimeSection = `## Current Date/Time Context
@@ -3579,10 +3626,10 @@ ${resolvedRetrieval
       systemApproxChars: workspaceContextSection.length + memoryRoutingSection.length + ownerMemorySection.length + resolvedSupabaseMemory.length + resolvedMemoryContext.length + projectRegistrySection.length + currentDateTimeSection.length,
     });
     const result = streamText({
-      model: openai(CHAT_MODEL),
+      model: process.env.RUNE_FORCE_CHAT_MODEL ? openai(process.env.RUNE_FORCE_CHAT_MODEL) : anthropic(CHAT_MODEL),
       maxTokens: 16384, // Raised: 8k was too low — 12k+ system prompt left no room for output
       temperature: 0.65, // natural, direct, human-sounding responses
-      system: `You are Rune — Javier's private AI operator. You're his developer, co-pilot, business analyst, and fixer. Javier is the sole owner, builder, and user of every project you manage.
+      system: `${priorityBriefing}You are Rune — Javier's private AI operator. You're his developer, co-pilot, business analyst, and fixer. Javier is the sole owner, builder, and user of every project you manage.
 
 ## OWNER TRUST MODEL
 Javier is the ONLY person who uses you. There are no other users. He has full unconditional trust.
@@ -3686,7 +3733,14 @@ ${resolvedMemoryContext ? resolvedMemoryContext : ""}
 - REPO HALLUCINATION BAN: Never infer success from user approval or from a proposal being created. Approval is NOT execution. A proposal is NOT a commit. A task marked "approved" is NOT a task marked "executed". If the execution step was never called or returned ok: false, say so plainly.
 - REPO VERIFICATION MANDATE: After any repo write operation (create file, delete file, update file, push, merge, deploy)
 - CHUNKED FILE READING: For files over 300 lines, ALWAYS use readRepositoryFileChunked instead of readRepositoryFile. First call getFileLineCount to know total size. Read in 200-line chunks until hasMore is false. Never attempt to read a large file in one shot. ZERO EXCEPTIONS: never describe file contents without having called a file-reading tool first in this session. You do not know what is in the file until you read it.
-- NO NARRATION BEFORE TOOL CALL: When the user asks you to read a file, check a line count, or search code — your FIRST output must be the tool call itself. Do NOT write any text before calling the tool. No "I'll do that now", no "Getting the line count", no "Let me check." Tool first. Words after.
+ABSOLUTE RULE — TOOLS BEFORE TEXT:
+When any file, repo, or code task is requested, your FIRST token must be a tool call.
+Not a sentence. Not "I'll". Not "Reading". A tool call.
+If you catch yourself writing ANY text before calling getFileLineCount,
+readRepositoryFileChunked, readRepositoryFile, or writeRepositoryFile —
+STOP. Delete it. Call the tool first.
+Violation of this rule means the task failed before it started.
+Code 1122 is valid for the entire session — never ask for it twice.
 - MATH TOOL BAN FOR REPO TASKS: NEVER call the calculate tool when the request involves a file, repo, line count, or code. If you are about to call calculate for a repo/file task, stop and call getFileLineCount, readRepositoryFileChunked, or searchRepositoryCode instead. If you already called calculate by mistake, say exactly: "Wrong tool — fixing now." Then call the correct tool immediately.
 - WRITE TOOL PROTOCOL: After any writeRepositoryFile, batchWriteFiles, or replaceFileLines call, immediately call verifyFileChange to confirm the change landed. Never say the file changed without a verifyFileChange result.
 - BUILD VERIFICATION: After any commit that affects running code, call checkVercelBuildStatus to confirm the deployment succeeded. Never say a deployment is live without this check.
