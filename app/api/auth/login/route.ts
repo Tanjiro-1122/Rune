@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createSessionCookieValue,
   getAppPassword,
+  getSessionCookieOptions,
   getMissingAuthConfigVars,
   getSessionMaxAgeSeconds,
   getSessionSecret,
@@ -139,13 +140,7 @@ export async function POST(req: NextRequest) {
   });
 
   const response = NextResponse.json({ ok: true, expiresAt: new Date(expiresAtMs).toISOString() });
-  response.cookies.set(SESSION_COOKIE, cookieValue, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge,
-    path: "/",
-  });
+  response.cookies.set(SESSION_COOKIE, cookieValue, getSessionCookieOptions(maxAge));
 
   return response;
 }

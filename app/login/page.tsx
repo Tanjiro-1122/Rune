@@ -40,13 +40,16 @@ function LoginForm() {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
 
       if (res.ok) {
-        router.push(nextPath);
-        router.refresh();
+        // Mobile Safari/PWA contexts can race cookie persistence with client-side
+        // router navigation. A real navigation gives WebKit a clean request cycle
+        // with the freshly-set owner cookie attached.
+        window.location.assign(nextPath);
       } else {
         const data = await res.json();
         setError(data.error || "Invalid password.");

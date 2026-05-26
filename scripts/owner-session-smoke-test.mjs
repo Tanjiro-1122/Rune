@@ -54,5 +54,5 @@ const middleware = fs.readFileSync("middleware.ts", "utf8");
 const loginPage = fs.readFileSync("app/login/page.tsx", "utf8");
 assert(middleware.includes('loginUrl.searchParams.set("next", requestedPath)'), "middleware preserves intended destination on login redirects");
 assert(loginPage.includes("getSafeNextPath"), "login page sanitizes next destination");
-assert(loginPage.includes('router.push(nextPath)'), "login redirects back to the intended safe destination");
+assert(loginPage.includes('window.location.assign(nextPath)'), "login redirects back to the intended safe destination with a full mobile-safe navigation");
 assert(loginPage.includes("Your Rune session expired"), "login explains expired sessions clearly");
