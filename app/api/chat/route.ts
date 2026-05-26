@@ -3,7 +3,6 @@ import { loadEnabledSkills } from "@/lib/skills";
 import { streamText, UIMessage, convertToCoreMessages, tool } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
-const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 import { proposeAction, approveProposal, listHandsProposals } from "@/lib/hands";
 import { Octokit } from "@octokit/rest";
 import { z } from "zod";
@@ -82,6 +81,8 @@ import { runAppCreatorPipeline } from "@/lib/app-creator-pipeline";
 import { runOperatorExecutorBridge } from "@/lib/operator-executor";
 import { runSafeTextEditFlow } from "@/lib/safe-text-edit-flow";
 import { runSafeFileCreateFlow } from "@/lib/safe-file-create-flow";
+
+const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export const maxDuration = 60; // model: gpt-4.1 | last-patched: 2026-05-20 //5-19T16:59Z // Multi-step agent execution requires up to 60 s; needs Vercel Pro or higher.
 const MAX_SESSION_ID_LENGTH = 128;
