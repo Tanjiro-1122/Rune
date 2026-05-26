@@ -43,6 +43,26 @@ export function getSessionMaxAgeSeconds(): number {
   return DEFAULT_SESSION_MAX_AGE_SECONDS;
 }
 
+
+export function shouldUseSecureSessionCookie(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+}
+
+export function getSessionCookieOptions(maxAge: number) {
+  const secure = shouldUseSecureSessionCookie();
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? "none" as const : "lax" as const,
+    maxAge,
+    path: "/",
+  };
+}
+
+export function getExpiredSessionCookieOptions() {
+  return getSessionCookieOptions(0);
+}
+
 export function getMissingAuthConfigVars(): string[] {
   const missing: string[] = [];
 
