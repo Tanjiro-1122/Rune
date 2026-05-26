@@ -502,6 +502,7 @@ function RuneMobileLayout({
   sendChat, chatEndRef,
   pulseOn, stats,
   activityFeed,
+  isStreaming, stopChat,
 }: {
   activeNav: string; setActiveNav: (n: string) => void;
   activeProject: string; setActiveProject: (p: string) => void;
@@ -513,6 +514,8 @@ function RuneMobileLayout({
   pulseOn: boolean;
   stats: { openPRs:string; lastDeploy:string; pendingApproval:string; tokenExpiry:string };
   activityFeed: any[];
+  isStreaming: boolean;
+  stopChat: () => void;
 }) {
   function renderPanel() {
     switch (activeNav) {
@@ -562,6 +565,8 @@ function RuneMobileLayout({
   }
 
   return (
+    <>
+    <style>{`@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.2; } }`}</style>
     <div style={{ display:"flex", flexDirection:"column", minHeight:"100dvh", height:"100dvh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden", paddingBottom:"calc(env(safe-area-inset-bottom, 20px) + 60px)" }}>
       {/* Header */}
       <div style={{ background:"#080808", borderBottom:"1px solid #1a1a1a", display:"flex", flexDirection:"column", flexShrink:0, paddingTop:"env(safe-area-inset-top, 44px)" }}>
@@ -617,6 +622,12 @@ function RuneMobileLayout({
       )}
 
       {/* Chat bar */}
+      {isStreaming && (
+        <div style={{ padding:"4px 14px", background:"#090909", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+          <div style={{ width:6, height:6, borderRadius:"50%", background:"#c0392b", animation:"pulse 1s infinite" }} />
+          <span style={{ fontSize:9, color:"#555", letterSpacing:"0.06em" }}>RUNE IS THINKING…</span>
+        </div>
+      )}
       <div style={{ borderTop:"1px solid #141414", padding:"10px 14px", paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))", display:"flex", alignItems:"center", gap:8, background:"#090909", flexShrink:0 }}>
         <input
           value={input}
@@ -625,11 +636,19 @@ function RuneMobileLayout({
           placeholder="Ask Rune anything…"
           style={{ flex:1, background:"#111", border:"1px solid #1e1e1e", borderRadius:6, padding:"7px 11px", fontSize:11, color:"#d4d4d4", outline:"none", fontFamily:"inherit" }}
         />
-        <button
-          onClick={sendChat}
-          disabled={chatSending || !input.trim()}
-          style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
-        >↑</button>
+        {isStreaming ? (
+          <button
+            onClick={stopChat}
+            style={{ width:30, height:30, borderRadius:6, background:"#c0392b", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}
+            title="Stop response"
+          >■</button>
+        ) : (
+          <button
+            onClick={sendChat}
+            disabled={chatSending || !input.trim()}
+            style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
+          >↑</button>
+        )}
       </div>
 
       {/* Bottom nav */}
@@ -660,6 +679,8 @@ export default function RuneCommandCenter() {
   // Chat bar state
   const [chatMessages, setChatMessages]   = useState<Array<{role:"user"|"assistant"; content:string}>>([]);
   const [chatSending, setChatSending]     = useState(false);
+  const [isStreaming, setIsStreaming]     = useState(false);
+  const abortControllerRef               = useRef<AbortController | null>(null);
   const [chatError, setChatError]         = useState<string|null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const chatEndRef                        = useRef<HTMLDivElement>(null);
@@ -752,12 +773,16 @@ export default function RuneCommandCenter() {
     const userMsg = { role: "user" as const, content: text };
     setChatMessages(prev => [...prev, userMsg]);
     setChatSending(true);
+    setIsStreaming(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     try {
       const allMessages = [...chatMessages, userMsg];
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: allMessages }),
+        signal: controller.signal,
       });
       if (!res.ok || !res.body) {
         const err = await res.text().catch(() => "Request failed");
@@ -800,11 +825,26 @@ export default function RuneCommandCenter() {
         }
       }
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Chat failed");
-      setChatMessages(prev => prev.slice(0, -1)); // remove empty assistant bubble
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setChatMessages(prev => {
+          // replace trailing empty assistant bubble with stopped message
+          const msgs = [...prev];
+          if (msgs.length && msgs[msgs.length-1].role === "assistant" && !msgs[msgs.length-1].content) {
+            msgs[msgs.length-1] = { role: "assistant", content: "Response stopped." };
+          } else {
+            msgs.push({ role: "assistant", content: "Response stopped." });
+          }
+          return msgs;
+        });
+      } else {
+        setChatError(err instanceof Error ? err.message : "Chat failed");
+        setChatMessages(prev => prev.slice(0, -1));
+      }
     } finally {
       setChatSending(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   }
 
@@ -863,6 +903,10 @@ export default function RuneCommandCenter() {
     );
   }
 
+  const stopChat = () => {
+    abortControllerRef.current?.abort();
+  };
+
   if (isMobile) return <RuneMobileLayout
     activeNav={activeNav} setActiveNav={setActiveNav}
     activeProject={activeProject} setActiveProject={setActiveProject}
@@ -871,6 +915,7 @@ export default function RuneCommandCenter() {
     sendChat={sendChat} chatEndRef={chatEndRef}
     pulseOn={pulseOn} stats={stats}
     activityFeed={activityFeed}
+    isStreaming={isStreaming} stopChat={stopChat}
   />;
 
   return (
@@ -922,6 +967,8 @@ function HamburgerDesktopLayout({
   }, [menuOpen]);
 
   return (
+    <>
+    <style>{`@keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.3; transform:scale(1.3); } }`}</style>
     <div style={{ display:"grid", gridTemplateColumns:"56px 1fr", gridTemplateRows:"44px 1fr", minHeight:"100dvh", height:"100vh", background:"#0a0a0a", fontFamily:"'JetBrains Mono','Fira Code',monospace", color:"#d4d4d4", overflow:"hidden" }}>
 
       {/* Toast banner */}
@@ -1088,6 +1135,12 @@ function HamburgerDesktopLayout({
             <div ref={chatEndRef} />
           </div>
         )}
+        {isStreaming && (
+          <div style={{ padding:"4px 16px 0", background:"#090909", display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:"#c0392b", animation:"pulse 1s infinite" }} />
+            <span style={{ fontSize:9, color:"#555", letterSpacing:"0.06em" }}>RUNE IS THINKING…</span>
+          </div>
+        )}
         <div style={{ borderTop:"1px solid #141414", padding:"10px 16px", paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))", display:"flex", alignItems:"center", gap:10, background:"#090909" }}>
           <input
             value={input}
@@ -1096,11 +1149,19 @@ function HamburgerDesktopLayout({
             placeholder="Ask Rune anything…"
             style={{ flex:1, background:"#111", border:"1px solid #1e1e1e", borderRadius:6, padding:"7px 12px", fontSize:11, color:"#d4d4d4", outline:"none", fontFamily:"inherit" }}
           />
-          <button
-            onClick={sendChat}
-            disabled={chatSending || !input.trim()}
-            style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
-          >↑</button>
+          {isStreaming ? (
+            <button
+              onClick={() => { abortControllerRef.current?.abort(); }}
+              style={{ width:30, height:30, borderRadius:6, background:"#c0392b", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}
+              title="Stop response"
+            >■</button>
+          ) : (
+            <button
+              onClick={sendChat}
+              disabled={chatSending || !input.trim()}
+              style={{ width:30, height:30, borderRadius:6, background: chatSending||!input.trim() ? "#3a1010" : "#c0392b", border:"none", color:"#fff", cursor: chatSending||!input.trim() ? "not-allowed" : "pointer", fontSize:14 }}
+            >↑</button>
+          )}
         </div>
 
       </div>
