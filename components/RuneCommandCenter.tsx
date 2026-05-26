@@ -929,6 +929,7 @@ export default function RuneCommandCenter() {
       pulseOn={pulseOn} stats={stats} toasts={toasts} setToasts={setToasts}
       proj={proj} router={router}
       renderMainContent={renderMainContent}
+      isStreaming={isStreaming} stopChat={stopChat}
     />
   );
 }
@@ -938,7 +939,7 @@ function HamburgerDesktopLayout({
   activeNav, setActiveNav, activeProject, setActiveProject,
   input, setInput, chatMessages, chatSending, chatError,
   sendChat, chatEndRef, pulseOn, stats, toasts, setToasts, proj, router,
-  renderMainContent,
+  renderMainContent, isStreaming, stopChat,
 }: {
   activeNav: string; setActiveNav: (n: string) => void;
   activeProject: string; setActiveProject: (p: string) => void;
@@ -951,6 +952,7 @@ function HamburgerDesktopLayout({
   setToasts: (fn: (prev: any[]) => any[]) => void;
   proj: typeof PROJECTS[0]; router: ReturnType<typeof useRouter>;
   renderMainContent: () => React.ReactNode;
+  isStreaming: boolean; stopChat: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1152,7 +1154,7 @@ function HamburgerDesktopLayout({
           />
           {isStreaming ? (
             <button
-              onClick={() => { abortControllerRef.current?.abort(); }}
+              onClick={stopChat}
               style={{ width:30, height:30, borderRadius:6, background:"#c0392b", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}
               title="Stop response"
             >■</button>
