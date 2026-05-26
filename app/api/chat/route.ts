@@ -3552,12 +3552,8 @@ export async function POST(req: Request) {
           .order("priority", { ascending: false })
           .limit(3);
         if (prioMems?.length) {
-          priorityBriefing = "PRIORITY BRIEFING:
-" +
-            prioMems.map((m: any) => `${m.title}: ${m.content?.slice(0, 400) ?? ""}`).join("
-") + "
-
-";
+          priorityBriefing = `PRIORITY BRIEFING:\n` +
+            prioMems.map((m: any) => `${m.title}: ${m.content?.slice(0, 400) ?? ""}`).join("\n") + "\n\n";
         }
       }
     } catch { /* silent */ }
