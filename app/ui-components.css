@@ -2510,3 +2510,118 @@
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 }
+
+/* Rune private access login scene: uses Javier's provided art as the exact visual,
+   with real accessible controls positioned over the stone password panel. */
+.rune-private-access-login {
+  min-height: 100dvh;
+  width: 100%;
+  padding: 0;
+  background: #05090c;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.rune-private-access-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.rune-private-access-form {
+  position: relative;
+  z-index: 2;
+  width: clamp(150px, 19.6vw, 204px);
+  height: clamp(82px, 9.1vw, 94px);
+  margin-top: clamp(220px, 39.5vh, 310px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(5px, 0.8vw, 8px);
+}
+
+.rune-private-access-input {
+  width: 82%;
+  height: clamp(24px, 3vw, 31px);
+  border: 1px solid rgba(46, 34, 20, 0.5);
+  border-radius: 2px;
+  background: rgba(181, 154, 112, 0.08);
+  color: rgba(44, 35, 23, 0.88);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(11px, 1.1vw, 14px);
+  letter-spacing: 0.01em;
+  outline: none;
+  padding: 0 clamp(10px, 1.2vw, 14px);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.16);
+}
+
+.rune-private-access-input::placeholder {
+  color: rgba(55, 45, 32, 0.5);
+}
+
+.rune-private-access-input:focus {
+  border-color: rgba(236, 201, 137, 0.72);
+  box-shadow: 0 0 0 1px rgba(236, 201, 137, 0.26), inset 0 0 10px rgba(0, 0, 0, 0.18);
+}
+
+.rune-private-access-btn {
+  width: 82%;
+  height: clamp(22px, 2.75vw, 29px);
+  border: 1px solid rgba(45, 33, 21, 0.62);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(143, 119, 80, 0.28), rgba(87, 67, 43, 0.3));
+  color: #f4d987;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: clamp(9px, 0.95vw, 12px);
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+}
+
+.rune-private-access-btn:hover:not(:disabled) {
+  color: #ffe8a3;
+  border-color: rgba(240, 211, 148, 0.72);
+}
+
+.rune-private-access-btn:disabled {
+  opacity: 0.68;
+  cursor: wait;
+}
+
+.rune-private-access-error {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: min(360px, 86vw);
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(231, 177, 105, 0.42);
+  border-radius: 6px;
+  background: rgba(12, 9, 7, 0.78);
+  color: #f8d29a;
+  font-size: 12px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+
+@media (max-width: 700px) {
+  .rune-private-access-art {
+    object-fit: cover;
+    object-position: center top;
+  }
+
+  .rune-private-access-form {
+    width: 185px;
+    height: 90px;
+    margin-top: min(45vh, 285px);
+  }
+}
