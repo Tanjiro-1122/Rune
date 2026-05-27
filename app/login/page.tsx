@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useRef, useState, FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function getSafeNextPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
@@ -18,7 +18,6 @@ function getReasonMessage(reason: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -62,44 +61,29 @@ function LoginForm() {
   }
 
   return (
-    <main className="rune-login-page">
-      {/* Ambient ember glow blobs */}
-      <div className="rune-login-glow rune-login-glow--1" aria-hidden="true" />
-      <div className="rune-login-glow rune-login-glow--2" aria-hidden="true" />
+    <main className="rune-login-page rune-private-access-login" aria-label="Rune Private Access">
+      <img
+        src="/images/rune-private-access-login.png"
+        alt="Rune Private Access"
+        className="rune-private-access-art"
+        draggable={false}
+      />
 
-      <div className="rune-login-card">
-        {/* Wordmark */}
-        <div className="rune-login-brand">
-          <img
-            src="/images/rune-wordmark.png"
-            alt="Rune"
-            className="rune-login-wordmark"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-              const el = document.querySelector(".rune-login-brand-fallback") as HTMLElement;
-              if (el) el.style.display = "block";
-            }}
-          />
-          <span className="rune-login-brand-fallback" aria-hidden="true">Rune</span>
-        </div>
-
-        <p className="rune-login-subtitle">{reasonMessage}</p>
-
-        <form className="rune-login-form" onSubmit={handleSubmit}>
-          <input
-            ref={inputRef}
-            type="password"
-            placeholder="Password"
-            className="rune-login-input"
-            autoFocus
-            autoComplete="current-password"
-          />
-          {error && <p className="rune-login-error">{error}</p>}
-          <button type="submit" className="rune-login-btn" disabled={loading}>
-            {loading ? "Checking…" : "Sign in"}
-          </button>
-        </form>
-      </div>
+      <form className="rune-private-access-form" onSubmit={handleSubmit} aria-label={reasonMessage}>
+        <input
+          ref={inputRef}
+          type="password"
+          placeholder="Password"
+          className="rune-private-access-input"
+          autoFocus
+          autoComplete="current-password"
+          aria-label="Password"
+        />
+        <button type="submit" className="rune-private-access-btn" disabled={loading}>
+          {loading ? "ENTERING" : "ENTER"}
+        </button>
+        {error && <p className="rune-private-access-error">{error}</p>}
+      </form>
     </main>
   );
 }
